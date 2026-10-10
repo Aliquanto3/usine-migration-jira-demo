@@ -7,4 +7,4 @@ Toutes les données sont **fictives ou publiques**. Aucun nom, libellé, gabarit
 - Spécification : [`SPEC-usine-migration-jira-demo.md`](SPEC-usine-migration-jira-demo.md)
 - Artefacts de conception (méthode BMAD) : `_bmad-output/`
 
-Projet en cours de cadrage.
+Projet en cours de cadrage. Licence MIT.

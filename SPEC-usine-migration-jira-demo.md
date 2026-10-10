@@ -1,6 +1,6 @@
 # SPEC — Démonstrateur « Copilote de pilotage d'une usine de migration »
 
-> Version 0.1 — 10/10/2026 — Auteur : Anaël Yahi
+> Version 0.2 — 10/10/2026 — Auteur : Anaël Yahi
 > Statut : à valider (voir § 11 « Questions ouvertes »)
 > Objectif du démonstrateur : **convaincre de fournir l'outillage** (environnement d'exécution, accès API, LLM validé) en montrant, sur des données fictives, ce qu'une chaîne pro code apporte au reporting d'une usine de migration bancaire.
 
@@ -183,11 +183,17 @@ Comme pour le projet précédent : jalons courts, critères d'acceptation vérif
 | Code développé sur temps personnel puis réutilisé chez le client | Décidé le 10/10/2026 : **projet personnel, dépôt public**. Aucune donnée, aucun libellé ni aucune règle réels du client dans le dépôt ; une réutilisation chez le client passe par la licence du dépôt |
 | Site Jira Free désactivé après inactivité prolongée | Script de réinjection idempotent ; données régénérables |
 
-## 11. Questions ouvertes
+## 11. Questions ouvertes et décisions
 
-1. **Grille de météo réelle** : quels critères et seuils font passer une entité au rouge ? Même anonymisée, elle rend la démo crédible.
-2. **Volumétrie** : combien d'anomalies et d'entités, et à quelle fréquence de reporting ? Cela dimensionne les données fictives.
-3. **Contenu du reporting actuel** : quels onglets et quelles slides reproduire, sous forme générique ?
-4. **Jira de la banque** : Cloud ou Data Center ? Champs personnalisés utilisés ?
-5. ~~**Statut du travail**~~ : tranché le 10/10/2026, projet personnel, dépôt public.
-6. **Priorité** face au projet « agent appels d'offres » sur le même temps personnel.
+Réponses du 10/10/2026. Le PRD les intègre et remplace, là où elles divergent, les hypothèses des sections précédentes (notamment le rythme hebdomadaire).
+
+1. **Grille de météo** : quatre couleurs, **vert / jaune / orange / rouge**. Aucune grille réelle ne sera fournie : le PRD propose des critères et des seuils plausibles (anomalies bloquantes ouvertes et leur âge, taux de KO des tests, certifications refusées ou réservées, tendance du flux), en configuration YAML.
+2. **Volumétrie** : plusieurs milliers d'anomalies au total, quelques centaines de nouvelles par semaine, une dizaine d'entités. **Reporting quotidien** : instantanés et rapport par jour, tendances à la semaine.
+3. **Contenu du reporting** : aucun modèle existant à reproduire. Le démonstrateur conçoit son propre format générique (onglets Excel et slides).
+4. **Jira de la banque** : inconnu (Cloud ou Data Center). Les deux adaptateurs restent prévus ; la détection se fait par configuration.
+5. ~~**Statut du travail**~~ : projet personnel, dépôt public, licence MIT.
+6. **Priorité** : ce projet passe avant le projet « agent appels d'offres ».
+7. **Moyens** :
+   - **LLM disponibles** : clés Anthropic, OpenAI, Mistral, Google AI Studio ; Groq (offre gratuite, limites de débit à respecter). **Local** : GPU de 8 Go de VRAM sur le poste de développement.
+   - **Référence d'implémentation** : la couche fournisseurs du dépôt voisin `agentic-harness-training-demo` (adaptateurs OpenAI Chat, Anthropic Messages, catalogue de modèles, espacement des appels, compression Headroom).
+   - **Temps** : environ 1 h le matin et 1 h le soir en semaine, plus le week-end.
