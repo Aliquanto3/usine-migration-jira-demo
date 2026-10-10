@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Données locales (régénérables) et sorties de rapport
+data/
+!data/.gitkeep
+out/
+*.duckdb
+*.duckdb.wal
+
+# BMAD : réponses personnelles de l'installeur
+_bmad/config.user.toml
+_bmad/custom/config.user.toml
+
+# Claude Code : réglages personnels
+.claude/settings.local.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
