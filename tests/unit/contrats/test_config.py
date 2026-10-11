@@ -314,5 +314,8 @@ def test_modeles_geles() -> None:
         demo.temps_manuel_minutes_par_rapport = 1  # type: ignore[misc]
 
 
-def test_aucun_yaml_de_lane_cree(racine_depot: Path) -> None:
-    assert sorted(p.name for p in (racine_depot / "config").glob("*.yaml")) == ["chaine.yaml"]
+def test_yaml_livres_en_e0(racine_depot: Path) -> None:
+    assert sorted(p.name for p in (racine_depot / "config").glob("*.yaml")) == [
+        "chaine.yaml",
+        "programme.yaml",
+    ]
