@@ -310,7 +310,7 @@ Status: done
 
 **Revue.**
 - Passe 1 : 61 findings. Une reprise de spec (`bad_spec`) a ajouté les `pl.Enum`, `CONTENUS_JSON`, les lectures `limite` et `code_kpi`, la refonte de `ConfigJira`, le Palier à source unique et les invariants des modèles. 1 élément est différé (exclusions du Rejeu, AD-7) ; les autres sont rejetés avec leur motif dans le journal.
-- Passe 2 : 50 findings. 17 lignes `patch` (dont 1 medium : complétude de `ConfigJira`) ont donné 10 correctifs ; les autres sont rejetées avec leur motif dans le journal.
+- Passe 2 : 50 findings. 15 lignes `patch` (dont 1 medium : complétude de `ConfigJira`) ont donné 10 correctifs ; les autres sont rejetées avec leur motif dans le journal.
 - Écart de procédure : en boucle 1, le retour à la base a été refusé par le classifieur de permissions (opération destructive) ; le code a été amendé en place.
 
 **Revue de suivi.** `false` : aucun correctif `high`, un seul `medium` à la passe 2.
