@@ -16,6 +16,7 @@ from usine.contrats.evenements import Evenement, NatureEvenement, evenements_en_
 from usine.contrats.schemas import valider
 from usine.contrats.tickets import (
     SCHEMA_TICKET_ETAT,
+    SCHEMA_TICKET_TEXTE,
     STATUTS_FERMES,
     Champ,
     TypeTicket,
@@ -112,6 +113,44 @@ def tickets_etats(evenements: Iterable[Evenement], dates: Sequence[date]) -> pl.
     if not morceaux:
         return valider(pl.DataFrame(schema=dict(SCHEMA_TICKET_ETAT.colonnes)), SCHEMA_TICKET_ETAT)
     return valider(pl.concat(morceaux, how="vertical"), SCHEMA_TICKET_ETAT)
+
+
+CHAMPS_TEXTE: tuple[Champ, ...] = (Champ.entite, Champ.titre, Champ.description)
+"""Champs d'un ticket repris dans `SCHEMA_TICKET_TEXTE`."""
+
+
+def tickets_textes(evenements: Iterable[Evenement], date_arrete: date) -> pl.DataFrame:
+    """`TicketTexte` : titre et description de chaque ticket créé au plus tard en D.
+
+    Chaque champ prend la dernière valeur `vers` rattachée au plus tard à la Date d'arrêté
+    (ordre : horodatage, puis rang dans le flux) ; un champ jamais renseigné reste nul.
+    """
+    table = _table_evenements(evenements)
+    vus = table.filter(pl.col("jour") <= date_arrete)
+    creations = (
+        vus.filter(pl.col("nature") == NatureEvenement.creation.value)
+        .group_by("cle_ticket", maintain_order=True)
+        .agg(pl.col("type_ticket").first(), pl.col("rang").first().alias("rang_creation"))
+    )
+    valeurs = (
+        vus.filter(pl.col("champ").is_in([c.value for c in CHAMPS_TEXTE]))
+        .group_by(["cle_ticket", "champ"], maintain_order=True)
+        .agg(pl.col("vers").last())
+        .with_columns(pl.col("champ").cast(pl.Utf8))
+    )
+    if valeurs.height:
+        valeurs = valeurs.pivot(on="champ", index="cle_ticket", values="vers")
+    else:
+        valeurs = pl.DataFrame(schema={"cle_ticket": pl.Utf8()})
+    textes = creations.join(valeurs, on="cle_ticket", how="left")
+    manquantes = [c.value for c in CHAMPS_TEXTE if c.value not in textes.columns]
+    textes = textes.with_columns(pl.lit(None, dtype=pl.Utf8).alias(c) for c in manquantes)
+    textes = (
+        textes.sort("rang_creation")
+        .with_columns(pl.col(c.value).cast(pl.Utf8) for c in CHAMPS_TEXTE)
+        .select(list(SCHEMA_TICKET_TEXTE.colonnes))
+    )
+    return valider(textes, SCHEMA_TICKET_TEXTE)
 
 
 def instantane(etats: pl.DataFrame) -> pl.DataFrame:

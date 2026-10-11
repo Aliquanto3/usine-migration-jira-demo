@@ -1,5 +1,7 @@
 """`executer_passage` : Passage complet ou rien, progression, manifeste (Story 0.5)."""
 
+import json
+import re
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime
@@ -8,6 +10,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from tests.doublures.fournisseur_factice import FournisseurFactice
+from tests.doublures.pseudonymiseur_factice import PseudonymiseurFactice
 from tests.doublures.source_en_memoire import SourceEnMemoire
 from tests.unit.chaine.environnement import (
     DATE_ARRETE,
@@ -16,14 +20,16 @@ from tests.unit.chaine.environnement import (
     preparer_racine,
 )
 from tests.unit.domaine.constructeur import Flux
+from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo
 from usine.chaine.execution import executer_passage
-from usine.composition import Rapport, construire_rapport
+from usine.composition import PassageLance, Rapport, construire_rapport, lancer_rapport
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import jours_ouvres
 from usine.contrats.config import GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import StatutControle
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import (
     MOTIF_PASSAGE_ID,
@@ -35,6 +41,9 @@ from usine.contrats.passage import (
     StatutEtape,
     lire_enveloppe,
 )
+from usine.contrats.trace import EntreeTrace
+from usine.contrats.versions import version_prompt
+from usine.ia.explication import ReponseExplication, lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
@@ -101,6 +110,7 @@ def test_passage_publie(rapport: Rapport) -> None:
         "rapport-2026-10-09.pptx",
         "rapport-2026-10-09.xlsx",
         "tickets_etats.parquet",
+        "tickets_textes.parquet",
     ]
     assert not list((rapport.racine_sorties / "passages").glob(".en-cours-*"))
     relu = ManifestePassage.model_validate_json((repertoire / "manifeste.json").read_bytes())
@@ -278,3 +288,240 @@ def test_abandon_en_panne_garde_l_erreur_d_etape(
         _executer(rapport, remplacements={Etape.kpi: EtapeEnEchec(RuntimeError("panne"))})
     assert "panne" in str(erreur.value)
     assert "déplacement impossible" not in str(erreur.value)
+
+
+def _passer_en_palier_2(racine: Path) -> None:
+    chemin = racine / "config" / "chaine.yaml"
+    texte = chemin.read_text(encoding="utf-8")
+    assert "palier: 1" in texte
+    chemin.write_text(texte.replace("palier: 1", "palier: 2"), encoding="utf-8")
+
+
+def test_palier_2_explications(tmp_path: Path) -> None:
+    # Météo de référence (Palier 1, même Journal) : elle fixe les réponses scriptées.
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    reponses = _reponses(a_expliquer)
+
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    fournisseur = FournisseurFactice(reponses)
+    rapport = construire_rapport(
+        racine, fournisseur, PseudonymiseurFactice(b"cle-fictive", {}), horloge_figee()
+    )
+    manifeste, ecrivain = _executer(rapport)
+    assert manifeste.palier == 2
+    statuts = {e.etape: e.statut for e in manifeste.etapes}
+    assert statuts[Etape.explications] is StatutEtape.reussie
+    for etape in (Etape.classification, Etape.repartition_causes, Etape.narration):
+        assert statuts[etape] is StatutEtape.sautee
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    assert (repertoire / "llm" / "explications.json").is_file()
+    assert (repertoire / "trace" / "llm.jsonl").is_file()
+    consultation = ConsultationPassage(repertoire)
+    explications = consultation.explications()
+    assert [e.entite for e in explications] == [m.entite for m in a_expliquer]
+    assert all(e.statut_controle is StatutControle.conforme for e in explications)
+    traces = consultation.traces()
+    assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
+    assert {t.passage_id for t in traces} == {manifeste.passage_id}
+    assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
+    assert (racine / "donnees" / "cache_llm.sqlite").is_file()
+
+
+def test_palier_2_sans_fournisseur(tmp_path: Path) -> None:
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    with pytest.raises(UsineErreur, match="aucun fournisseur LLM"):
+        construire_rapport(racine)
+    assert not (racine / "sorties").exists()
+    assert not (racine / "donnees" / "cache_llm.sqlite").exists()
+
+
+def test_palier_2_sans_cle_de_pseudonymisation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("USINE_CLE_PSEUDO", raising=False)
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    with pytest.raises(UsineErreur, match="USINE_CLE_PSEUDO"):
+        construire_rapport(racine, FournisseurFactice())
+    assert not (racine / "sorties").exists()
+    assert not (racine / "donnees" / "cache_llm.sqlite").exists()
+    assert not (racine / "donnees" / "pseudonymes.sqlite").exists()
+
+
+NUMERO_COMPTE = "FR76 3000 6000 0112 3456 7890 189"
+"""Numéro de compte fictif (IBAN de démonstration)."""
+
+
+def _meteos_a_expliquer(racine: Path) -> list[MeteoEntite]:
+    """Météos rouges ou orange d'un Passage Palier 1 sur le Journal de `racine`."""
+    reference, _ = _executer(construire_rapport(racine))
+    repertoire = racine / "sorties" / "passages" / "2026-10-09" / reference.passage_id
+    a_expliquer = [
+        m
+        for m in ConsultationPassage(repertoire).meteo(DATE_ARRETE)
+        if m.couleur in (Couleur.rouge, Couleur.orange)
+    ]
+    assert a_expliquer, "le jeu de graine 42 doit avoir une Entité rouge ou orange"
+    return a_expliquer
+
+
+def _ajouter_compte_a_la_description(
+    racine: Path, cle: str, ajout: str = f"Compte {NUMERO_COMPTE} concerné."
+) -> None:
+    """Ajoute `ajout` (numéro de compte fictif) à chaque description de `cle` dans le Journal."""
+    chemin = racine / "donnees" / "journal.jsonl"
+    lignes = chemin.read_text(encoding="utf-8").splitlines()
+    modifiees = 0
+    for rang, ligne in enumerate(lignes[1:], start=1):
+        evenement = json.loads(ligne)
+        if evenement["cle_ticket"] == cle and evenement["champ"] == "description":
+            evenement["vers"] = f"{evenement['vers']} {ajout}"
+            lignes[rang] = json.dumps(evenement, ensure_ascii=False, separators=(",", ":"))
+            modifiees += 1
+    assert modifiees, f"aucune description pour {cle}"
+    chemin.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+
+
+def _reponses(a_expliquer: list[MeteoEntite]) -> list[ReponseExplication]:
+    return [
+        ReponseExplication(texte=f"{m.regles[0].tickets_en_cause[0]} est en cause.")
+        for m in a_expliquer
+    ]
+
+
+def test_palier_2_par_lancer_rapport(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    instant = datetime(2026, 10, 12, 6, 45, tzinfo=UTC)
+    fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    lance = lancer_rapport(
+        racine, DATE_ARRETE, horloge_figee(instant), lambda: "abc123", fournisseur
+    )
+    assert lance.manifeste.palier == 2
+    traces = ConsultationPassage(lance.repertoire).traces()
+    assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
+    assert {t.horodatage for t in traces} == {instant}
+    assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}
+    assert (racine / "donnees" / "pseudonymes.sqlite").is_file()  # `PseudonymiseurHmac`
+
+
+@pytest.mark.parametrize("pseudonymiseur", ["hmac", "factice"])
+def test_deux_passages_palier_2_cache_et_pseudonymisation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pseudonymiseur: str
+) -> None:
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    cle_en_cause = a_expliquer[0].regles[0].tickets_en_cause[0]
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    _ajouter_compte_a_la_description(racine, cle_en_cause)
+
+    def lancer(fournisseur: FournisseurFactice) -> PassageLance:
+        injecte = (
+            PseudonymiseurFactice(b"cle-de-test-fictive", {"COMPTE": MOTIFS_PAR_DEFAUT["COMPTE"]})
+            if pseudonymiseur == "factice"
+            else None
+        )
+        return lancer_rapport(
+            racine,
+            DATE_ARRETE,
+            horloge_pas_a_pas(),
+            fournisseur=fournisseur,
+            pseudonymiseur=injecte,
+        )
+
+    premier_fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    premier = lancer(premier_fournisseur)
+    second_fournisseur = FournisseurFactice()  # aucune réponse : tout doit venir du cache
+    second = lancer(second_fournisseur)
+    assert second.repertoire != premier.repertoire
+    assert second_fournisseur.appels == []
+
+    # Le numéro de compte a atteint le prompt, pseudonymisé.
+    prompts = [str(appel.entree) for appel in premier_fournisseur.appels]
+    assert any(re.search(r"\bCOMPTE_[0-9a-f]{6}\b", prompt) for prompt in prompts)
+    assert all(NUMERO_COMPTE not in prompt for prompt in prompts)
+
+    gabarit = version_prompt(lire_prompt())
+    for lance, depuis_cache in ((premier, False), (second, True)):
+        lignes = (lance.repertoire / "trace" / "llm.jsonl").read_text(encoding="utf-8")
+        traces = [EntreeTrace.model_validate_json(ligne) for ligne in lignes.splitlines()]
+        assert len(traces) == len(a_expliquer)
+        assert {t.depuis_cache for t in traces} == {depuis_cache}
+        meteos = {m.entite: m for m in ConsultationPassage(lance.repertoire).meteo(DATE_ARRETE)}
+        for trace in traces:
+            assert trace.entite is not None
+            assert trace.version_grille == meteos[trace.entite].version_grille
+            assert trace.version_prompt == gabarit
+        for fichier in lance.repertoire.rglob("*"):
+            if not fichier.is_file():
+                continue
+            if fichier.name == "tickets_textes.parquet":
+                # Données sources du Passage (AD-23), locales et fictives : le numéro y est.
+                textes = pl.read_parquet(fichier)
+                assert textes["description"].str.contains(NUMERO_COMPTE, literal=True).any()
+                continue
+            assert NUMERO_COMPTE.encode("utf-8") not in fichier.read_bytes(), fichier.name
+
+
+def test_palier_2_cle_de_pseudonymisation_blanche(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "   ")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    with pytest.raises(UsineErreur, match="USINE_CLE_PSEUDO"):
+        construire_rapport(racine, FournisseurFactice())
+    assert not (racine / "donnees" / "pseudonymes.sqlite").exists()
+
+
+def test_palier_2_pseudonymisation_sans_reconnaisseur(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    (racine / "config" / "pseudonymisation.yaml").write_text(
+        "langue: fr\nreconnaisseurs: []\n", encoding="utf-8"
+    )
+    with pytest.raises(UsineErreur, match=r"pseudonymisation\.yaml.*reconnaisseurs"):
+        construire_rapport(racine, FournisseurFactice())
+    assert not (racine / "sorties").exists()
+    assert not (racine / "donnees" / "pseudonymes.sqlite").exists()
+
+
+def test_palier_2_deux_reconnaisseurs_du_meme_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    autre_compte = "cpt12345678"
+    for meteo_entite in a_expliquer:
+        _ajouter_compte_a_la_description(
+            racine,
+            meteo_entite.regles[0].tickets_en_cause[0],
+            f"Comptes {NUMERO_COMPTE} et {autre_compte}.",
+        )
+    (racine / "config" / "pseudonymisation.yaml").write_text(
+        "reconnaisseurs:\n"
+        "  - type_jeton: COMPTE\n"
+        f"    motif: '{MOTIFS_PAR_DEFAUT['COMPTE']}'\n"
+        "  - type_jeton: COMPTE\n"
+        "    motif: '\\bcpt\\d{8}\\b'\n",
+        encoding="utf-8",
+    )
+    fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=fournisseur)
+    entrees = [str(appel.entree) for appel in fournisseur.appels]
+    assert len(entrees) == len(a_expliquer)
+    for entree in entrees:
+        assert NUMERO_COMPTE not in entree
+        assert autre_compte not in entree
+        assert len(set(re.findall(r"\bCOMPTE_[0-9a-f]{6}\b", entree))) >= 2

@@ -4,6 +4,7 @@ import json
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -175,8 +176,8 @@ def test_echec_rend_le_verrou(
 ) -> None:
     construire = composition.construire_rapport
 
-    def construire_en_panne(r: Path) -> composition.Rapport:
-        rapport = construire(r)
+    def construire_en_panne(r: Path, *args: Any, **kwargs: Any) -> composition.Rapport:
+        rapport = construire(r, *args, **kwargs)
         return replace(rapport, registre={**rapport.registre, Etape.kpi: _Panne()})
 
     monkeypatch.setattr(composition, "construire_rapport", construire_en_panne)

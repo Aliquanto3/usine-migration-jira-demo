@@ -150,13 +150,13 @@ def test_tables_filtrees(lance: PassageLance) -> None:
     assert set(indicateurs["date"].to_list()) == {date(2026, 10, 8)}
 
 
-def test_fichiers_absents_palier_1(lance: PassageLance) -> None:
+def test_palier_1_textes_presents_autres_fichiers_absents(lance: PassageLance) -> None:
     consultation = ConsultationPassage(lance.repertoire)
     kpi = consultation.kpi()
     assert kpi.is_empty()
     assert kpi.schema == dict(SCHEMA_KPI.colonnes)
     assert consultation.tendances().is_empty()
-    assert consultation.textes_tickets().is_empty()
+    assert consultation.textes_tickets().height > 0  # écrit par `instantanes` (Story 0.7)
     assert consultation.explications() == ()
     assert consultation.narrations() == ()
     assert consultation.classification() == ()

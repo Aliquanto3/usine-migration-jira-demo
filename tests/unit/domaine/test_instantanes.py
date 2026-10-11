@@ -14,8 +14,8 @@ from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import NatureEvenement
 from usine.contrats.schemas import valider
-from usine.contrats.tickets import SCHEMA_TICKET_ETAT, Champ, TypeTicket
-from usine.domaine.instantanes import instantane, tickets_etats
+from usine.contrats.tickets import SCHEMA_TICKET_ETAT, SCHEMA_TICKET_TEXTE, Champ, TypeTicket
+from usine.domaine.instantanes import instantane, tickets_etats, tickets_textes
 from usine.generateur.journal import Generation, generer
 
 RACINE = Path(__file__).resolve().parents[3]
@@ -187,3 +187,41 @@ def test_dates_en_double_refusees() -> None:
     flux.anomalie("DEMO-1", _ts(1, 9))
     with pytest.raises(UsineErreur, match="2026-10-02"):
         tickets_etats(flux.evenements, [VENDREDI, LUNDI, VENDREDI])
+
+
+def test_tickets_textes_dernieres_valeurs_en_d() -> None:
+    flux = Flux()
+    flux.creer(
+        "DEMO-1",
+        TypeTicket.anomalie,
+        _ts(1, 9),
+        {Champ.entite: "ENT-A", Champ.titre: "Titre initial", Champ.description: "Desc"},
+    )
+    flux.modifier("DEMO-1", TypeTicket.anomalie, _ts(5, 10), Champ.titre, "Titre initial", "Lundi")
+    flux.modifier("DEMO-1", TypeTicket.anomalie, _ts(6, 10), Champ.titre, "Lundi", "Mardi")
+    flux.anomalie("DEMO-2", _ts(5, 11), entite="ENT-B")  # ni titre ni description
+    flux.anomalie("DEMO-3", _ts(6, 9))  # créé après le lundi D
+    textes = tickets_textes(flux.evenements, LUNDI)
+    valider(textes, SCHEMA_TICKET_TEXTE)
+    assert textes.to_dicts() == [
+        {
+            "cle_ticket": "DEMO-1",
+            "type_ticket": "anomalie",
+            "entite": "ENT-A",
+            "titre": "Lundi",
+            "description": "Desc",
+        },
+        {
+            "cle_ticket": "DEMO-2",
+            "type_ticket": "anomalie",
+            "entite": "ENT-B",
+            "titre": None,
+            "description": None,
+        },
+    ]
+
+
+def test_tickets_textes_vide() -> None:
+    textes = tickets_textes([], LUNDI)
+    assert textes.is_empty()
+    assert textes.schema == dict(SCHEMA_TICKET_TEXTE.colonnes)

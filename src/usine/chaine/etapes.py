@@ -15,7 +15,7 @@ from usine.contrats.config import GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.meteo import MeteoEntite
 from usine.contrats.passage import ContextePassage, ResultatEtape, StatutEtape
-from usine.domaine.instantanes import instantane, tickets_etats
+from usine.domaine.instantanes import instantane, tickets_etats, tickets_textes
 from usine.domaine.meteo import indicateurs, meteo
 from usine.ports.consultation import Consultation
 from usine.ports.source_tickets import SourceTickets
@@ -39,12 +39,17 @@ class EtapeInstantanes:
         self._premier_jour = premier_jour
 
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
-        """Sorties `tickets_etats` et `instantanes`."""
+        """Sorties `tickets_etats`, `instantanes` et `tickets_textes` (à la Date d'arrêté)."""
         dates = jours_du_passage(self._premier_jour, ctx.date_arrete)
-        etats = tickets_etats(self._source.evenements(), dates)
+        evenements = list(self._source.evenements())
+        etats = tickets_etats(evenements, dates)
         return ResultatEtape(
             StatutEtape.reussie,
-            {"tickets_etats": etats, "instantanes": instantane(etats)},
+            {
+                "tickets_etats": etats,
+                "instantanes": instantane(etats),
+                "tickets_textes": tickets_textes(evenements, ctx.date_arrete),
+            },
         )
 
 

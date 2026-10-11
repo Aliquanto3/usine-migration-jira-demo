@@ -4,10 +4,16 @@ Deux appels d'une même fabrique doivent rendre des adaptateurs de même clé, s
 correspondance partagée (répertoire temporaire neuf pour un adaptateur persistant).
 """
 
+import atexit
+import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from tests.doublures import PseudonymiseurFactice
+from usine.adaptateurs.pseudonymisation import PseudonymiseurHmac
+from usine.adaptateurs.stockage_sqlite import TablePseudonymesSqlite
 from usine.ports import Pseudonymiseur
 
 
@@ -57,6 +63,18 @@ def fabrique_factice() -> CasPseudonymiseur:
     )
 
 
+def fabrique_hmac() -> CasPseudonymiseur:
+    """Adaptateur de production, table SQLite dans un répertoire temporaire neuf."""
+    repertoire = Path(tempfile.mkdtemp(prefix="pseudonymes-"))
+    atexit.register(shutil.rmtree, repertoire, ignore_errors=True)
+    table = TablePseudonymesSqlite(repertoire / "pseudonymes.sqlite")
+    return CasPseudonymiseur(
+        PseudonymiseurHmac(b"cle-de-test-fictive", MOTIFS_FACTICES, table),
+        EXEMPLES,
+    )
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasPseudonymiseur]]] = [
     ("factice", fabrique_factice),
+    ("hmac", fabrique_hmac),
 ]
