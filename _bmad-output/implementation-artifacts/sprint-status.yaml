@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-11-2026 07:55
-last_updated: 12-10-2026 00:30
+last_updated: 12-10-2026 01:45
 project: usine-migration-jira-demo
 project_key: NOKEY
 tracking_system: file-system
@@ -64,7 +64,7 @@ development_status:
   0-5-chaîne-et-passage-atomique-e0-5: done
   0-6-consultation-et-rendu-minimal-e0-6: done
   0-7-passerelle-llm-minimale-e0-7: done
-  0-8-ui-minimale-e0-8: backlog
+  0-8-ui-minimale-e0-8: done
   0-9-gel-des-contrats-v1-e0-9: backlog  # pose l étiquette contrats-v1, ouvre les worktrees
   epic-0-retrospective: optional
 
