@@ -99,3 +99,7 @@ def test_fichier_absent_et_ligne_invalide(tmp_path: Path) -> None:
     chemin.write_text('{"etape": "inconnue"}\n', encoding="utf-8")
     with pytest.raises(UsineErreur, match="ligne 1"):
         lire_progression(chemin)
+
+
+def test_libelles_de_tous_les_etats() -> None:
+    assert set(LIBELLES_ETATS) == {*StatutEtape, EN_ATTENTE}

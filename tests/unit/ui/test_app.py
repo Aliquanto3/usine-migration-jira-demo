@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 import pytest
+import streamlit
 from streamlit.testing.v1 import AppTest
 
 from usine.composition import consultation_dernier_passage, mode_repli
 from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
 from usine.ui import lancement
+from usine.ui.carte import LIBELLES_COULEURS
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
 APP = REPERTOIRE_UI / "app.py"
@@ -34,7 +36,19 @@ def test_carte_meteo(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert consultation is not None
     table = page.table[0].value
     assert list(table["Entité"]) == [m.entite for m in consultation.meteo()]
+    for libelle, meteo in zip(table["Météo"], consultation.meteo(), strict=True):
+        assert libelle.endswith(LIBELLES_COULEURS[meteo.couleur])
     assert "09/10/2026" in page.caption[0].value
+
+
+def test_racine_introuvable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    absente = tmp_path / "absente"
+    monkeypatch.setenv("USINE_RACINE", str(absente))
+    page = _page()
+    assert not page.exception
+    assert any(str(absente) in erreur.value for erreur in page.error)
+    assert not page.info
+    assert page.button[0].disabled
 
 
 def test_sans_passage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -181,6 +195,49 @@ def test_lancement_succes(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch)
     page.run()
     assert not page.exception
     assert len(lanceur.appels) == 1
+
+
+def test_rerun_unique_en_fin_de_chaine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    page = _page()
+    page.button[0].click().run()
+    assert "Chaîne en cours" in page.info[-1].value
+    relances: list[object] = []
+    monkeypatch.setattr(streamlit, "rerun", lambda *args, **kwargs: relances.append(args))
+    lanceur.processus.code = 0
+    page.run()
+    assert len(relances) == 1
+    page.run()
+    assert len(relances) == 1
+
+
+def test_erreur_tronquee(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur("".join(f"trace {n:02d}\n" for n in range(30)))
+    lanceur.processus.code = 1
+    _installer(monkeypatch, lanceur)
+    page = _page()
+    page.button[0].click().run()
+    message = page.error[0].value
+    assert "trace 29" in message
+    assert "trace 10" in message
+    assert "trace 09" not in message
+
+
+def test_progression_invalide(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    page = _page()
+    page.button[0].click().run()
+    fichier = tmp_path / "sorties" / "progression" / "20261012T073000Z-aaaaaa.jsonl"
+    fichier.parent.mkdir(parents=True)
+    fichier.write_text('{"etape": "inconnue"}\n', encoding="utf-8")
+    page.run()
+    assert not page.exception
+    assert any(fichier.name in erreur.value and "ligne 1" in erreur.value for erreur in page.error)
 
 
 def test_pas_de_second_lancement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

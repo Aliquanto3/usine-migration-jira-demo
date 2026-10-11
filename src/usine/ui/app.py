@@ -19,6 +19,7 @@ from usine.ui import carte, lancement, progression
 
 # Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
 INTERVALLE_SONDAGE = 1.0  # secondes entre deux lectures de la progression, Chaîne en cours
+LIGNES_ERREUR_MAX = 20  # dernières lignes de l'erreur standard affichées en cas d'échec
 
 _PROCESSUS = "processus"
 _AVANT = "fichiers_avant"
@@ -54,6 +55,12 @@ def afficher_bandeau(racine: Path) -> None:
 def afficher_carte(racine: Path) -> None:
     """Carte météo du dernier Passage publié, ou message explicite sans Passage."""
     st.subheader("Carte météo du dernier Passage")
+    if not racine.is_dir():
+        st.error(
+            f"Racine introuvable : {racine} (variable USINE_RACINE ou répertoire courant) ;"
+            " aucun Passage ne peut être lu ni lancé"
+        )
+        return
     try:
         consultation = composition.consultation_dernier_passage(racine)
         if consultation is None:
@@ -94,11 +101,13 @@ def _lancer(racine: Path) -> None:
     st.session_state[_ERREUR] = None
     st.session_state[_FIN_VUE] = False
     st.session_state[_ECHEC_LANCEMENT] = None
-    erreurs = lancement.fichier_erreurs()
+    erreurs: IO[bytes] | None = None
     try:
+        erreurs = lancement.fichier_erreurs()
         processus = lancement.lancer_chaine(racine, erreurs=erreurs)
     except OSError as exc:
-        erreurs.close()
+        if erreurs is not None:
+            erreurs.close()
         st.session_state[_PROCESSUS] = None
         st.session_state[_ECHEC_LANCEMENT] = f"Lancement de la Chaîne impossible : {exc}"
         return
@@ -143,7 +152,8 @@ def _suivre() -> None:
     if code == 0:
         st.success("Chaîne terminée : Passage publié.")
     else:
-        st.error(f"Échec de la Chaîne (code {code}) : {message}")
+        fin = "\n".join(message.splitlines()[-LIGNES_ERREUR_MAX:])
+        st.error(f"Échec de la Chaîne (code {code}) : {fin}")
     if not st.session_state.get(_FIN_VUE):
         st.session_state[_FIN_VUE] = True
         st.rerun()  # la page entière relit la carte et cesse de sonder
@@ -153,7 +163,12 @@ def afficher_lancement(racine: Path) -> None:
     """Bouton de lancement et suivi de la progression, sans bloquer la page."""
     st.subheader("Chaîne de reporting")
     en_cours = _en_cours()
-    st.button("Lancer la Chaîne", on_click=_lancer, args=(racine,), disabled=en_cours)
+    st.button(
+        "Lancer la Chaîne",
+        on_click=_lancer,
+        args=(racine,),
+        disabled=en_cours or not racine.is_dir(),
+    )
     echec = st.session_state.get(_ECHEC_LANCEMENT)
     if echec:
         st.error(echec)

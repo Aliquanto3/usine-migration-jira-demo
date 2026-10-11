@@ -24,4 +24,7 @@ def ui() -> None:
         code = subprocess.run(commande_streamlit(), check=False).returncode
     except KeyboardInterrupt:
         code = 0
+    except OSError as exc:
+        typer.echo(f"Erreur : lancement de Streamlit impossible ({exc})", err=True)
+        code = 1
     raise typer.Exit(code)

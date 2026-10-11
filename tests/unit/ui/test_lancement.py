@@ -6,6 +6,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from typer.testing import CliRunner
+
+from usine.cli import app
 from usine.ui.lancement import commande_rapport, fichier_erreurs, lancer_chaine, lire_erreurs
 
 
@@ -51,3 +54,22 @@ def test_erreurs_dans_un_fichier_temporaire(tmp_path: Path) -> None:
     erreurs.write("Erreur : échec\n".encode())
     assert lire_erreurs(erreurs) == "Erreur : échec"
     assert erreurs.closed
+
+
+def test_vrai_processus_erreurs_volumineuses(tmp_path: Path) -> None:
+    script = "import sys; sys.stderr.write('x' * 200_000); sys.exit(2)"
+
+    def popen(commande: list[str], **options: Any) -> "subprocess.Popen[bytes]":
+        return subprocess.Popen([sys.executable, "-c", script], **options)
+
+    erreurs = fichier_erreurs()
+    processus = lancer_chaine(tmp_path, popen=popen, erreurs=erreurs)
+    assert processus.wait(timeout=60) == 2
+    assert lire_erreurs(erreurs) == "x" * 200_000
+    assert erreurs.closed
+
+
+def test_option_date_arrete_de_la_cli() -> None:
+    resultat = CliRunner().invoke(app, ["rapport", "--help"])
+    assert resultat.exit_code == 0
+    assert commande_rapport(date(2026, 10, 9))[-2] in resultat.output

@@ -5,7 +5,7 @@ created: '2026-10-12'
 status: 'done'
 baseline_revision: '14cb30fe8427c767b4d69c31890775b08080dff5'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
 warnings: []
@@ -137,6 +137,40 @@ deferred: []
   - `[low]` `[reject]` (intention) Écritures hors de `src/usine/ui/` — exigées par les couches (`__main__`, fonctions de composition).
   - `[low]` `[reject]` (intention) Aucun serveur Streamlit démarré en test — `AppTest` exécute la page ; un démarrage réel a été vérifié à la main par l'implémenteur.
 
+### 2026-10-12 — Review pass (suivi, code actuel)
+- verdicts: 30 findings — high 0, medium 0, low 28, false 2, maybe-false 0
+- findings:
+  - `[low]` `[patch]` (verification-gap) `st.rerun()` de fin de lancement invisible aux tests — `test_rerun_unique_en_fin_de_chaine` (espion).
+  - `[low]` `[patch]` (verification-gap) Ligne de progression invalide non testée sur la page — `test_progression_invalide`.
+  - `[low]` `[patch]` (verification-gap) Ctrl+C de `usine ui` non testé — `test_interruption` ; `OSError` au démarrage de Streamlit traduite en code 1 (`test_streamlit_introuvable`).
+  - `[low]` `[patch]` (intention) Couleurs de la carte non vérifiées sur la page — `test_carte_meteo` compare aux libellés de `consultation.meteo()`.
+  - `[low]` `[reject]` (intention) Ligne `echouee` sur `kpi` vérifiée seulement en fonction pure — l'affichage n'est qu'une table des états calculés.
+  - `[low]` `[reject]` (intention) Choix entre deux anciens fichiers vérifié en fonction pure — même raison.
+  - `[low]` `[reject]` (intention) Page « non bloquante » non démontrée avec un vrai processus — `Popen` ne bloque pas par construction ; le vrai processus est désormais éprouvé côté lancement.
+  - `[low]` `[reject]` (intention) Bandeau non vérifié dans tous les états — carried.
+  - `[low]` `[reject]` (intention) Garanties d'accès vérifiées statiquement — carried.
+  - `[false]` `[reject]` (intention) Import de `pydantic` contraire à la liste d'imports — la liste vise les paquets `usine.*` et les dépendances externes du contrat import-linter, qui reste vert.
+  - `[false]` `[reject]` (blind) `composition.py` absent du diff — fonctions livrées par le commit 05ee86f, hors du périmètre des fichiers relus.
+  - `[low]` `[patch]` (blind) `LIBELLES_ETATS` sans test de couverture — `test_libelles_de_tous_les_etats`.
+  - `[low]` `[reject]` (blind) Noms d'étapes techniques affichés — écrans complets en L7.
+  - `[low]` `[reject]` (blind) stderr ignoré en cas de succès — `usine rapport` n'écrit rien d'utile en succès ; lane L7 pour un journal visible.
+  - `[low]` `[patch]` (blind) Message d'erreur sans limite — 20 dernières lignes (`test_erreur_tronquee`).
+  - `[low]` `[patch]` (blind) Racine inexistante non signalée — message explicite et bouton désactivé (`test_racine_introuvable`).
+  - `[low]` `[patch]` (blind) Option `--date-arrete` non confrontée à la vraie CLI — `test_option_date_arrete_de_la_cli`.
+  - `[low]` `[patch]` (blind) Sondage du fragment non testé — même correctif que la ligne verification-gap.
+  - `[low]` `[reject]` (blind) Tests rangés dans le mauvais fichier — cosmétique.
+  - `[low]` `[reject]` (blind) Clés de `session_state` codées en dur dans un test — cosmétique.
+  - `[low]` `[reject]` (blind) Bouton actif malgré un Mode repli illisible — l'erreur s'affiche en tête ; le sous-processus échoue avec un message.
+  - `[low]` `[patch]` (edge) `fichier_erreurs()` hors du `try` — déplacé dans le `try`.
+  - `[low]` `[reject]` (edge) `glob` qui lève `OSError` — droits du poste de démo, improbable.
+  - `[low]` `[reject]` (edge) Autre lancement concurrent suivi par erreur — carried (verrou AD-6).
+  - `[low]` `[reject]` (edge) Second onglet pendant un lancement — le verrou fait échouer le second, avec un message.
+  - `[low]` `[reject]` (edge) Égalité de seconde entre deux fichiers — carried.
+  - `[low]` `[patch]` (edge) `OSError` au démarrage de Streamlit — même correctif.
+  - `[low]` `[reject]` (edge) Fin de session pendant un lancement — limite de Streamlit, documentée dans les risques.
+  - `[low]` `[patch]` (risque nommé lors de la passe initiale) stderr en fichier temporaire jamais éprouvé avec un vrai processus — `test_vrai_processus_erreurs_volumineuses` (200 000 caractères, code 2, fichier fermé).
+  - `[low]` `[reject]` (blind) Écritures dans `sorties/` non testées — l'UI n'écrit nulle part ; le sous-processus est la Chaîne.
+
 ## Verification
 
 **Commands:**
@@ -173,3 +207,18 @@ L'UI n'ouvre ni l'entrepôt ni un `.en-cours-*`.
 **Risques résiduels.**
 - Le fichier de progression suivi est choisi par heuristique : c'est le premier nouveau fichier après le lancement.
 - Aucune bascule du Mode repli n'existe dans l'UI : elle relève de la lane L7.
+
+### Revue de suivi (2026-10-12)
+
+**Résumé.** Revue du code actuel de l'UI : 30 findings, 14 lignes `patch` (aucune medium) donnant 6 correctifs, 0 différé.
+
+**Risque fermé.** Le risque nommé lors de la passe initiale l'est : un vrai sous-processus qui écrit 200 000 caractères sur stderr se termine sans blocage, et son erreur est relue intégralement.
+
+**Autres apports.**
+- Tests : l'appel unique à `st.rerun()` en fin de lancement, une ligne de progression invalide, Ctrl+C et l'échec du démarrage de Streamlit, les couleurs de la carte, la couverture des libellés d'état, l'option `--date-arrete` confrontée à la vraie CLI.
+- Message d'erreur limité à 20 lignes.
+- Une racine introuvable est signalée explicitement, avec le bouton désactivé.
+
+**Revue de suivi.** `false` : aucun correctif `high`.
+
+**Vérification.** ruff, ruff format, mypy, lint-imports et pytest : 873 tests passés.
