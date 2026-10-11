@@ -1,0 +1,296 @@
+[project]
+name = "usine-migration-jira-demo"
+version = "0.1.0"
+description = "Copilote de pilotage d'une usine de migration : reporting Jira, météo par règles, couche LLM."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+# Versions figées : section « Stack » du spine d'architecture (vérifiée le 2026-10-10).
+dependencies = [
+    "pydantic==2.14.0",
+    "pydantic-settings==2.15.0",
+    "polars==1.44.2",
+    "duckdb==1.5.6",
+    "numpy==2.4.6",
+    "pyarrow==25.0.1",
+    "pyyaml==6.0.3",
+    "typer==0.27.3",
+    "httpx==0.28.1",
+    "pydantic-ai-slim[anthropic,mistral]==2.55.0",
+    "presidio-analyzer==2.2.364",
+    "presidio-anonymizer==2.2.364",
+    "spacy==3.8.16",
+    "fr_core_news_md @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl",
+    "openpyxl==3.1.5",
+    "python-pptx==1.0.2",
+    "streamlit==1.65.0",
+    "scikit-learn==1.9.1",
+    "pymongo==4.18.3",
+]
+
+[project.scripts]
+usine = "usine.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.0",
+    "mypy==2.4.0",
+    "import-linter==2.15",
+    "time-machine==3.5.1",
+    "types-pyyaml",
+]
+# Bonus (FR-22, FR-38) : installés seulement avec `uv sync --group bonus`.
+bonus = [
+    "lightgbm==4.7.0",
+    "langfuse==4.17.0",
+]
+
+[tool.uv.build-backend]
+module-name = "usine"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = ">=0.12.23"
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-m", "not reseau", "--strict-markers"]
+markers = [
+    "reseau: test qui accède au réseau (Jira, LLM) ; exclu par défaut, lancé par `-m reseau`",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".claude", "_bmad", "_bmad-output"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "DTZ", "RUF"]
+# Le français emploie légitimement « », ’ et espaces insécables.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src", "tests", "outils", "evaluation", "evals", ".github/scripts"]
+
+# Tableau des couches du spine, recopié tel quel (AD-1). Les modules `cli` sont racine de
+# composition, comme `composition.py` : ils peuvent tout importer.
+[tool.importlinter]
+root_packages = ["usine", "evaluation", "evals", "outils"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Couches du spine"
+type = "layers"
+layers = [
+    "usine.ui",
+    "usine.composition : usine.cli",
+    "usine.chaine | usine.ia | usine.rendu | usine.adaptateurs | usine.generateur | usine.config",
+    "usine.consultation | usine.domaine",
+    "usine.ports",
+    "usine.contrats",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.*.cli -> usine.**", "usine.cli -> usine.**"]
+unmatched_ignore_imports_alerting = "none"
+
+# Interdits externes, en liste blanche : chaque couche a droit à pydantic, polars et la stdlib,
+# plus les paquets nommés dans le titre de son contrat ; toute autre dépendance directe (groupes
+# compris, et `anthropic`, `mistralai` tirés par les extras de pydantic-ai-slim) est interdite.
+# `tests/depot/test_import_linter.py` vérifie que chaque dépendance directe est classée.
+# Les modules `cli` (racines de composition) ont droit à typer.
+
+[[tool.importlinter.contracts]]
+name = "contrats : pydantic, polars, stdlib seulement"
+type = "forbidden"
+source_modules = ["usine.contrats"]
+forbidden_modules = [
+    "usine.ports", "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia",
+    "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.config",
+    "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "ports : contrats seulement"
+type = "forbidden"
+source_modules = ["usine.ports"]
+forbidden_modules = [
+    "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
+    "usine.adaptateurs", "usine.generateur", "usine.config", "usine.composition", "usine.cli",
+    "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "domaine : contrats seulement, pur (AD-1, AD-9)"
+type = "forbidden"
+source_modules = ["usine.domaine"]
+forbidden_modules = [
+    "usine.ports", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
+    "usine.adaptateurs", "usine.generateur", "usine.config", "usine.composition", "usine.cli",
+    "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+    "io", "os", "pathlib", "random", "secrets", "shutil", "socket", "sqlite3", "subprocess",
+    "tempfile", "time", "urllib", "uuid",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "consultation : contrats, ports"
+type = "forbidden"
+source_modules = ["usine.consultation"]
+forbidden_modules = [
+    "usine.domaine", "usine.chaine", "usine.ia", "usine.rendu", "usine.adaptateurs",
+    "usine.generateur", "usine.config", "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "chaine : contrats, ports, domaine, consultation"
+type = "forbidden"
+source_modules = ["usine.chaine"]
+forbidden_modules = [
+    "usine.ia", "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.config",
+    "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "ia : contrats, ports, consultation"
+type = "forbidden"
+source_modules = ["usine.ia"]
+forbidden_modules = [
+    "usine.domaine", "usine.chaine", "usine.rendu", "usine.adaptateurs", "usine.generateur",
+    "usine.config", "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = [
+    "usine.*.cli -> usine.**", "usine.*.*.cli -> usine.**",
+    "usine.*.cli -> typer", "usine.*.*.cli -> typer",
+]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "rendu : contrats, ports, consultation ; openpyxl, pptx"
+type = "forbidden"
+source_modules = ["usine.rendu"]
+forbidden_modules = [
+    "usine.domaine", "usine.chaine", "usine.ia", "usine.adaptateurs", "usine.generateur",
+    "usine.config", "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "adaptateurs : contrats, ports ; I/O et LLM"
+type = "forbidden"
+source_modules = ["usine.adaptateurs"]
+forbidden_modules = [
+    "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
+    "usine.generateur", "usine.config", "usine.composition", "usine.cli", "usine.ui",
+    "fr_core_news_md", "importlinter", "langfuse", "lightgbm",
+    "mypy", "numpy", "openpyxl", "pptx",
+    "pyarrow", "pydantic_settings", "pytest",
+    "ruff", "sklearn", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "generateur : contrats, ports"
+type = "forbidden"
+source_modules = ["usine.generateur"]
+forbidden_modules = [
+    "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
+    "usine.adaptateurs", "usine.config", "usine.composition", "usine.cli", "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "config : contrats seulement ; yaml, pydantic_settings"
+type = "forbidden"
+source_modules = ["usine.config"]
+forbidden_modules = [
+    "usine.ports", "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia",
+    "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.composition", "usine.cli",
+    "usine.ui",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "ui : contrats, consultation, composition ; streamlit"
+type = "forbidden"
+source_modules = ["usine.ui"]
+forbidden_modules = [
+    "usine.ports", "usine.domaine", "usine.chaine", "usine.ia", "usine.rendu",
+    "usine.adaptateurs", "usine.generateur", "usine.config", "usine.cli",
+    "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
+    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
+    "ruff", "sklearn", "spacy", "time_machine", "typer", "yaml",
+]
+ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "hors produit : contrats, ports, domaine, composition"
+type = "forbidden"
+source_modules = ["evaluation", "evals", "outils"]
+forbidden_modules = [
+    "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu", "usine.adaptateurs",
+    "usine.generateur", "usine.config", "usine.cli", "usine.ui",
+]
+allow_indirect_imports = true

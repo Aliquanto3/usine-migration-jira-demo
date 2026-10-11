@@ -1,0 +1,4 @@
+# Configuration de la Chaîne de reporting, lue par la composition seulement (AD-8).
+
+# Palier de la Chaîne : 1 = calculs déterministes seuls, 2 = avec la couche LLM.
+palier: 1

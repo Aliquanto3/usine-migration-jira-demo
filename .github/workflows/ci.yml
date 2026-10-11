@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  qualite:
+    name: Qualité (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.0"
+          python-version: "3.12"
+      - name: Installation
+        run: uv sync --locked
+      - name: ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: mypy
+        run: uv run mypy
+      - name: import-linter
+        run: uv run lint-imports
+      - name: pytest
+        run: uv run pytest
+      - name: Contrôle des chemins de la lane (AD-21)
+        if: startsWith(github.head_ref || github.ref_name, 'lane/')
+        shell: bash
+        env:
+          BRANCHE: ${{ github.head_ref || github.ref_name }}
+        run: >
+          uv run python .github/scripts/controle_lanes.py
+          --branche "$BRANCHE" --base origin/main
+
+  secrets:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Installation de gitleaks v${{ env.GITLEAKS_VERSION }}
+        run: >
+          curl -sSfL
+          "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          | tar -xz gitleaks
+      - name: Recherche de secrets dans tout l'historique
+        run: ./gitleaks git --redact --verbose --exit-code 1 .

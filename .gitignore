@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.import_linter_cache/
 .coverage
 htmlcov/
 dist/
@@ -17,9 +18,9 @@ build/
 !.env.example
 
 # Données locales (régénérables) et sorties de rapport
-data/
-!data/.gitkeep
-out/
+donnees/*
+!donnees/corpus/
+sorties/
 *.duckdb
 *.duckdb.wal
 
