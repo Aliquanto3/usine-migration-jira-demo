@@ -5,7 +5,7 @@ created: '2026-10-11'
 status: 'done'
 baseline_revision: 'e4fbc43850d7c8e5ebd77dfe62a78297d8baeed2'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
 warnings: ['oversized']
@@ -206,3 +206,7 @@ Status: done
 **Risques résiduels.**
 - Un processus tué brutalement (et non interrompu) laisse le verrou ; le message indique de le supprimer à la main.
 - La mesure NFR-2 est à refaire quand les bouchons seront remplacés.
+
+### Revue de suivi (2026-10-12)
+
+Pas de nouvelle passe. Le seul risque nommé ci-dessus était une garde Météo seulement documentée : un jour non calculé lu comme vert. La revue de suivi de la Story 0.4 (commit 37baee3) l'a fermé : `_mesures` refuse désormais une Date d'arrêté absente alors que des états antérieurs existent, avec des tests pour un week-end et pour un trou dans les dates calculées.
