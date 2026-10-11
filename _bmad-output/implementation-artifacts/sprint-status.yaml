@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-11-2026 07:55
-last_updated: 10-11-2026 12:00
+last_updated: 11-10-2026 20:15
 project: usine-migration-jira-demo
 project_key: NOKEY
 tracking_system: file-system
@@ -58,7 +58,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   epic-0: in-progress
   0-1-socle-du-dépôt-e0-1: review
-  0-2-contrats-v0-et-ports-e0-2: backlog
+  0-2-contrats-v0-et-ports-e0-2: done
   0-3-mini-générateur-déterministe-e0-3: backlog
   0-4-calcul-minimal-de-la-météo-e0-4: backlog
   0-5-chaîne-et-passage-atomique-e0-5: backlog
