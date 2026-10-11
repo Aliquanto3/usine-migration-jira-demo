@@ -53,7 +53,8 @@ def test_apercu_n_ecrit_pas_la_table(tmp_path: Path) -> None:
     vu = pseudo.apercu(TEXTE)
     assert vu == _pseudonymiseur(tmp_path / "autre.sqlite").pseudonymiser(TEXTE)
     assert pseudo.reidentifier(vu) == vu
-    assert TablePseudonymesSqlite(chemin).lire(["COMPTE_000000"]) == {}
+    (jeton,) = re.findall(r"\bCOMPTE_[0-9a-f]{6}\b", vu)
+    assert TablePseudonymesSqlite(chemin).lire([jeton]) == {}
 
 
 def test_jeton_inconnu_garde(tmp_path: Path) -> None:
@@ -61,9 +62,29 @@ def test_jeton_inconnu_garde(tmp_path: Path) -> None:
     assert pseudo.reidentifier("COMPTE_abcdef et DEMO-1") == "COMPTE_abcdef et DEMO-1"
 
 
-def test_cle_vide_refusee(tmp_path: Path) -> None:
+@pytest.mark.parametrize("cle", [b"", b"cle-courte", b"   " + b"x" * 15])
+def test_cle_vide_ou_courte_refusee(tmp_path: Path, cle: bytes) -> None:
     with pytest.raises(UsineErreur, match="USINE_CLE_PSEUDO"):
-        _pseudonymiseur(tmp_path / "pseudonymes.sqlite", b"")
+        _pseudonymiseur(tmp_path / "pseudonymes.sqlite", cle)
+
+
+def test_type_du_plus_long_dans_un_groupe(tmp_path: Path) -> None:
+    motifs = {"PREFIXE": r"compte FR\d{2}", "COMPTE": MOTIFS_PAR_DEFAUT["COMPTE"]}
+    pseudo = PseudonymiseurHmac(CLE, motifs, TablePseudonymesSqlite(tmp_path / "p.sqlite"))
+    texte = f"Virement sur le compte {NUMERO_COMPTE}."
+    sortie = pseudo.pseudonymiser(texte)
+    assert re.fullmatch(r"Virement sur le COMPTE_[0-9a-f]{6}\.", sortie)
+    assert pseudo.reidentifier(sortie) == texte
+
+
+def test_reidentifie_un_jeton_colle_ou_prefixe(tmp_path: Path) -> None:
+    pseudo = _pseudonymiseur(tmp_path / "pseudonymes.sqlite")
+    jeton = pseudo.pseudonymiser(NUMERO_COMPTE)
+    assert pseudo.reidentifier(f"voir{jeton}.") == f"voir{NUMERO_COMPTE}."
+    assert pseudo.reidentifier(f"ID_{jeton} et (x{jeton}y)") == (
+        f"ID_{NUMERO_COMPTE} et (x{NUMERO_COMPTE}y)"
+    )
+    assert pseudo.reidentifier(f"{jeton}0") == f"{jeton}0"  # 7 hex : pas un jeton
 
 
 def test_motif_court_ne_masque_pas_un_motif_long(tmp_path: Path) -> None:
@@ -83,6 +104,7 @@ def test_correspondance_a_cheval_sur_une_cle_de_ticket(tmp_path: Path) -> None:
     assert "5678" not in sortie
     assert "9012" not in sortie
     assert re.search(r"\bIDENTIFIANT_[0-9a-f]{6}\b", sortie)
+    assert re.search(r"\bABC-2024\b", sortie)  # la clé chevauchée reste intacte
     assert "DEMO-3" in sortie
     assert pseudo.reidentifier(sortie) == texte
 

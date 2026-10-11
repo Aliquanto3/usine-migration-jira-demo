@@ -11,6 +11,7 @@ Les titres et descriptions des tickets sont des données, placées entre délimi
 prompt ; `version_prompt` est calculée à partir des octets du gabarit envoyé.
 """
 
+import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -35,6 +36,8 @@ MAX_JETONS_SORTIE = 1024
 
 TENTATIVES = 2
 """Appel initial (`tentative = 0`) et une seule régénération (`tentative = 1`)."""
+
+journal = logging.getLogger(__name__)
 
 _VARIABLE = re.compile(r"\{\{(\w+)\}\}")
 
@@ -113,6 +116,8 @@ def _tickets(cles: tuple[str, ...], textes: pl.DataFrame) -> str:
     par_cle = {ligne["cle_ticket"]: ligne for ligne in textes.iter_rows(named=True)}
     lignes = []
     for cle in cles:
+        if cle not in par_cle:
+            journal.warning("ticket en cause %s absent des textes des tickets", cle)
         ligne = par_cle.get(cle, {})
         titre = ligne.get("titre") or "(sans titre)"
         description = ligne.get("description") or "(sans description)"

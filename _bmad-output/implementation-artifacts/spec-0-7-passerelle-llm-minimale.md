@@ -5,7 +5,7 @@ created: '2026-10-11'
 status: 'done'
 baseline_revision: '45e8de777b8ed69f18c46e64d584cd3fbc88094d'
 review_loop_iteration: 1
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
 warnings: ['oversized']
@@ -207,6 +207,46 @@ deferred: []
   - `[low]` `[reject]` (edge) `tickets_textes.parquet` contient le numéro en clair — fichier de Passage prévu (AD-23), local et fictif ; les traces et les sorties LLM en sont exemptes (testé).
   - `[medium]` `[patch]` (edge) AD-12 « sans exception » non tenu en cas de chevauchement — même correctif.
 
+### 2026-10-12 — Review pass (suivi, code actuel)
+- verdicts: 36 findings — high 0, medium 4, low 29, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (intention) Lignes Palier 2 hors du diff de suivi — tenues par la composition et `test_execution.py` (deux Passages Palier 2), hors du périmètre du diff relu.
+  - `[low]` `[reject]` (intention) Pseudonymiseur HMAC de production au-delà de l'intention — ajouté par la boucle 1 (AC 1, spine E0-7).
+  - `[low]` `[reject]` (intention) Clé d'un autre projet ignorée par le contrôle des citations — un seul projet Jira (`cle_projet`) en E0 ; règle du préfixe retenue pour écarter `IND-1`, `UTF-8`.
+  - `[false]` `[reject]` (intention) Comportements ajoutés à l'explication (réponse vide, brouillon filtré) — correctifs des passes précédentes.
+  - `[false]` `[reject]` (intention) `version_modele` de la trace tirée de la réponse — amendement de la boucle 1.
+  - `[false]` `[reject]` (intention) Frontières d'import non montrées par le diff — tenues par import-linter, vert.
+  - `[medium]` `[patch]` (blind) Ré-identification de jetons d'autres appels — limitée aux jetons de l'entrée pseudonymisée de l'appel ; testé.
+  - `[low]` `[reject]` (blind) Collisions sur 24 bits — carried (AD-15).
+  - `[medium]` `[patch]` (blind) Clé de ticket entamée par un motif à cheval — les clés ne sont jamais touchées ; seuls les fragments hors clé sont pseudonymisés (adaptateur et doublure) ; exemple de contrat ajouté.
+  - `[low]` `[reject]` (blind) Clés d'un autre projet — même raison que la ligne d'intention.
+  - `[low]` `[reject]` (blind) Abréviations — carried.
+  - `[low]` `[reject]` (blind) Sauts de ligne perdus au filtrage — texte d'une explication ; mise en forme fine en L6.
+  - `[low]` `[reject]` (blind) Régénération sans retour correctif — carried.
+  - `[false]` `[reject]` (blind) Erreur d'un fournisseur fatale à l'étape — carried (AD-12).
+  - `[low]` `[reject]` (blind) Taille du prompt non bornée — carried.
+  - `[low]` `[reject]` (blind) Clé de cache sans `max_jetons_sortie` ni schéma — carried (AD-12).
+  - `[low]` `[patch]` (blind) Ticket en cause sans texte rempli en silence — avertissement journalisé, testé.
+  - `[low]` `[patch]` (blind) Clé HMAC faible acceptée — au moins 16 caractères, testé.
+  - `[low]` `[patch]` (blind) `test_apercu_n_ecrit_pas_la_table` inopérant — lit le jeton réellement produit.
+  - `[low]` `[reject]` (blind) Tests manquants (concurrence WAL, retour arrière, fabrique) — hors usage E0 ; fabrique carried.
+  - `[medium]` `[patch]` (verification-gap) Clé à cheval non couverte par la suite de contrat — même correctif.
+  - `[low]` `[patch]` (verification-gap) Règle « type de la plus longue » jamais exercée — `test_type_du_plus_long_dans_un_groupe`.
+  - `[low]` `[patch]` (verification-gap) Docstrings fausses sur les clés — rendues vraies par le correctif.
+  - `[medium]` `[patch]` (edge) Clé de ticket remplacée — même correctif.
+  - `[low]` `[reject]` (edge) Collision HMAC — carried.
+  - `[low]` `[patch]` (edge) Jeton collé à un mot non ré-identifié — candidats par lookarounds, testé.
+  - `[low]` `[patch]` (edge) Jeton préfixé (`ID_COMPTE_…`) non ré-identifié — variantes de suffixe, testé.
+  - `[low]` `[reject]` (edge) Échec de lecture du cache fatal — carried.
+  - `[low]` `[reject]` (edge) Échec d'écriture du cache après un appel payé — erreur disque explicite ; cas improbable.
+  - `[low]` `[reject]` (edge) `brut` hors JSON du schéma — carried (contrat des adaptateurs de L6).
+  - `[low]` `[reject]` (edge) Clé de cache sans paramètres d'appel — carried.
+  - `[low]` `[reject]` (edge) Échec du fournisseur fatal — carried (AD-12).
+  - `[low]` `[reject]` (edge) Textes en double pour une clé — `tickets_textes` produit une ligne par ticket.
+  - `[low]` `[reject]` (edge) Brouillon multiligne aplati — même raison que la ligne blind.
+  - `[low]` `[patch]` (edge) Promesse « clés jamais touchées » non tenue — même correctif.
+  - `[low]` `[reject]` (edge) Clé d'un autre projet admise — même raison que la ligne d'intention.
+
 ## Design Notes
 
 **Cache par `Protocol` local.** AD-12 réserve le cache à la passerelle, et la couche `ia` ne peut pas importer `adaptateurs`. Le spine ne prévoit pas de port `Cache`. Un `Protocol` à types primitifs (`str`), défini dans `ia.passerelle`, garde la frontière sans toucher `ports/` en E0. La Story 0.9 (relecture avant gel) décidera s'il faut le promouvoir en port. Même raisonnement pour `ReponseExplication`, schéma interne à la tâche : la sortie publiée reste `SortieExplication`.
@@ -260,3 +300,21 @@ Status: done
 - `cout_estime_eur` vaut 0, en attendant le registre des prix de la lane L6.
 - Le Palier 2 n'est pas lançable depuis la CLI : aucun fournisseur réel n'existe encore.
 - `CacheLLM` et `TablePseudonymes` sont des `Protocol` locaux. La Story 0.9 décidera s'ils deviennent des ports.
+
+### Revue de suivi (2026-10-12)
+
+**Résumé.** Revue du code actuel (passerelle, contrôles, explication, adaptateurs de pseudonymisation et SQLite) : 36 findings, 14 lignes `patch` (4 medium, en 2 causes) donnant 7 correctifs, 0 différé.
+
+**Correctifs.**
+- Le risque nommé lors de la passe initiale est fermé : les clés de ticket ne sont plus jamais touchées. Seuls les fragments hors clé d'une correspondance sont pseudonymisés, dans l'adaptateur comme dans la doublure, avec un exemple dans la suite de contrat.
+- La ré-identification se limite aux jetons de l'entrée de l'appel : la valeur d'un autre dossier ne peut plus apparaître.
+- Les jetons collés à un mot ou préfixés sont ré-identifiés.
+- La clé HMAC doit compter au moins 16 caractères.
+- Un ticket en cause sans texte est signalé dans le journal.
+- Ajout du test de la règle « type de la plus longue », et correction de `test_apercu_n_ecrit_pas_la_table`.
+
+**Revue de suivi.** `false` : aucun correctif `high`.
+
+**Vérification.** ruff, ruff format, mypy, lint-imports et pytest : 864 tests passés.
+
+**Risque résiduel.** Une citation d'un autre projet Jira n'est pas contrôlée. C'est acceptable avec un seul projet en E0 ; à revoir si L2 ou L6 introduisent plusieurs projets.

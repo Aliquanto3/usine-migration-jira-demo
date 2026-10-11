@@ -3,7 +3,8 @@
 Ordre, sans exception : Pseudonymisation de toute l'entrée → cache → `FournisseurLLM` →
 contrôle propre à la tâche → ré-identification locale → `EntreeTrace`. Rien n'atteint le
 fournisseur ni le cache sans être pseudonymisé ; la trace ne contient que des textes
-pseudonymisés (entrée, et sortie contrôlée avant ré-identification).
+pseudonymisés (entrée, et sortie contrôlée avant ré-identification). Seuls les jetons présents
+dans l'entrée pseudonymisée de l'appel sont ré-identifiés ; tout autre jeton reste tel quel.
 
 Le cache est reçu par injection : `CacheLLM` est un `Protocol` à types primitifs que
 l'adaptateur SQLite satisfait structurellement (la couche `ia` n'importe pas `adaptateurs`).
@@ -13,6 +14,7 @@ La valeur stockée est une `EnveloppeCache` JSON : réponse brute et `version_mo
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -111,14 +113,56 @@ def cle_cache(
     )
 
 
-def _reidentifier(valeur: object, pseudonymiseur: Pseudonymiseur) -> object:
+_CANDIDAT_JETON = re.compile(r"(?<![A-Z_])([A-Z][A-Z_]*)_([0-9a-f]{6})(?![0-9a-f])")
+"""Jeton candidat `<TYPE>_<6 hex>`, éventuellement précédé d'un préfixe `MAJUSCULES_`."""
+_MASQUE = re.compile("\x00([0-9]+)\x00")
+
+
+def _variantes(candidat: re.Match[str]) -> frozenset[str]:
+    """Jetons possibles d'un candidat : `ID_COMPTE_abc123` → lui-même et `COMPTE_abc123`."""
+    parties = candidat.group(1).split("_")
+    return frozenset(
+        f"{'_'.join(parties[rang:])}_{candidat.group(2)}"
+        for rang in range(len(parties))
+        if parties[rang]
+    )
+
+
+def jetons_de(texte: str) -> frozenset[str]:
+    """Jetons (et variantes) présents dans `texte`."""
+    return frozenset().union(*(_variantes(m) for m in _CANDIDAT_JETON.finditer(texte)))
+
+
+def _reidentifier_texte(
+    texte: str, pseudonymiseur: Pseudonymiseur, autorises: frozenset[str]
+) -> str:
+    """Ré-identifie `texte` ; un jeton absent de l'entrée de cet appel reste un jeton.
+
+    Un jeton recopié ou inventé par le modèle depuis un autre appel ne doit pas faire entrer
+    la valeur d'un autre enregistrement : il est masqué pendant la ré-identification.
+    """
+    masques: list[str] = []
+
+    def masquer(candidat: re.Match[str]) -> str:
+        if _variantes(candidat) & autorises:
+            return candidat.group(0)
+        masques.append(candidat.group(0))
+        return f"\x00{len(masques) - 1}\x00"
+
+    resultat = pseudonymiseur.reidentifier(_CANDIDAT_JETON.sub(masquer, texte))
+    return _MASQUE.sub(lambda m: masques[int(m.group(1))], resultat)
+
+
+def _reidentifier(
+    valeur: object, pseudonymiseur: Pseudonymiseur, autorises: frozenset[str]
+) -> object:
     """Ré-identifie chaque chaîne d'une structure `model_dump` (listes, tuples, dicts)."""
     if isinstance(valeur, str):
-        return pseudonymiseur.reidentifier(valeur)
+        return _reidentifier_texte(valeur, pseudonymiseur, autorises)
     if isinstance(valeur, dict):
-        return {cle: _reidentifier(v, pseudonymiseur) for cle, v in valeur.items()}
+        return {cle: _reidentifier(v, pseudonymiseur, autorises) for cle, v in valeur.items()}
     if isinstance(valeur, list | tuple):
-        return [_reidentifier(v, pseudonymiseur) for v in valeur]
+        return [_reidentifier(v, pseudonymiseur, autorises) for v in valeur]
     return valeur
 
 
@@ -185,7 +229,9 @@ class Passerelle:
             version_reponse = appel.version_modele
 
         controle = controler(reponse)
-        donnees = _reidentifier(controle.sortie.model_dump(), self._pseudonymiseur)
+        donnees = _reidentifier(
+            controle.sortie.model_dump(), self._pseudonymiseur, jetons_de(entree)
+        )
         sortie = type(controle.sortie).model_validate(donnees)
 
         trace = EntreeTrace(

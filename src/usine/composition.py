@@ -21,7 +21,11 @@ from types import MappingProxyType
 from pydantic import ValidationError
 
 from usine.adaptateurs.journal import SourceJournal
-from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT, PseudonymiseurHmac
+from usine.adaptateurs.pseudonymisation import (
+    MOTIFS_PAR_DEFAUT,
+    PseudonymiseurHmac,
+    verifier_cle,
+)
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeMeteo, EtapeSautee
@@ -164,9 +168,9 @@ def _verifier_llm(
             "config/chaine.yaml, clé « palier », valeur 2 : variable d'environnement"
             " USINE_CLE_PSEUDO absente ou vide ; aucun appel LLM sans Pseudonymisation"
         )
-    return _ParametresPseudonymisation(
-        cle.get_secret_value().encode("utf-8"), _motifs_pseudonymisation(repertoire_config)
-    )
+    octets_cle = cle.get_secret_value().encode("utf-8")
+    verifier_cle(octets_cle)
+    return _ParametresPseudonymisation(octets_cle, _motifs_pseudonymisation(repertoire_config))
 
 
 def construire_rapport(

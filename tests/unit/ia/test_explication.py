@@ -1,5 +1,6 @@
 """Tâche `explication` : Citations contrôlées, régénération unique, repli (FR-32)."""
 
+import logging
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -248,3 +249,12 @@ def test_brouillon_sans_citation_hors_tickets_en_cause() -> None:
     )
     assert sortie.brouillon_commentaire == "Relancer DEMO-3. Merci."
     assert sortie.statut_controle is StatutControle.conforme
+
+
+def test_ticket_en_cause_sans_texte_journalise(caplog: pytest.LogCaptureFixture) -> None:
+    factice = FournisseurFactice([ReponseExplication(texte="DEMO-3 bloque.")])
+    passerelle = Passerelle(factice, pseudonymiseur(), CacheMemoire(), horloge_espion([]))
+    with caplog.at_level(logging.WARNING, logger="usine.ia.explication"):
+        expliquer(passerelle, meteo_rouge(tickets=("DEMO-3", "DEMO-42")), TEXTES, _contexte())
+    assert any("DEMO-42" in message for message in caplog.messages)
+    assert not any("DEMO-3 " in message for message in caplog.messages)

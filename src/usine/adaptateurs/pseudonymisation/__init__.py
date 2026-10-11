@@ -3,8 +3,10 @@
 `PseudonymiseurHmac` implémente le port `Pseudonymiseur` : chaque correspondance d'un motif
 devient `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>`. Le jeton ne dépend que de la clé
 (`USINE_CLE_PSEUDO`) et de la valeur : il est stable d'une exécution à l'autre. Une clé de
-ticket n'est jamais touchée. `pseudonymiser` enregistre la correspondance dans la table,
-`apercu` ne l'enregistre pas, `reidentifier` la relit.
+ticket n'est jamais touchée : seules les parties d'une correspondance hors des clés de ticket
+sont pseudonymisées, chaque fragment restant devenant son propre jeton. `pseudonymiser`
+enregistre la correspondance dans la table, `apercu` ne l'enregistre pas, `reidentifier` la
+relit.
 
 Les reconnaisseurs Presidio et les motifs définitifs relèvent de la lane L6 ;
 `MOTIFS_PAR_DEFAUT` n'est qu'un motif d'amorce.
@@ -13,7 +15,7 @@ Les reconnaisseurs Presidio et les motifs définitifs relèvent de la lane L6 ;
 import hashlib
 import hmac
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from typing import Protocol
 
 from usine.contrats.erreurs import UsineErreur
@@ -25,10 +27,73 @@ MOTIFS_PAR_DEFAUT: Mapping[str, str] = {"COMPTE": r"FR\d{2}(?: \d{4}){5} \d{3}"}
 LONGUEUR_EMPREINTE = 6
 """Nombre de caractères hexadécimaux du HMAC gardés dans le jeton."""
 
+LONGUEUR_MIN_CLE = 16
+"""Longueur minimale de `USINE_CLE_PSEUDO`."""
+
 _CLE_TICKET = re.compile(rf"\b{MOTIF_CLE_TICKET}\b")
 _MOTIF_TYPE_JETON = r"[A-Z](?:[A-Z_]*[A-Z])?"
 _TYPE_JETON = re.compile(_MOTIF_TYPE_JETON)
-_JETON = re.compile(rf"\b{_MOTIF_TYPE_JETON}_[0-9a-f]{{{LONGUEUR_EMPREINTE}}}\b")
+CANDIDAT_JETON = re.compile(
+    rf"(?<![A-Z_])([A-Z][A-Z_]*)_([0-9a-f]{{{LONGUEUR_EMPREINTE}}})(?![0-9a-f])"
+)
+"""Jeton candidat, même collé à des lettres ou précédé d'un préfixe `MAJUSCULES_`.
+
+Le groupe 1 peut porter un préfixe en plus du type (`ID_COMPTE`) : voir `variantes_jeton`.
+"""
+
+
+def variantes_jeton(candidat: re.Match[str]) -> list[str]:
+    """Jetons possibles d'un candidat, du plus long au plus court.
+
+    `ID_COMPTE_abc123` → `ID_COMPTE_abc123`, puis `COMPTE_abc123`.
+    """
+    parties = candidat.group(1).split("_")
+    empreinte = candidat.group(2)
+    return [
+        f"{'_'.join(parties[rang:])}_{empreinte}"
+        for rang in range(len(parties))
+        if parties[rang] and _TYPE_JETON.fullmatch("_".join(parties[rang:]))
+    ]
+
+
+def verifier_cle(cle: bytes) -> None:
+    """Refuse une clé de moins de `LONGUEUR_MIN_CLE` caractères (`UsineErreur`)."""
+    if len(cle.strip()) < LONGUEUR_MIN_CLE:
+        raise UsineErreur(
+            f"USINE_CLE_PSEUDO : clé de Pseudonymisation absente ou trop courte"
+            f" (au moins {LONGUEUR_MIN_CLE} caractères)"
+        )
+
+
+def fragments_hors_cles(
+    texte: str, debut: int, fin: int, proteges: Sequence[tuple[int, int]]
+) -> Iterator[tuple[int, int]]:
+    """Parties de `texte[debut:fin]` hors des clés de ticket `proteges`.
+
+    Au contact d'une clé coupée, la ponctuation et les blancs restent en clair, pour que la
+    clé reste reconnaissable (`ABC-2024-5678` → `ABC-2024-` + jeton de `5678`).
+    """
+    morceaux: list[tuple[int, int]] = []
+    position = debut
+    for d, f in sorted(proteges):
+        if f <= position or d >= fin:
+            continue
+        if d > position:
+            morceaux.append((position, d))
+        position = max(position, f)
+    if position < fin:
+        morceaux.append((position, fin))
+    fins_de_cle = {f for _, f in proteges}
+    debuts_de_cle = {d for d, _ in proteges}
+    for gauche, droite in morceaux:
+        if gauche in fins_de_cle:
+            while gauche < droite and not texte[gauche].isalnum():
+                gauche += 1
+        if droite in debuts_de_cle:
+            while gauche < droite and not texte[droite - 1].isalnum():
+                droite -= 1
+        if gauche < droite:
+            yield gauche, droite
 
 
 class TablePseudonymes(Protocol):
@@ -47,8 +112,7 @@ class PseudonymiseurHmac:
     """Pseudonymiseur par motifs et HMAC-SHA256 ; correspondance gardée dans `table`."""
 
     def __init__(self, cle: bytes, motifs: Mapping[str, str], table: TablePseudonymes) -> None:
-        if not cle:
-            raise UsineErreur("USINE_CLE_PSEUDO : clé de Pseudonymisation vide")
+        verifier_cle(cle)
         self._cle = cle
         invalides = sorted(t for t in motifs if not _TYPE_JETON.fullmatch(t))
         if invalides:
@@ -72,8 +136,9 @@ class PseudonymiseurHmac:
 
         Toutes les correspondances sont collectées ; seule est écartée celle qui tient tout
         entière dans une clé de ticket. Des correspondances qui se chevauchent forment un
-        groupe : il est remplacé d'un seul tenant (de son premier à son dernier caractère),
-        avec le type de jeton de la plus longue, pour qu'aucun fragment ne reste en clair.
+        groupe (de son premier à son dernier caractère), avec le type de jeton de la plus
+        longue, pour qu'aucun fragment ne reste en clair. Les clés de ticket sont ensuite
+        retirées du groupe : chaque fragment restant est une plage.
         """
         proteges = [m.span() for m in _CLE_TICKET.finditer(texte)]
         trouvees: list[tuple[int, int, str]] = []
@@ -84,18 +149,22 @@ class PseudonymiseurHmac:
                     continue
                 trouvees.append((debut, fin, type_jeton))
         trouvees.sort(key=lambda t: (t[0], -(t[1] - t[0])))
-        plages: list[tuple[int, int, str]] = []
+        groupes: list[tuple[int, int, str]] = []
         longueur_type = 0
         for debut, fin, type_jeton in trouvees:
-            if plages and debut < plages[-1][1]:
-                debut_groupe, fin_groupe, type_groupe = plages[-1]
+            if groupes and debut < groupes[-1][1]:
+                debut_groupe, fin_groupe, type_groupe = groupes[-1]
                 if fin - debut > longueur_type:
                     type_groupe, longueur_type = type_jeton, fin - debut
-                plages[-1] = (debut_groupe, max(fin, fin_groupe), type_groupe)
+                groupes[-1] = (debut_groupe, max(fin, fin_groupe), type_groupe)
             else:
-                plages.append((debut, fin, type_jeton))
+                groupes.append((debut, fin, type_jeton))
                 longueur_type = fin - debut
-        return plages
+        return [
+            (d, f, type_groupe)
+            for debut, fin, type_groupe in groupes
+            for d, f in fragments_hors_cles(texte, debut, fin, proteges)
+        ]
 
     def _remplacer(self, texte: str) -> tuple[str, dict[str, str]]:
         """Texte pseudonymisé et correspondances jeton → valeur de ce texte."""
@@ -120,12 +189,24 @@ class PseudonymiseurHmac:
         return sortie
 
     def reidentifier(self, texte: str) -> str:
-        """Remplace, localement, les jetons connus de la table ; les autres restent tels quels."""
-        jetons = set(_JETON.findall(texte))
-        if not jetons:
+        """Remplace, localement, les jetons connus de la table ; les autres restent tels quels.
+
+        Un jeton collé à des lettres ou précédé d'un préfixe `MAJUSCULES_` (`ID_COMPTE_abc123`)
+        est reconnu : la plus longue variante connue de la table est remplacée, le préfixe
+        reste.
+        """
+        candidats = list(CANDIDAT_JETON.finditer(texte))
+        if not candidats:
             return texte
-        valeurs = self._table.lire(jetons)
-        return _JETON.sub(lambda m: valeurs.get(m.group(0), m.group(0)), texte)
+        valeurs = self._table.lire({v for c in candidats for v in variantes_jeton(c)})
+
+        def remplacer(candidat: re.Match[str]) -> str:
+            for variante in variantes_jeton(candidat):
+                if variante in valeurs:
+                    return candidat.group(0)[: -len(variante)] + valeurs[variante]
+            return candidat.group(0)
+
+        return CANDIDAT_JETON.sub(remplacer, texte)
 
     def apercu(self, texte: str) -> str:
         """Comme `pseudonymiser`, sans écrire la table (FR-31)."""

@@ -220,3 +220,15 @@ def test_trace_porte_le_modele_de_la_reponse() -> None:
     assert second.trace.depuis_cache
     assert second.trace.version_modele == "repli:modele-effectif"
     assert second.trace.fournisseur == "repli"
+
+
+def test_jeton_hors_entree_non_reidentifie() -> None:
+    pseudo = pseudonymiseur()
+    autre_compte = "FR76 1111 2222 3333 4444 5555 666"
+    autre_jeton = pseudo.pseudonymiser(autre_compte)  # autre enregistrement, autre appel
+    reponse = ReponseExplication(texte=f"DEMO-3 bloque {jeton_compte()} et {autre_jeton}.")
+    factice = FournisseurFactice([reponse])
+    passerelle = Passerelle(factice, pseudo, CacheMemoire(), horloge_espion([]))
+    resultat, _ = _appeler(passerelle, [])
+    assert resultat.sortie.texte == f"DEMO-3 bloque {NUMERO_COMPTE} et {autre_jeton}."
+    assert autre_compte not in resultat.sortie.model_dump_json()

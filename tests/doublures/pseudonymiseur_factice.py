@@ -1,6 +1,7 @@
 """`PseudonymiseurFactice` : Pseudonymisation par expressions régulières et HMAC (AD-15).
 
-Jeton = `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>` ; une clé de ticket n'est jamais touchée.
+Jeton = `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>` ; une clé de ticket n'est jamais touchée :
+seules les parties d'une correspondance hors des clés de ticket sont pseudonymisées.
 La correspondance reste en mémoire.
 """
 
@@ -9,6 +10,7 @@ import hmac
 import re
 from collections.abc import Mapping
 
+from usine.adaptateurs.pseudonymisation import fragments_hors_cles
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.tickets import MOTIF_CLE_TICKET
 
@@ -36,10 +38,9 @@ class PseudonymiseurFactice:
                 debut, fin = trouve.span()
                 if debut == fin:
                     continue
-                chevauche = any(d < fin and debut < f for d, f in proteges)
-                chevauche = chevauche or any(d < fin and debut < f for d, f, _ in retenus)
-                if not chevauche:
-                    retenus.append((debut, fin, type_jeton))
+                for d_frag, f_frag in fragments_hors_cles(texte, debut, fin, proteges):
+                    if not any(d < f_frag and d_frag < f for d, f, _ in retenus):
+                        retenus.append((d_frag, f_frag, type_jeton))
         morceaux: list[str] = []
         position = 0
         for debut, fin, type_jeton in sorted(retenus):

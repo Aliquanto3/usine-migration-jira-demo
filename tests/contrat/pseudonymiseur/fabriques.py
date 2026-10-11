@@ -46,12 +46,19 @@ EXEMPLES = (
         ("DEMO-7",),
     ),
     ExempleSensible("Aucune donnée sensible dans DEMO-12.", (), ("DEMO-12",)),
+    ExempleSensible(
+        # Le motif DOSSIER chevauche la clé ABC-2024 : la clé reste, le reste disparaît.
+        "Dossier ABC-2024-5678-9012 bloqué (voir DEMO-8).",
+        ("5678-9012",),
+        ("ABC-2024", "DEMO-8"),
+    ),
 )
 
 MOTIFS_FACTICES = {
     "COMPTE": r"FR\d{2}(?: \d{4}){3}",
     "CLIENT": r"\b(?:M\.|Mme) [A-Z][a-zé]+",
     "IDENTIFIANT": r"\b\d{6}\b",
+    "DOSSIER": r"\d{4}-\d{4}-\d{4}",
 }
 
 
