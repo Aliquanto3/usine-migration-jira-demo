@@ -191,7 +191,7 @@ def test_programme_incoherent(remplacement: dict[str, Any]) -> None:
 
 
 JIRA: dict[str, Any] = {
-    "url_site": "https://exemple-fictif.atlassian.net",
+    "url_site": "https://jira.example.invalid",
     "mode": "cloud",
     "cle_projet": "DEMO",
     "marge_extraction_minutes": 5,
@@ -327,7 +327,7 @@ def test_jira_yaml_livre_valide(racine_depot: Path) -> None:
     texte = (racine_depot / "config" / "jira.yaml").read_text(encoding="utf-8")
     jira = ConfigJira.model_validate(yaml.safe_load(texte))
     assert (jira.url_site, jira.mode, jira.cle_projet) == (
-        "https://demo-usine.atlassian.net",
+        "https://jira.example.invalid",
         "cloud",
         "DEMO",
     )

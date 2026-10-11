@@ -75,3 +75,16 @@ def test_sans_meteo(tmp_path: Path) -> None:
 def test_gabarit_illisible(passage: Path) -> None:
     with pytest.raises(UsineErreur, match="gabarit"):
         rendre_powerpoint(ConsultationPassage(passage), b"pas un pptx", DATE_ARRETE)
+
+
+def test_couleurs_des_cellules(passage_jaune_rouge: ConsultationPassage) -> None:
+    """Teinte et texte de la cellule Météo : texte foncé sur le jaune, blanc sur le rouge."""
+    octets = rendre_powerpoint(passage_jaune_rouge, GABARIT.read_bytes(), DATE_ARRETE)
+    slide = Presentation(io.BytesIO(octets)).slides[0]
+    tableau = next(forme.table for forme in slide.shapes if forme.has_table)
+    attendus = {1: ("Jaune", "F9A825", "212121"), 2: ("Rouge", "C62828", "FFFFFF")}
+    for ligne, (libelle, teinte, texte) in attendus.items():
+        cellule = tableau.cell(ligne, 1)
+        assert cellule.text == libelle
+        assert str(cellule.fill.fore_color.rgb) == teinte
+        assert str(cellule.text_frame.paragraphs[0].runs[0].font.color.rgb) == texte

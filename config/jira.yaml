@@ -2,7 +2,7 @@
 # Tout est fictif : site, projet et identifiants de champs n'existent pas. La lane L2 l'ajuste.
 
 # URL du site Jira ; les liens des rapports pointent vers <url_site>/browse/<clé>.
-url_site: https://demo-usine.atlassian.net
+url_site: https://jira.example.invalid
 # Adaptateur Jira : cloud (Jira Cloud) ou dc (Data Center).
 mode: cloud
 # Clé du projet Jira du Programme (préfixe des clés de tickets, ex. DEMO-123).

@@ -13,14 +13,19 @@ import pytest
 
 from tests.unit.chaine.environnement import DATE_ARRETE, horloge_figee, preparer_racine
 from usine.composition import PassageLance, lancer_rapport
-from usine.consultation.passage import ConsultationPassage
+from usine.consultation.passage import ConsultationPassage, _date_iso
 from usine.contrats.agent import AnomalieResume
 from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import SortieExplication
+from usine.contrats.llm import (
+    SCHEMA_REPARTITION_CAUSES,
+    SortieClassification,
+    SortieExplication,
+    SortieNarration,
+)
 from usine.contrats.meteo import Couleur
 from usine.contrats.passage import EnveloppeFichier
-from usine.contrats.tickets import SCHEMA_TICKET_ETAT, StatutAnomalie
+from usine.contrats.tickets import SCHEMA_TICKET_ETAT, CauseRacine, StatutAnomalie
 from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.contrats.versions import CLE_VERSION, CONTRATS_VERSION
 from usine.ports.consultation import Consultation
@@ -277,7 +282,7 @@ def test_traces(passage: Path) -> None:
         ConsultationPassage(passage).traces()
 
 
-def test_explications_selon_palier(passage: Path) -> None:
+def test_sorties_llm_selon_palier(passage: Path) -> None:
     explication = SortieExplication(
         date_arrete=DATE_ARRETE,
         entite="ENT-A",
@@ -291,10 +296,75 @@ def test_explications_selon_palier(passage: Path) -> None:
     (passage / "llm" / "explications.json").write_text(
         enveloppe.model_dump_json(), encoding="utf-8"
     )
+    classification = SortieClassification(cle_ticket="DEMO-6", cause_racine=CauseRacine.parametrage)
+    narration = SortieNarration(date_arrete=DATE_ARRETE, entite="ENT-A", texte="Narration.")
+    for nom, type_contenu, contenu in (
+        ("classification", tuple[SortieClassification, ...], (classification,)),
+        ("narrations", tuple[SortieNarration, ...], (narration,)),
+    ):
+        modele_llm = EnveloppeFichier[type_contenu]  # type: ignore[valid-type]
+        (passage / "llm" / f"{nom}.json").write_text(
+            modele_llm(
+                passage_id=passage.name, date_arrete=DATE_ARRETE, contenu=contenu
+            ).model_dump_json(),
+            encoding="utf-8",
+        )
+    repartition = pl.DataFrame(
+        {
+            "date": [date(2026, 10, 8), DATE_ARRETE],
+            "entite": ["ENT-A", "ENT-A"],
+            "cause_racine": ["parametrage", "parametrage"],
+            "nombre": [2, 1],
+        },
+        schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
+    )
+    repartition.write_parquet(
+        passage / "repartition_causes.parquet", metadata={CLE_VERSION: CONTRATS_VERSION}
+    )
     consultation = ConsultationPassage(passage)
     assert consultation.explications(palier=1) == ()
     assert consultation.explications(palier=2) == (explication,)
     assert consultation.explications(entite="ENT-B") == ()
+    assert consultation.classification(palier=1) == ()
+    assert consultation.classification(palier=2) == (classification,)
+    assert consultation.narrations(palier=1) == ()
+    assert consultation.narrations(palier=2) == (narration,)
+    assert consultation.repartition_causes(palier=1).is_empty()
+    # Seule la ligne de la Date d'arrêté du Passage est rendue.
+    assert consultation.repartition_causes().rows() == [(DATE_ARRETE, "ENT-A", "parametrage", 1)]
+
+
+def test_anomalies_passage_vide(tmp_path: Path) -> None:
+    with pytest.raises(UsineErreur, match="indéterminable"):
+        ConsultationPassage(tmp_path).anomalies()
+    datee = ConsultationPassage(tmp_path, date_arrete=DATE_ARRETE).anomalies()
+    assert (datee.date_arrete, datee.total) == (DATE_ARRETE, 0)
+
+
+def test_anomalies_limite_negative(lance: PassageLance) -> None:
+    with pytest.raises(UsineErreur, match="limite"):
+        ConsultationPassage(lance.repertoire).anomalies(limite=-1)
+
+
+def test_dernier_passage_ignore_un_rangement_incoherent(
+    passage: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    racine = passage.parents[1]
+    # Manifeste du Passage d'origine recopié sous une autre date et un autre identifiant.
+    deplace = racine / "2026-10-13" / "20261014T070000Z-00000e"
+    shutil.copytree(passage, deplace)
+    # Nom de répertoire en forme ISO basique, refusé.
+    basique = racine / "20261014" / passage.name
+    shutil.copytree(passage, basique)
+    contenu = json.loads((basique / "manifeste.json").read_text(encoding="utf-8"))
+    contenu["date_arrete"] = "2026-10-14"
+    (basique / "manifeste.json").write_text(json.dumps(contenu), encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        dernier = ConsultationPassage(passage).dernier_passage()
+    assert dernier is not None
+    assert dernier.passage_id == passage.name
+    assert dernier.date_arrete == DATE_ARRETE
+    assert str(deplace / "manifeste.json") in caplog.text
 
 
 def test_aucun_passage(tmp_path: Path) -> None:
@@ -328,6 +398,14 @@ def test_version_etrangere_manifeste(passage: Path) -> None:
 
 
 def test_url_ticket(tmp_path: Path) -> None:
-    avec = ConsultationPassage(tmp_path, url_jira="https://demo-usine.atlassian.net/")
-    assert avec.url_ticket("DEMO-7") == "https://demo-usine.atlassian.net/browse/DEMO-7"
+    avec = ConsultationPassage(tmp_path, url_jira="https://jira.example.invalid/")
+    assert avec.url_ticket("DEMO-7") == "https://jira.example.invalid/browse/DEMO-7"
     assert ConsultationPassage(tmp_path).url_ticket("DEMO-7") is None
+
+
+@pytest.mark.parametrize(
+    ("nom", "attendu"),
+    [("2026-10-09", date(2026, 10, 9)), ("20261009", None), ("2026-W41-5", None), ("x", None)],
+)
+def test_nom_de_repertoire_date(nom: str, attendu: date | None) -> None:
+    assert _date_iso(nom) == attendu

@@ -9,9 +9,10 @@ import time_machine
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from tests.unit.chaine.environnement import DATE_ARRETE
+from tests.unit.rendu.conftest import REGLE_JAUNE, REGLE_ROUGE
 from usine.consultation.passage import ConsultationPassage
-from usine.contrats.meteo import Couleur
-from usine.rendu.commun import tickets_en_cause
+from usine.contrats.meteo import CodeIndicateur, Couleur, Operateur, RegleDeclenchante
+from usine.rendu.commun import formater_regle, tickets_en_cause
 from usine.rendu.excel import EN_TETES, NOM_ONGLET, rendre_excel
 
 NOM = f"rapport-{DATE_ARRETE.isoformat()}.xlsx"
@@ -40,13 +41,49 @@ def test_synthese(passage: Path) -> None:
     assert len(lignes) == len(meteos) + 1
     for ligne, meteo in zip(lignes[1:], meteos, strict=True):
         assert (ligne[0][0], ligne[1][0]) == (meteo.entite, LIBELLES[meteo.couleur])
-        if meteo.regles:
-            texte = str(ligne[2][0])
-            assert all(regle.code.value in texte for regle in meteo.regles)
+        assert ligne[2][0] == ("\n".join(formater_regle(r) for r in meteo.regles) or None)
+
+
+REGLE_INFINIE = RegleDeclenchante(
+    code=CodeIndicateur.ind_3,
+    couleur=Couleur.orange,
+    operateur=Operateur.superieur_ou_egal,
+    numerateur=2,
+    denominateur=0,
+    seuil_numerateur=1,
+    seuil_denominateur=2,
+    tickets_en_cause=(),
+)
+
+
+@pytest.mark.parametrize(
+    ("regle", "attendu"),
+    [
+        (REGLE_ROUGE, "IND-1 : 7 (seuil ≥ 3)"),
+        (REGLE_JAUNE, "IND-2 : 0,4 (seuil > 0,3)"),
+        (REGLE_INFINIE, "IND-3 : ∞ (seuil ≥ 0,5)"),
+    ],
+)
+def test_formater_regle(regle: RegleDeclenchante, attendu: str) -> None:
+    assert formater_regle(regle) == attendu
+
+
+def test_couleurs_des_cellules(passage_jaune_rouge: ConsultationPassage) -> None:
+    """Teinte et texte de la cellule Météo : texte foncé sur le jaune, blanc sur le rouge."""
+    onglet = load_workbook(io.BytesIO(rendre_excel(passage_jaune_rouge, DATE_ARRETE)))[NOM_ONGLET]
+    attendus = {2: ("Jaune", "F9A825", "212121"), 3: ("Rouge", "C62828", "FFFFFF")}
+    for ligne, (libelle, teinte, texte) in attendus.items():
+        cellule = onglet.cell(row=ligne, column=2)
+        assert cellule.value == libelle
+        assert cellule.fill.fill_type == "solid"
+        assert cellule.fill.start_color.rgb[-6:] == teinte
+        assert cellule.font.color.rgb[-6:] == texte
+    assert onglet.cell(row=2, column=3).value == "IND-2 : 0,4 (seuil > 0,3)"
+    assert onglet.cell(row=2, column=3).alignment.wrap_text is True
 
 
 def test_liens_jira(passage: Path) -> None:
-    consultation = ConsultationPassage(passage, url_jira="https://demo-usine.atlassian.net")
+    consultation = ConsultationPassage(passage, url_jira="https://jira.example.invalid")
     lignes = _lignes((passage / NOM).read_bytes())
     rouges = [m for m in consultation.meteo() if m.couleur is Couleur.rouge]
     assert rouges, "le jeu graine 42 doit avoir une Entité rouge"
@@ -58,7 +95,7 @@ def test_liens_jira(passage: Path) -> None:
         for cle, lien in cellules:
             assert isinstance(cle, str)
             assert lien == consultation.url_ticket(cle)
-            assert lien == f"https://demo-usine.atlassian.net/browse/{cle}"
+            assert lien == f"https://jira.example.invalid/browse/{cle}"
             vus += 1
     assert vus > 0
 

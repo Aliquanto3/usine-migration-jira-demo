@@ -8,6 +8,7 @@ obligatoire. Un `date_arrete` à `None` désigne la Date d'arrêté du Passage.
 
 import json
 import logging
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -112,7 +113,13 @@ def lire_manifeste(chemin: Path) -> ManifestePassage:
         ) from exc
 
 
+_MOTIF_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
 def _date_iso(nom: str) -> date | None:
+    """Date d'un nom de répertoire `AAAA-MM-JJ` (forme étendue seulement), sinon `None`."""
+    if _MOTIF_DATE.fullmatch(nom) is None:
+        return None
     try:
         return date.fromisoformat(nom)
     except ValueError:
@@ -192,6 +199,16 @@ class ConsultationPassage:
         Celle-ci vient du manifeste ; pendant la construction, de la `date_arrete` donnée au
         lecteur, sinon de la dernière date de `meteo.json`, puis de `tickets_etats`.
         """
+        jour = self._date_connue(date_arrete)
+        if jour is None:
+            raise UsineErreur(
+                f"{self._chemin('manifeste')} : Date d'arrêté du Passage indéterminable"
+                " (ni manifeste, ni Météo, ni `date_arrete` donnée)"
+            )
+        return jour
+
+    def _date_connue(self, date_arrete: date | None) -> date | None:
+        """Comme `_date`, mais `None` si la Date d'arrêté du Passage est indéterminable."""
         if date_arrete is not None:
             return date_arrete
         if self._manifeste is not None or self._chemin("manifeste").exists():
@@ -202,11 +219,7 @@ class ConsultationPassage:
         if dates:
             return dates[-1]
         derniere = self._table("tickets_etats", SCHEMA_TICKET_ETAT).get_column("date").max()
-        if isinstance(derniere, date):
-            return derniere
-        raise UsineErreur(
-            f"{self._chemin('manifeste')} : manifeste absent, Date d'arrêté du Passage inconnue"
-        )
+        return derniere if isinstance(derniere, date) else None
 
     # --- Passage ---
 
@@ -232,6 +245,19 @@ class ConsultationPassage:
                     manifeste = lire_manifeste(chemin)
                 except UsineErreur as exc:
                     journal.warning("Passage ignoré, manifeste illisible : %s", exc)
+                    continue
+                if (manifeste.date_arrete.isoformat(), manifeste.passage_id) != (
+                    nom,
+                    repertoire.name,
+                ):
+                    journal.warning(
+                        "Passage ignoré, %s : manifeste du Passage %s (%s) rangé sous %s/%s",
+                        chemin,
+                        manifeste.passage_id,
+                        manifeste.date_arrete.isoformat(),
+                        nom,
+                        repertoire.name,
+                    )
                     continue
                 if meilleur is None or (manifeste.date_arrete, manifeste.horodatage_fin) > (
                     meilleur.date_arrete,
@@ -352,9 +378,15 @@ class ConsultationPassage:
         domaine: str | None = None,
         limite: int | None = None,
     ) -> ResultatListAnomalies:
-        """Anomalies ouvertes à la date, filtrées, triées par numéro de clé."""
+        """Anomalies ouvertes à la date, filtrées, triées par numéro de clé.
+
+        Sans `tickets_etats` dans le Passage, le résultat est vide ; si la Date d'arrêté est
+        alors indéterminable (ni manifeste, ni Météo, ni `date_arrete`), lève une `UsineErreur`.
+        """
         if limite is not None and limite < 0:
             raise UsineErreur(f"limite invalide : {limite!r} (entier ≥ 0 attendu)")
+        if self._table("tickets_etats", SCHEMA_TICKET_ETAT).is_empty():
+            return ResultatListAnomalies(date_arrete=self._date(date_arrete), anomalies=(), total=0)
         jour = self._date(date_arrete)
         table = self.tickets_etats(jour).filter(
             (pl.col("type_ticket") == TypeTicket.anomalie.value)
@@ -362,12 +394,12 @@ class ConsultationPassage:
         )
         for colonne, valeur in (
             ("entite", entite),
-            ("gravite", gravite),
-            ("phase", phase),
+            ("gravite", None if gravite is None else gravite.value),
+            ("phase", None if phase is None else phase.value),
             ("domaine", domaine),
         ):
             if valeur is not None:
-                table = table.filter(pl.col(colonne) == str(valeur))
+                table = table.filter(pl.col(colonne) == valeur)
         causes = {c.cle_ticket: c.cause_racine for c in self.classification()}
         lignes = sorted(
             table.iter_rows(named=True), key=lambda ligne: _rang_cle(ligne["cle_ticket"])
@@ -442,10 +474,15 @@ class ConsultationPassage:
         return sorties
 
     def repartition_causes(self, entite: str | None = None, palier: Palier = 2) -> pl.DataFrame:
-        """Table `SCHEMA_REPARTITION_CAUSES` ; vide en Palier 1 ou sans fichier."""
+        """Table `SCHEMA_REPARTITION_CAUSES` ; vide en Palier 1 ou sans fichier.
+
+        Filtrée sur la Date d'arrêté du Passage, puis sur l'Entité.
+        """
         if palier == 1:
             return pl.DataFrame(schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes))
         table = self._table("repartition_causes", SCHEMA_REPARTITION_CAUSES)
+        if not table.is_empty():
+            table = table.filter(pl.col("date") == self._date(None))
         if entite is not None:
             table = table.filter(pl.col("entite") == entite)
         return table

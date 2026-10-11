@@ -5,7 +5,7 @@ created: '2026-10-11'
 status: 'done'
 baseline_revision: '2d92119e881c41e67e2222450e8d7eed84810b12'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
 warnings: ['oversized']
@@ -159,6 +159,51 @@ deferred: []
   - `[low]` `[reject]` (edge) Valeur commençant par `=` interprétée comme formule — codes `ENT-x` et clés `DEMO-n` seulement.
   - `[low]` `[reject]` (edge) Date d'arrêté antérieure à 1980 — hors du domaine du démonstrateur.
 
+### 2026-10-12 — Review pass (suivi, code actuel)
+- verdicts: 40 findings — high 0, medium 1, low 35, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (intention) Rapport publié par `lancer_rapport` et non par la CLI — la CLI n'est qu'un appel direct à `lancer_rapport` (Story 0.5).
+  - `[low]` `[reject]` (intention) Mode repli décidé par la composition — lecture R1(b), testée de bout en bout (`test_cles_sans_lien`).
+  - `[false]` `[reject]` (intention) Rejeu sur deux Passages non testé — `tests/unit/chaine/test_cli.py` compare deux Passages publiés.
+  - `[low]` `[reject]` (intention) Test des liens à URL codée en dur — carried.
+  - `[low]` `[patch]` (intention) Mise en forme des règles non vérifiée — `test_formater_regle`, chaînes exactes.
+  - `[low]` `[reject]` (intention) `dernier_passage` ignore un manifeste illisible — correctif voulu de la passe initiale.
+  - `[low]` `[reject]` (intention) Lectures sans manifeste autorisées — lecture R2(a), nécessaire au rendu d'un Passage en construction.
+  - `[low]` `[patch]` (intention) Palier 1 testé pour `explications` seulement — `test_sorties_llm_selon_palier`.
+  - `[false]` `[reject]` (intention) Contraintes d'import non démontrées par le diff — tenues par import-linter, inchangé et vert.
+  - `[low]` `[patch]` (verification-gap) Format des règles jamais vérifié — même correctif.
+  - `[low]` `[patch]` (verification-gap) Couleurs des cellules non vérifiées — `test_couleurs_des_cellules` (Excel et PowerPoint).
+  - `[low]` `[patch]` (verification-gap) `limite < 0` non testé — `test_anomalies_limite_negative`.
+  - `[low]` `[patch]` (blind) `anomalies()` lève sur un Passage vide — résultat vide si la date est connue, `UsineErreur` explicite sinon (pas de date fictive).
+  - `[low]` `[reject]` (blind) `ValueError` sur des valeurs nulles — carried.
+  - `[low]` `[patch]` (blind) Filtres comparés par `str(valeur)` — `.value`.
+  - `[low]` `[reject]` (blind) Contenu de mauvais type rendu vide — `lire_enveloppe` valide déjà le type ; une dérive serait attrapée à la validation.
+  - `[low]` `[reject]` (blind) `traces()` sans contrôle de version — chaque ligne est un `EntreeTrace` validé ; le fichier est écrit par la Chaîne du même Passage.
+  - `[low]` `[reject]` (blind) Racine déduite d'un répertoire quelconque — carried.
+  - `[low]` `[patch]` (blind) Manifeste rangé dans un autre répertoire accepté — ignoré avec un avertissement ; relecture de tous les manifestes rejetée (historique court).
+  - `[low]` `[reject]` (blind) Débordement de la slide — carried.
+  - `[low]` `[reject]` (blind) `creer_gabarit.py` non reproductible octet pour octet — `outils/` ne peut pas importer `rendu` ; le gabarit versionné fait foi.
+  - `[low]` `[reject]` (blind) `EtapeRendu` sans test propre — exercée par chaque Passage publié des tests de la Chaîne ; échec propagé à la Chaîne, voulu (FR-25).
+  - `[low]` `[reject]` (blind) Fabrique de contrat non isolée — carried.
+  - `[medium]` `[patch]` (blind) Domaine `demo-usine.atlassian.net` réservable — `https://jira.example.invalid` partout, y compris dans un test de la Story 0.2.
+  - `[low]` `[reject]` (blind) Colonnes de tickets sans en-tête — carried.
+  - `[low]` `[reject]` (blind) Oracle d'âge sans jours fériés — H-1 : aucun jour férié.
+  - `[low]` `[reject]` (blind) Lacunes de `test_dernier_passage` — complétées pour le rangement incohérent ; égalités stricte peu probables (suffixe aléatoire).
+  - `[low]` `[reject]` (edge) Gravité ou phase nulles — carried.
+  - `[low]` `[patch]` (edge) `anomalies()` lève sur un Passage vide — même correctif.
+  - `[false]` `[reject]` (edge) Âge faux si l'entrée tombe un week-end — carried.
+  - `[low]` `[reject]` (edge) `OSError` au parcours des Passages — carried.
+  - `[low]` `[patch]` (edge) Manifeste et répertoire incohérents — même correctif.
+  - `[low]` `[patch]` (edge) Noms ISO basiques (`20261009`) acceptés — seuls les noms `AAAA-MM-JJ` comptent.
+  - `[low]` `[reject]` (edge) Formule injectée par `=` — carried.
+  - `[low]` `[reject]` (edge) Débordement de la slide — carried.
+  - `[low]` `[reject]` (edge) Gabarit sans `sldSz` — carried.
+  - `[low]` `[reject]` (edge) Gabarit non reproductible — même raison que la ligne blind.
+  - `[low]` `[reject]` (edge) Fabrique sensible à `USINE_MODE_REPLI` — carried.
+  - `[low]` `[patch]` (edge) `repartition_causes` non filtrée par date — filtrée sur la Date d'arrêté.
+  - `[false]` `[reject]` (edge) Prévisions non vidées en Palier 1 — sorties déterministes, présentes dans les deux Paliers ; seul le LLM dépend du Palier (FR-46).
+  - `[low]` `[reject]` (edge) Signature de `rendre_*` différente de la spec — changement voulu par la passe initiale (date explicite).
+
 ## Design Notes
 
 **Pourquoi `config/jira.yaml` dès E0.** FR-29 et l'AC « chaque clé est un lien construit par `url_ticket` » exigent une URL de site, et AD-11 la place dans `config/jira.yaml`. Le fichier est entièrement fictif et complet, pour satisfaire `ConfigJira`. La lane L2 en garde la propriété et l'ajustera.
@@ -204,3 +249,24 @@ Le rendu est déterministe à date égale, octet pour octet, sous Windows comme 
 **Risques résiduels.**
 - Les lectures de Prévisions, de risques, de classification et de narrations ne sont testées que vides (aucun producteur en E0).
 - openpyxl est importé avec `type: ignore[import-untyped]`.
+
+### Revue de suivi (2026-10-12)
+
+**Résumé.** Revue du code actuel de la story (Consultation, rendu, gabarit, `config/jira.yaml`) : 40 findings, dont 13 lignes `patch` (1 medium) donnant 7 correctifs ; 0 différé ; 27 rejets motivés, dont plusieurs reportés de la passe initiale (« carried »).
+
+**Correctifs.**
+- Domaine fictif réservé `https://jira.example.invalid`, à la place d'un sous-domaine `atlassian.net` réservable.
+- `anomalies()` :
+  - sur un Passage vide, rend un résultat vide si la date est connue ;
+  - sinon, lève une `UsineErreur` explicite plutôt que d'inventer une date ;
+  - ses filtres comparent sur `.value` ;
+  - `limite < 0` est testé.
+- `repartition_causes` filtrée sur la Date d'arrêté.
+- `dernier_passage` ignore un manifeste rangé dans un autre répertoire et n'accepte que les noms `AAAA-MM-JJ`.
+- Nouveaux tests : sorties LLM en Palier 1 et Palier 2, format exact des règles, couleurs des cellules.
+
+**Le risque nommé lors de la passe initiale.** Il concernait la date devinée sans manifeste. Il est encadré : l'appelant de la Chaîne passe `date_arrete` ; sinon, la Consultation retombe sur la Météo ou les états ; et quand aucune date n'est déterminable, la lecture concernée lève une erreur explicite, sans date fictive.
+
+**Revue de suivi.** `false` : aucun correctif `high`.
+
+**Vérification.** ruff, ruff format, mypy, lint-imports et pytest donnent 858 passés.
