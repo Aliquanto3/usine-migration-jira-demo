@@ -1,6 +1,7 @@
 """Adaptateur `SourceJournal` : lecture et validation du Journal JSONL (Story 0.4, FR-8)."""
 
 import json
+import re
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -154,3 +155,9 @@ def test_separateurs_unicode_dans_une_valeur(tmp_path: Path, generation: Generat
     chemin.write_bytes(serialiser_journal(replace(generation, evenements=evenements)))
     assert "\u2028" in chemin.read_text(encoding="utf-8")
     assert tuple(SourceJournal(chemin).evenements()) == evenements
+
+
+def test_journal_illisible(tmp_path: Path) -> None:
+    # Un répertoire : ni introuvable ni décodable, l'ouverture lève une autre `OSError`.
+    with pytest.raises(UsineErreur, match=re.escape(f"{tmp_path} : Journal illisible")):
+        SourceJournal(tmp_path)

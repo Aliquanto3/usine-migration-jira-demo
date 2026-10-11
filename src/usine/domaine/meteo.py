@@ -94,13 +94,20 @@ def _mesures(
     actifs = _indicateurs_actifs(grille)
     _verifier_entites(entites)
     etats = valider(etats, SCHEMA_TICKET_ETAT)
-    # Une date sans ligne, avant ou dans la plage de la table, signifie « aucun ticket créé »
-    # (vert) ; seule une date postérieure à la dernière date calculée est refusée.
-    derniere = etats.get_column("date").max()
+    # Un ticket créé reste dans l'état de chaque date suivante : une date sans ligne n'est
+    # « aucun ticket créé » (vert) que si la table n'a aucune ligne antérieure. Sinon, la date
+    # n'a pas été calculée (postérieure à la dernière date, week-end ou trou) : refusée.
+    dates = etats.get_column("date")
+    derniere = dates.max()
     if isinstance(derniere, date) and date_arrete > derniere:
         raise UsineErreur(
             f"Date d'arrêté {date_arrete.isoformat()} postérieure à la dernière date de l'état"
             f" des tickets reçu ({derniere.isoformat()}) : états non calculés jusque-là"
+        )
+    if not (dates == date_arrete).any() and (dates < date_arrete).any():
+        raise UsineErreur(
+            f"Date d'arrêté {date_arrete.isoformat()} absente de l'état des tickets reçu, qui"
+            " a des dates antérieures : état non calculé à cette date (week-end ou trou)"
         )
     mesures: dict[CodeIndicateur, tuple[RegleIndicateur, dict[str, _Mesure]]] = {}
     for code, regle in actifs.items():
@@ -131,8 +138,9 @@ def indicateurs(
     """`SCHEMA_INDICATEUR` : une ligne par Entité et par indicateur actif, à `date_arrete`.
 
     Précondition : `tickets_etats` a été calculé pour chaque Jour ouvré entre sa première date
-    et la Date d'arrêté (comme le fait `EtapeMeteo`) ; une date sans ligne y signifie alors
-    « aucun ticket créé » (vert). Une Date d'arrêté postérieure à sa dernière date est refusée.
+    et la Date d'arrêté (comme le fait `EtapeMeteo`). Une Date d'arrêté sans ligne n'est verte
+    (« aucun ticket créé ») que si la table n'a aucune ligne antérieure ; sinon (postérieure à
+    sa dernière date, week-end ou trou dans les dates calculées), elle est refusée.
     """
     mesures = _mesures(tickets_etats, date_arrete, entites, grille)
     lignes: dict[str, list[object]] = {colonne: [] for colonne in SCHEMA_INDICATEUR.colonnes}
@@ -164,8 +172,9 @@ def meteo(
     verte, sans règle, si aucun seuil actif n'est franchi.
 
     Précondition : `tickets_etats` a été calculé pour chaque Jour ouvré entre sa première date
-    et la Date d'arrêté (comme le fait `EtapeMeteo`) ; une date sans ligne y signifie alors
-    « aucun ticket créé » (vert). Une Date d'arrêté postérieure à sa dernière date est refusée.
+    et la Date d'arrêté (comme le fait `EtapeMeteo`). Une Date d'arrêté sans ligne n'est verte
+    (« aucun ticket créé ») que si la table n'a aucune ligne antérieure ; sinon (postérieure à
+    sa dernière date, week-end ou trou dans les dates calculées), elle est refusée.
     """
     mesures = _mesures(tickets_etats, date_arrete, entites, grille)
     resultat: list[MeteoEntite] = []

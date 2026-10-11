@@ -5,7 +5,7 @@ created: '2026-10-11'
 status: 'done'
 baseline_revision: 'aae841fd86b2dd19974fc5a2dfbe2e195eb0f321'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-0-context.md'
 warnings: []
@@ -123,6 +123,38 @@ deferred: []
   - `[low]` `[reject]` (edge) `version_grille` vide → `ValidationError` — appel interne, échec bruyant.
   - `[low]` `[patch]` (edge) Répertoire temporaire jamais supprimé — même correctif.
 
+### 2026-10-12 — Review pass (suivi, code actuel après les Stories 0.5 à 0.8)
+- verdicts: 28 findings — high 0, medium 2, low 24, false 2, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind) Trou ou week-end dans la plage des dates calculées → vert silencieux — `UsineErreur` quand la date manque alors que des états antérieurs existent ; testé (week-end, trou).
+  - `[low]` `[reject]` (blind) Branche `denominateur == 0` de `_franchit` — carried : sémantique de l'infini (AD-10), inatteignable pour IND-1.
+  - `[low]` `[patch]` (blind) Opérateur `>` jamais décisif — `test_operateur_strict`.
+  - `[low]` `[reject]` (blind) Événements orphelins écartés — carried : le Journal crée toujours avant de modifier (AD-3).
+  - `[false]` `[reject]` (blind) Réouverture par `modification_champ` — carried : le contrat d'`Evenement` impose une `transition` après la création.
+  - `[low]` `[reject]` (blind) Duplication `tickets_textes` / `_etats_en` — carried (passe 1 de la Story 0.7).
+  - `[low]` `[reject]` (blind) `tickets_etats` en O(dates × événements) — carried : mesure NFR-2 à 0,39 s pour 5 000 Anomalies (Story 0.5).
+  - `[low]` `[reject]` (blind) `depuis` vérifié paresseusement — carried.
+  - `[low]` `[reject]` (blind) BOM et CRLF dans le Journal — carried : Journal écrit par le générateur en UTF-8 et LF.
+  - `[low]` `[reject]` (blind) Journal gardé deux fois en mémoire — volumétrie cible mesurée sans difficulté (NFR-2).
+  - `[low]` `[reject]` (blind) Oracle de test proche du code — carried ; les nouveaux tests manuels fixent des comptes exacts.
+  - `[low]` `[reject]` (blind) Deux sources de version de la Grille — carried : `version_grille` (empreinte) fait foi (AD-16).
+  - `[low]` `[reject]` (blind) Fabrique et répertoires temporaires — carried (`atexit`).
+  - `[low]` `[reject]` (blind) `reversed` sur un seul élément — carried, cosmétique.
+  - `[low]` `[patch]` (verification-gap) Opérateur `>` non testé dans le domaine — même correctif.
+  - `[low]` `[patch]` (verification-gap) Branche `OSError` de `SourceJournal._lire` non testée — `test_journal_illisible`.
+  - `[low]` `[reject]` (verification-gap) Comparaison du domaine dupliquée avec `RegleDeclenchante.franchit_le_seuil` — le validateur du contrat revérifie chaque règle créée ; deux implémentations qui divergeraient échoueraient bruyamment.
+  - `[low]` `[reject]` (intention) Chaîne prouvée seulement en test — carried ; elle est désormais branchée par `EtapeMeteo` (Story 0.5).
+  - `[low]` `[reject]` (intention) Refus hors contrat (doublons, horodatage décroissant…) — promesses du port et garde-fous ; aucun cas légitime refusé.
+  - `[low]` `[reject]` (intention) Refus d'une autre version majeure délégué au contrat `EnteteJournal` — c'est la règle unique d'AD-2, relayée par l'adaptateur avec le nom du fichier.
+  - `[low]` `[reject]` (intention) Instantané hors du chemin de la couleur — carried.
+  - `[low]` `[reject]` (intention) Plusieurs règles déclenchantes impossibles à exercer — IND-1 seul en E0 ; L3 ajoute IND-2 à IND-8.
+  - `[false]` `[reject]` (intention) `garde_fous` dans une Grille réduite — exigés par le schéma `GrilleMeteo`.
+  - `[medium]` `[patch]` (edge) Date dans la plage mais non calculée → vert — même correctif.
+  - `[low]` `[reject]` (edge) Table vide : date future acceptée — on ne peut distinguer « aucun ticket » d'« état non calculé » ; `EtapeMeteo` calcule toujours la date demandée.
+  - `[low]` `[reject]` (edge) Réouverture par `modification_champ` — même raison que la ligne blind.
+  - `[low]` `[reject]` (edge) `depuis` naïf signalé au premier `next()` — carried.
+  - `[low]` `[reject]` (edge) `RecursionError` sur un JSON très imbriqué — Journal écrit par le générateur.
+
 ## Design Notes
 
 **`tickets_etats`.** Construire d'abord une table d'événements (`evenements_en_table`, plus une colonne `jour` = `jour_ouvre_de(horodatage)` calculée en Python sur chaque événement), puis, pour chaque D, garder `jour ≤ D`, trier par `(horodatage, rang dans le flux)` et prendre par ticket et par champ la dernière valeur `vers` (`group_by(...).last()`, ou un pivot). `date_derniere_entree` = jour de la création, ou de la dernière transition qui sort de `STATUTS_FERMES`. Les colonnes d'énumération sont converties vers les `pl.Enum` du schéma avant `valider`. Les colonnes sans objet pour le type restent nulles.
@@ -161,3 +193,16 @@ Status: done
 **Risques résiduels.**
 - `tickets_etats` recalcule tout pour chaque date ; la performance sera mesurée en Story 0.5 (NFR-2).
 - Un `tickets_etats` vide n'est pas contrôlé par la garde de date.
+
+### Revue de suivi (2026-10-12)
+
+**Résumé.** La passe a porté sur le code actuel de la story (domaine, adaptateur Journal, Grille), après les Stories 0.5 à 0.8. 28 findings : 2 medium partageant une même cause (un jour non calculé dans la plage des dates sortait en vert), 3 lignes `patch` donnant 3 correctifs, 0 différé, 23 rejets motivés (dont beaucoup reportés tels quels, `carried`, de la passe initiale).
+
+**Correctifs.**
+- `_mesures` refuse une Date d'arrêté absente alors que des états antérieurs existent.
+- `test_operateur_strict` est ajouté.
+- `test_journal_illisible` est ajouté.
+
+**Revue de suivi.** `false` : aucun correctif `high` dans cette passe de suivi ; le travail a convergé.
+
+**Vérification.** ruff, ruff format, mypy, lint-imports et pytest : 846 tests passés.

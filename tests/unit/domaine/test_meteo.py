@@ -250,3 +250,42 @@ def test_journal_genere(tmp_path: Path) -> None:
             (regle,) = resultat.regles
             assert regle.numerateur == nombre
             assert list(regle.tickets_en_cause) == cles
+
+
+@pytest.mark.parametrize(
+    ("date_arrete", "dates_calculees"),
+    [
+        (date(2026, 10, 3), [VENDREDI, LUNDI]),  # samedi entre deux dates calculées
+        (date(2026, 10, 1), [date(2026, 9, 30), VENDREDI]),  # trou : jeudi non calculé
+    ],
+    ids=["week-end", "trou"],
+)
+def test_date_d_arrete_non_calculee_refusee(
+    grille: GrilleMeteo, date_arrete: date, dates_calculees: list[date]
+) -> None:
+    flux = Flux()
+    flux.anomalie("DEMO-1", datetime(2026, 9, 29, 9, tzinfo=UTC))
+    etats = tickets_etats(flux.evenements, dates_calculees)
+    with pytest.raises(UsineErreur, match=date_arrete.isoformat()):
+        meteo(etats, date_arrete, ["ENT-A"], grille, VERSION)
+    with pytest.raises(UsineErreur, match=date_arrete.isoformat()):
+        indicateurs(etats, date_arrete, ["ENT-A"], grille)
+
+
+@pytest.mark.parametrize(
+    ("nombre", "couleur"),
+    [(0, Couleur.vert), (2, Couleur.orange), (3, Couleur.rouge)],
+)
+def test_operateur_strict(nombre: int, couleur: Couleur) -> None:
+    grille = _grille(**{"IND-1": {"libelle": "x", "seuils": {"rouge": "> 2", "orange": "> 0"}}})
+    flux = Flux()
+    for numero in range(1, nombre + 1):
+        flux.anomalie(f"DEMO-{numero}", _ts(1, 8 + numero))
+    resultat = _meteo(flux, grille)["ENT-A"]
+    assert resultat.couleur is couleur
+    if couleur is Couleur.vert:
+        assert resultat.regles == ()
+    else:
+        (regle,) = resultat.regles
+        assert regle.operateur is Operateur.superieur
+        assert regle.numerateur == nombre
