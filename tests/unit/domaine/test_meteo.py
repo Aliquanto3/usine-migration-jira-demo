@@ -179,7 +179,7 @@ def test_table_des_indicateurs(grille: GrilleMeteo) -> None:
     assert table["couleur"].to_list() == [m.couleur.value for m in meteos]
 
 
-def test_date_d_arrete_absente_de_l_etat(grille: GrilleMeteo) -> None:
+def test_date_d_arrete_posterieure_a_l_etat(grille: GrilleMeteo) -> None:
     flux = Flux()
     flux.anomalie("DEMO-1", _ts(1, 9))
     etats = tickets_etats(flux.evenements, [VENDREDI])
@@ -187,6 +187,20 @@ def test_date_d_arrete_absente_de_l_etat(grille: GrilleMeteo) -> None:
         meteo(etats, LUNDI, ["ENT-A"], grille, VERSION)
     with pytest.raises(UsineErreur, match="2026-10-05"):
         indicateurs(etats, LUNDI, ["ENT-A"], grille)
+
+
+def test_date_d_arrete_sans_ticket_est_verte(grille: GrilleMeteo) -> None:
+    flux = Flux()
+    flux.anomalie("DEMO-1", _ts(5, 9))  # créée le lundi : aucun ticket le vendredi
+    etats = tickets_etats(flux.evenements, [VENDREDI, LUNDI])
+    assert etats.filter(pl.col("date") == VENDREDI).is_empty()
+    (resultat,) = meteo(etats, VENDREDI, ["ENT-A"], grille, VERSION)
+    assert resultat.couleur is Couleur.vert
+    table = indicateurs(etats, VENDREDI, ["ENT-A"], grille)
+    assert table["numerateur"].to_list() == [0]
+    # Date antérieure à toute ligne de la table : aucun ticket non plus.
+    assert meteo(etats, date(2026, 9, 30), ["ENT-A"], grille, VERSION)[0].couleur is Couleur.vert
+    assert meteo(etats, LUNDI, ["ENT-A"], grille, VERSION)[0].couleur is Couleur.orange
 
 
 def _bloquantes_ouvertes(evenements: Iterable[Evenement], d: date) -> dict[str, list[str]]:

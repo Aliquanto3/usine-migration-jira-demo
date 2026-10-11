@@ -94,9 +94,13 @@ def _mesures(
     actifs = _indicateurs_actifs(grille)
     _verifier_entites(entites)
     etats = valider(etats, SCHEMA_TICKET_ETAT)
-    if not etats.is_empty() and etats.filter(pl.col("date") == date_arrete).is_empty():
+    # Une date sans ligne, avant ou dans la plage de la table, signifie « aucun ticket créé »
+    # (vert) ; seule une date postérieure à la dernière date calculée est refusée.
+    derniere = etats.get_column("date").max()
+    if isinstance(derniere, date) and date_arrete > derniere:
         raise UsineErreur(
-            f"Date d'arrêté {date_arrete.isoformat()} absente de l'état des tickets reçu"
+            f"Date d'arrêté {date_arrete.isoformat()} postérieure à la dernière date de l'état"
+            f" des tickets reçu ({derniere.isoformat()}) : états non calculés jusque-là"
         )
     mesures: dict[CodeIndicateur, tuple[RegleIndicateur, dict[str, _Mesure]]] = {}
     for code, regle in actifs.items():
@@ -124,7 +128,12 @@ def _couleur_franchie(regle: RegleIndicateur, mesure: _Mesure) -> Couleur:
 def indicateurs(
     tickets_etats: pl.DataFrame, date_arrete: date, entites: Sequence[str], grille: GrilleMeteo
 ) -> pl.DataFrame:
-    """`SCHEMA_INDICATEUR` : une ligne par Entité et par indicateur actif, à `date_arrete`."""
+    """`SCHEMA_INDICATEUR` : une ligne par Entité et par indicateur actif, à `date_arrete`.
+
+    Précondition : `tickets_etats` a été calculé pour chaque Jour ouvré entre sa première date
+    et la Date d'arrêté (comme le fait `EtapeMeteo`) ; une date sans ligne y signifie alors
+    « aucun ticket créé » (vert). Une Date d'arrêté postérieure à sa dernière date est refusée.
+    """
     mesures = _mesures(tickets_etats, date_arrete, entites, grille)
     lignes: dict[str, list[object]] = {colonne: [] for colonne in SCHEMA_INDICATEUR.colonnes}
     for entite in entites:
@@ -153,6 +162,10 @@ def meteo(
 
     La `MeteoEntite` porte toutes les Règles déclenchantes de la couleur retenue ; elle est
     verte, sans règle, si aucun seuil actif n'est franchi.
+
+    Précondition : `tickets_etats` a été calculé pour chaque Jour ouvré entre sa première date
+    et la Date d'arrêté (comme le fait `EtapeMeteo`) ; une date sans ligne y signifie alors
+    « aucun ticket créé » (vert). Une Date d'arrêté postérieure à sa dernière date est refusée.
     """
     mesures = _mesures(tickets_etats, date_arrete, entites, grille)
     resultat: list[MeteoEntite] = []
