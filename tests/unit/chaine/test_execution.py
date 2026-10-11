@@ -98,6 +98,8 @@ def test_passage_publie(rapport: Rapport) -> None:
         "instantanes.parquet",
         "manifeste.json",
         "meteo.json",
+        "rapport-2026-10-09.pptx",
+        "rapport-2026-10-09.xlsx",
         "tickets_etats.parquet",
     ]
     assert not list((rapport.racine_sorties / "passages").glob(".en-cours-*"))

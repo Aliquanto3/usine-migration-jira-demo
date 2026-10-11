@@ -8,6 +8,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 import time_machine
+from openpyxl import load_workbook  # type: ignore[import-untyped]
+from pptx import Presentation
 
 from tests.unit.chaine.environnement import preparer_racine
 from usine import cli, composition
@@ -52,6 +54,38 @@ def _sans_exclusions(valeur: object) -> object:
     return valeur
 
 
+def _excel_relu(chemin: Path) -> object:
+    """Valeurs, hyperliens et propriétés relus de l'Excel (les octets du zip varient)."""
+    classeur = load_workbook(chemin)
+    p = classeur.properties
+    return (
+        classeur.sheetnames,
+        [
+            [(c.value, c.hyperlink.target if c.hyperlink else None) for c in ligne]
+            for onglet in classeur.worksheets
+            for ligne in onglet.iter_rows()
+        ],
+        (p.created, p.modified, p.creator, p.title),
+    )
+
+
+def _powerpoint_relu(chemin: Path) -> object:
+    """Textes, tableaux et propriétés relus du PowerPoint."""
+    presentation = Presentation(str(chemin))
+    p = presentation.core_properties
+    formes = [
+        (
+            forme.text_frame.text if forme.has_text_frame else None,
+            [[c.text for c in ligne.cells] for ligne in forme.table.rows]
+            if forme.has_table
+            else None,
+        )
+        for slide in presentation.slides
+        for forme in slide.shapes
+    ]
+    return formes, (p.created, p.modified, p.author, p.title)
+
+
 def test_passage_publie_et_rejeu(
     racine: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -69,6 +103,9 @@ def test_passage_publie_et_rejeu(
         assert _sans_exclusions(a) == _sans_exclusions(b), nom
     for nom in ("tickets_etats.parquet", "instantanes.parquet", "indicateurs.parquet"):
         assert pl.read_parquet(premier / nom).equals(pl.read_parquet(second / nom)), nom
+    xlsx, pptx = "rapport-2026-10-09.xlsx", "rapport-2026-10-09.pptx"
+    assert _excel_relu(premier / xlsx) == _excel_relu(second / xlsx)
+    assert _powerpoint_relu(premier / pptx) == _powerpoint_relu(second / pptx)
 
 
 @pytest.mark.parametrize(

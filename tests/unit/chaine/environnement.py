@@ -1,4 +1,4 @@
-"""Racine d'essai d'un Passage : configuration livrée et Journal généré (graine 42)."""
+"""Racine d'essai d'un Passage : configuration et gabarit livrés, Journal généré (graine 42)."""
 
 import shutil
 from collections.abc import Callable
@@ -16,8 +16,9 @@ INSTANT = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
 
 
 def preparer_racine(racine: Path, journal: bool = True) -> Path:
-    """Copie `config/` sous `racine` et y génère le Journal (graine 42, 2026-10-12)."""
+    """Copie `config/` et `gabarits/` sous `racine` et y génère le Journal (graine 42)."""
     shutil.copytree(RACINE_DEPOT / "config", racine / "config")
+    shutil.copytree(RACINE_DEPOT / "gabarits", racine / "gabarits")
     if journal:
         programme = charger_yaml(racine / "config" / "programme.yaml", ConfigProgramme)
         generer_journal(programme, 42, DATE_GENERATION, racine)

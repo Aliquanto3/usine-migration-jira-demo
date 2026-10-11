@@ -1,0 +1,63 @@
+# Site Jira et correspondance Jira → vocabulaire canonique (AD-5, AD-6, AD-23).
+# Tout est fictif : site, projet et identifiants de champs n'existent pas. La lane L2 l'ajuste.
+
+# URL du site Jira ; les liens des rapports pointent vers <url_site>/browse/<clé>.
+url_site: https://demo-usine.atlassian.net
+# Adaptateur Jira : cloud (Jira Cloud) ou dc (Data Center).
+mode: cloud
+# Clé du projet Jira du Programme (préfixe des clés de tickets, ex. DEMO-123).
+cle_projet: DEMO
+# Marge de recouvrement d'une extraction incrémentale, en minutes.
+marge_extraction_minutes: 10
+# Nombre maximal de tentatives d'un appel Jira avant abandon.
+tentatives_max: 5
+
+# Identifiant Jira de chaque champ canonique (un identifiant par champ).
+champs:
+  statut: status  # Statut du workflow des Anomalies (champ standard Jira).
+  entite: customfield_10001  # Entité pilotée.
+  vague: customfield_10002  # Vague de migration.
+  domaine: customfield_10003  # Domaine fonctionnel.
+  gravite: customfield_10004  # Gravité de l'Anomalie.
+  phase: customfield_10005  # Phase de test.
+  titre: summary  # Titre du ticket (champ standard Jira).
+  description: description  # Description du ticket (champ standard Jira).
+  statut_test: customfield_10006  # Statut d'exécution d'un Cas de test.
+  statut_certification: customfield_10007  # Statut d'une Certification.
+
+# Type de ticket Jira → type canonique.
+types_tickets:
+  Anomalie: anomalie  # Anomalie de migration.
+  Cas de test: cas_de_test  # Cas de test.
+  Certification: certification  # Certification d'une Entité.
+
+# Valeurs Jira → valeurs canoniques, pour chaque champ à domaine fermé.
+valeurs:
+  # Statuts du workflow des Anomalies.
+  statut:
+    Nouvelle: nouvelle  # Anomalie créée, pas encore analysée.
+    En analyse: en_analyse  # Anomalie en cours d'analyse.
+    En correction: en_correction  # Correction en cours.
+    À retester: a_retester  # Correction livrée, à retester.
+    Fermée: fermee  # Anomalie corrigée et vérifiée.
+    Rejetée: rejetee  # Anomalie rejetée (doublon, hors périmètre…).
+  # Gravités d'une Anomalie.
+  gravite:
+    Bloquante: bloquante  # Empêche la poursuite des tests.
+    Majeure: majeure  # Fonction dégradée sans contournement simple.
+    Mineure: mineure  # Gêne limitée.
+  # Phases de test.
+  phase:
+    Migration à blanc: migration_a_blanc  # Migration à blanc.
+    Recette: recette  # Recette fonctionnelle.
+    TNR: tnr  # Tests de non-régression.
+  # Statuts d'exécution d'un Cas de test.
+  statut_test:
+    OK: ok  # Cas de test réussi.
+    KO: ko  # Cas de test en échec.
+    Non exécuté: non_execute  # Cas de test pas encore exécuté.
+  # Statuts d'une Certification.
+  statut_certification:
+    Accordée: accordee  # Certification accordée.
+    Réservée: reservee  # Certification accordée avec réserves.
+    Refusée: refusee  # Certification refusée.

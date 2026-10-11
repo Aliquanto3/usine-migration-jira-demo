@@ -1,4 +1,4 @@
-"""Fixture paramétrée par adaptateur de `Consultation` (liste vide : tests ignorés)."""
+"""Fixture paramétrée par adaptateur de `Consultation`."""
 
 from collections.abc import Callable
 
