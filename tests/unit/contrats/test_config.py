@@ -317,5 +317,6 @@ def test_modeles_geles() -> None:
 def test_yaml_livres_en_e0(racine_depot: Path) -> None:
     assert sorted(p.name for p in (racine_depot / "config").glob("*.yaml")) == [
         "chaine.yaml",
+        "grille_meteo.yaml",
         "programme.yaml",
     ]

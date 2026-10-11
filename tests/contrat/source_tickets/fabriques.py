@@ -3,17 +3,21 @@
 Chaque lane ajoute ici la fabrique de son adaptateur (Journal, Jira Cloud, Jira DC).
 """
 
+import atexit
+import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from tests.doublures import SourceEnMemoire
+from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.evenements import Evenement, NatureEvenement, SourceEvenement
 from usine.contrats.tickets import Champ, TypeTicket
-from usine.generateur.journal import generer
+from usine.generateur.journal import generer, serialiser_journal
 from usine.ports import SourceTickets
 
 
@@ -101,7 +105,21 @@ def fabrique_journal_genere() -> CasSourceTickets:
     return CasSourceTickets(SourceEnMemoire(attendus), attendus)
 
 
+def fabrique_journal() -> CasSourceTickets:
+    """`SourceJournal` sur le Journal sérialisé du mini-générateur, graine 42."""
+    config = charger_yaml(
+        Path(__file__).resolve().parents[3] / "config" / "programme.yaml", ConfigProgramme
+    )
+    generation = generer(config, 42, date(2026, 10, 12))
+    repertoire = Path(tempfile.mkdtemp(prefix="usine-journal-"))
+    atexit.register(shutil.rmtree, repertoire, True)
+    chemin = repertoire / "journal.jsonl"
+    chemin.write_bytes(serialiser_journal(generation))
+    return CasSourceTickets(SourceJournal(chemin), generation.evenements)
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("source_en_memoire", fabrique_source_en_memoire),
     ("journal_genere", fabrique_journal_genere),
+    ("journal", fabrique_journal),
 ]

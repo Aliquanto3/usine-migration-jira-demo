@@ -1,0 +1,31 @@
+# Grille de météo, version réduite du walking skeleton (Story 0.4) : seul IND-1 est calculé.
+# Toute modification change la `version_grille` (empreinte SHA-256 de ce fichier).
+
+# Version de la Grille, incrémentée à chaque changement de règle ou de seuil.
+version: 1
+# Couleurs dans l'ordre de gravité croissante (rappel, ne pas modifier).
+couleurs: [vert, jaune, orange, rouge]
+# Agrégation des règles : la couleur la plus grave dont un seuil est franchi l'emporte.
+regle_agregation: pire_couleur
+
+# Garde-fous de volume en deçà desquels un indicateur est non évaluable.
+garde_fous:
+  # IND-4 : nombre minimal de Cas de test exécutés dans la Phase en cours.
+  ind4_min_tests_executes: 20
+  # IND-7 : nombre minimal d'Entrées d'Anomalies sur la Fenêtre glissante.
+  ind7_min_entrees_fenetre_glissante: 5
+
+# Indicateurs de météo, par code ; les seuils se lisent « valeur <opérateur> seuil ».
+indicateurs:
+  # IND-1 : nombre d'Anomalies bloquantes ouvertes de l'Entité à la Date d'arrêté.
+  IND-1:
+    # Libellé affiché de l'indicateur.
+    libelle: "Anomalies bloquantes ouvertes"
+    # Indicateur pris en compte dans la Météo (false : ignoré).
+    active: true
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Rouge à partir de 3 Anomalies bloquantes ouvertes.
+      rouge: ">= 3"
+      # Orange à partir d'une Anomalie bloquante ouverte.
+      orange: ">= 1"
