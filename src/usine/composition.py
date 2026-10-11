@@ -18,6 +18,8 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+from pydantic import ValidationError
+
 from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT, PseudonymiseurHmac
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
@@ -285,6 +287,38 @@ def lancer_rapport(
     if repertoire is None:  # pragma: no cover - executer_passage publie ou lève
         raise UsineErreur(f"Passage {manifeste.passage_id} non publié")
     return PassageLance(manifeste, repertoire)
+
+
+def mode_repli(racine: Path) -> bool:
+    """Mode repli demandé par `USINE_MODE_REPLI` (environnement ou `racine/.env`), jamais déduit."""
+    try:
+        return Secrets(_env_file=racine / ".env").usine_mode_repli
+    except ValidationError as exc:
+        raise UsineErreur(
+            f"variable d'environnement USINE_MODE_REPLI illisible (attendu : 0 ou 1) : {exc}"
+        ) from exc
+
+
+def consultation_dernier_passage(racine: Path) -> Consultation | None:
+    """`Consultation` du dernier Passage publié sous `racine/sorties/passages/`, ou `None`.
+
+    L'URL Jira vient de `config/jira.yaml` s'il existe, sauf en Mode repli.
+    """
+    racine_passages = racine / REPERTOIRE_SORTIES / "passages"
+    lecteur = ConsultationPassage(racine_passages, racine_passages=racine_passages)
+    manifeste = lecteur.dernier_passage()
+    if manifeste is None:
+        return None
+    chemin_jira = racine / "config" / "jira.yaml"
+    url_jira = None
+    if not mode_repli(racine) and chemin_jira.exists():
+        url_jira = charger_yaml(chemin_jira, ConfigJira).url_site
+    return ConsultationPassage(
+        racine_passages / manifeste.date_arrete.isoformat() / manifeste.passage_id,
+        racine_passages=racine_passages,
+        url_jira=url_jira,
+        date_arrete=manifeste.date_arrete,
+    )
 
 
 def generer_journal(
