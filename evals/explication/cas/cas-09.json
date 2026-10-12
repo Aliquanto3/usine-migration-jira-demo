@@ -1,0 +1,59 @@
+{
+  "identifiant": "cas-09",
+  "description": "Orange, hausse du taux de KO (IND-8), avec KPI.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-I",
+    "couleur": "orange",
+    "regles": [
+      {
+        "code": "IND-8",
+        "couleur": "orange",
+        "operateur": ">=",
+        "numerateur": 6,
+        "denominateur": 100,
+        "seuil_numerateur": 1,
+        "seuil_denominateur": 20,
+        "tickets_en_cause": [
+          "DEMO-901",
+          "DEMO-902"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-901",
+      "type_ticket": "cas_de_test",
+      "titre": "Calcul des remises",
+      "description": "Appliquer une remise de fidélité sur une commande."
+    },
+    {
+      "cle_ticket": "DEMO-902",
+      "type_ticket": "cas_de_test",
+      "titre": "Clôture mensuelle",
+      "description": "Clôturer le mois comptable."
+    }
+  ],
+  "kpi": [
+    {
+      "code_kpi": "taux_ko_cas_de_test",
+      "dimension": "tnr",
+      "numerateur": 9,
+      "denominateur": 60
+    },
+    {
+      "code_kpi": "anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 4,
+      "denominateur": 1
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-I est en orange : le taux de KO a gagné 6 points en cinq Jours ouvrés, avec les nouveaux KO de DEMO-901 et DEMO-902. DEMO-901 échoue sur l'application de la remise de fidélité. DEMO-902 ne parvient pas à clôturer le mois comptable.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}

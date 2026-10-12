@@ -1,0 +1,90 @@
+{
+  "identifiant": "cas-06",
+  "description": "Orange, deux règles (IND-6, IND-7) ; la réponse enregistrée cite un ticket hors cause (phrase retirée par la passerelle).",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-F",
+    "couleur": "orange",
+    "regles": [
+      {
+        "code": "IND-6",
+        "couleur": "orange",
+        "operateur": ">=",
+        "numerateur": 2,
+        "denominateur": 1,
+        "seuil_numerateur": 2,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-601",
+          "DEMO-602"
+        ]
+      },
+      {
+        "code": "IND-7",
+        "couleur": "orange",
+        "operateur": ">",
+        "numerateur": 8,
+        "denominateur": 4,
+        "seuil_numerateur": 3,
+        "seuil_denominateur": 2,
+        "tickets_en_cause": [
+          "DEMO-603",
+          "DEMO-604"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-601",
+      "type_ticket": "certification",
+      "titre": "Certification vague 1 réservée",
+      "description": "Réserve : rapprochement des stocks incomplet."
+    },
+    {
+      "cle_ticket": "DEMO-602",
+      "type_ticket": "certification",
+      "titre": "Certification vague 2 réservée",
+      "description": "Réserve : jeux de test partiels."
+    },
+    {
+      "cle_ticket": "DEMO-603",
+      "type_ticket": "anomalie",
+      "titre": "Flux des commandes en double",
+      "description": "Les commandes sont intégrées deux fois après relance."
+    },
+    {
+      "cle_ticket": "DEMO-604",
+      "type_ticket": "anomalie",
+      "titre": "Environnement de recette saturé",
+      "description": "Le disque de l'environnement de recette est plein."
+    }
+  ],
+  "kpi": [
+    {
+      "code_kpi": "entrees_fenetre",
+      "dimension": "",
+      "numerateur": 8,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "sorties_fenetre",
+      "dimension": "",
+      "numerateur": 4,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "certifications",
+      "dimension": "reservee",
+      "numerateur": 2,
+      "denominateur": 1
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-F est en orange : deux certifications sont réservées, DEMO-601 et DEMO-602. Les Entrées d'Anomalies dépassent les Sorties, portées par DEMO-603 et DEMO-604. Le ticket DEMO-999 aggrave aussi la situation.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}

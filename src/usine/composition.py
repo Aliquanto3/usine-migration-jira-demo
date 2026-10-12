@@ -47,6 +47,10 @@ l'instant d'extraction, affichés dans l'onglet Traçabilité.
 
 Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `generateur.journal.ecrire_journal`.
+
+`construire_explicateur` expose à la suite d'évaluation `evals/explication` la vraie tâche
+`expliquer`, passerelle comprise, avec un cache en mémoire (jamais le cache de production) ;
+`controler_citations` est ré-exporté pour qu'`evals` n'importe pas `usine.ia`.
 """
 
 import secrets
@@ -58,6 +62,7 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+import polars as pl
 from pydantic import SecretStr
 
 from usine.adaptateurs.composite import DetecteurAlignements, SourceComposite
@@ -101,7 +106,8 @@ from usine.contrats.config import (
     GrilleMeteo,
 )
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import Tache
+from usine.contrats.llm import SortieExplication, Tache
+from usine.contrats.meteo import MeteoEntite
 from usine.contrats.passage import (
     CHEMIN_CACHE_LLM,
     CHEMIN_JOURNAL,
@@ -113,6 +119,7 @@ from usine.contrats.passage import (
     Etape,
     ManifestePassage,
 )
+from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_donnees, version_grille
 from usine.domaine.causes.repartition import repartition
 from usine.domaine.meteo import verifier_grille
@@ -127,9 +134,12 @@ from usine.generateur.corpus import (
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
 from usine.ia.classification import PART_PLAFOND_CLASSIFICATION, EtapeClassification
+from usine.ia.controles import controler_citations as controler_citations
 from usine.ia.etape import EtapeExplications
+from usine.ia.explication import ContexteExplication, expliquer, lire_prompt
 from usine.ia.passerelle import Passerelle
 from usine.ia.repartition import EtapeRepartitionCauses
+from usine.ports.cache_llm import CacheLLM
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 from usine.ports.fournisseur_llm import FournisseurLLM
@@ -340,6 +350,122 @@ def _fermer_tous(fournisseurs: Iterable[FournisseurLLM]) -> None:
         fermer = getattr(fournisseur, "fermer", None)
         if fermer is not None:
             fermer()
+
+
+class _CacheMemoire:
+    """Cache LLM en mémoire, propre à un explicateur d'évaluation (port `CacheLLM`)."""
+
+    def __init__(self) -> None:
+        self._valeurs: dict[str, str] = {}
+
+    def lire(self, cle: str) -> str | None:
+        """Valeur enregistrée sous `cle`, ou `None`."""
+        return self._valeurs.get(cle)
+
+    def ecrire(self, cle: str, brut: str) -> None:
+        """Enregistre (ou remplace) la valeur sous `cle`."""
+        self._valeurs[cle] = brut
+
+
+VERSION_DONNEES_EVALUATION = "evaluation-explication"
+"""`version_donnees` tracée par les appels de la suite d'évaluation (cas versionnés)."""
+
+
+@dataclass(frozen=True)
+class Explicateur:
+    """Tâche `expliquer` câblée sur une passerelle, pour la suite d'évaluation.
+
+    Appelable `(meteo, textes, kpi, repartition) -> (SortieExplication, traces)` : une trace
+    par appel (appel initial, régénération éventuelle).
+    """
+
+    passerelle: Passerelle
+    contexte: ContexteExplication
+    version_modele: str
+    """`version_modele` du fournisseur de la tâche `explication`."""
+    fermeture: Callable[[], None] | None = None
+
+    @property
+    def version_prompt(self) -> str:
+        """`version_prompt` du gabarit `explication` envoyé."""
+        return self.contexte.version_prompt
+
+    def __call__(
+        self,
+        meteo: MeteoEntite,
+        textes: pl.DataFrame,
+        kpi: pl.DataFrame | None = None,
+        repartition: pl.DataFrame | None = None,
+    ) -> tuple[SortieExplication, tuple[EntreeTrace, ...]]:
+        """Explication sourcée de `meteo` par la vraie tâche `expliquer`, et ses traces."""
+        return expliquer(
+            self.passerelle, meteo, textes, self.contexte, kpi=kpi, repartition=repartition
+        )
+
+    def fermer(self) -> None:
+        """Ferme les fournisseurs construits depuis `config/llm.yaml` (aucun effet sinon)."""
+        if self.fermeture is not None:
+            self.fermeture()
+
+
+def construire_explicateur(
+    racine: Path,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> Explicateur:
+    """`Explicateur` de la suite d'évaluation `evals/explication`.
+
+    `fournisseur=None` : mode réel, comme un Passage Palier 2 : fournisseur (et fournisseurs
+    par tâche) de `config/llm.yaml` avec la clé de son fournisseur, plafond de coût de ce
+    fichier et, sans pseudonymiseur injecté, moteur de Pseudonymisation sur
+    `USINE_CLE_PSEUDO`. Un fournisseur injecté sert toutes les tâches, sans plafond. Le cache
+    est toujours en mémoire : le cache de production n'est ni lu ni écrit.
+    """
+    secrets_usine: Secrets | None = None
+    config_llm: ConfigLLM | None = None
+    fermeture: Callable[[], None] | None = None
+    par_tache: Mapping[Tache, FournisseurLLM] = {}
+    if fournisseur is None:
+        secrets_usine = charger_secrets(racine)
+        config_llm = _config_llm(racine)
+        fournisseur = construire_fournisseur(racine, secrets_usine)
+        try:
+            par_tache = construire_fournisseurs_par_tache(racine, secrets_usine)
+        except BaseException:
+            _fermer_tous([fournisseur])
+            raise
+        fermeture = partial(_fermer_tous, [fournisseur, *par_tache.values()])
+    try:
+        if pseudonymiseur is None:
+            if secrets_usine is None:
+                secrets_usine = charger_secrets(racine)
+            parametres = _verifier_llm(fournisseur, None, secrets_usine, racine / "config")
+            if parametres is None:  # pragma: no cover - renvoyé sans pseudonymiseur injecté
+                raise UsineErreur("USINE_CLE_PSEUDO absente ou vide")
+            pseudonymiseur = _pseudonymiseur(racine, parametres)
+        cache: CacheLLM = _CacheMemoire()
+        passerelle = Passerelle(
+            fournisseur,
+            pseudonymiseur,
+            cache,
+            _maintenant,
+            tarif=_tarif_registre,
+            plafond_cout_passage_eur=(
+                None if config_llm is None else config_llm.plafond_cout_passage_eur
+            ),
+            fournisseurs_par_tache=par_tache,
+        )
+    except BaseException:
+        if fermeture is not None:
+            fermeture()
+        raise
+    contexte = ContexteExplication(
+        passage_id=f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
+        version_donnees=VERSION_DONNEES_EVALUATION,
+        gabarit=lire_prompt(),
+    )
+    version = par_tache.get(Tache.explication, fournisseur).version_modele
+    return Explicateur(passerelle, contexte, version, fermeture)
 
 
 def _config_llm(racine: Path) -> ConfigLLM | None:

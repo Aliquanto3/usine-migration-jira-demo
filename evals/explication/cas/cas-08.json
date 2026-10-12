@@ -1,0 +1,138 @@
+{
+  "identifiant": "cas-08",
+  "description": "Rouge, deux règles (IND-1 et IND-3), avec KPI et Causes racines.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-H",
+    "couleur": "rouge",
+    "regles": [
+      {
+        "code": "IND-1",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 4,
+        "denominateur": 1,
+        "seuil_numerateur": 3,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-801",
+          "DEMO-802",
+          "DEMO-803",
+          "DEMO-804"
+        ]
+      },
+      {
+        "code": "IND-3",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 21,
+        "denominateur": 1,
+        "seuil_numerateur": 20,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-805",
+          "DEMO-806"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-801",
+      "type_ticket": "anomalie",
+      "titre": "Reprise des IBAN incomplète",
+      "description": "Les IBAN étrangers ne sont pas repris."
+    },
+    {
+      "cle_ticket": "DEMO-802",
+      "type_ticket": "anomalie",
+      "titre": "Batch nocturne en échec",
+      "description": "Le batch nocturne échoue faute de droits sur le répertoire d'échange."
+    },
+    {
+      "cle_ticket": "DEMO-803",
+      "type_ticket": "anomalie",
+      "titre": "Interface de paiement coupée",
+      "description": "L'interface de paiement est coupée depuis la bascule réseau."
+    },
+    {
+      "cle_ticket": "DEMO-804",
+      "type_ticket": "anomalie",
+      "titre": "Clés étrangères orphelines",
+      "description": "Des lignes de commande référencent des clients non repris."
+    },
+    {
+      "cle_ticket": "DEMO-805",
+      "type_ticket": "anomalie",
+      "titre": "Écart d'arrondi des taxes",
+      "description": "Les taxes diffèrent d'un centime sur les factures multi-taux."
+    },
+    {
+      "cle_ticket": "DEMO-806",
+      "type_ticket": "anomalie",
+      "titre": "Statut de contrat mal transcodé",
+      "description": "Le statut « suspendu » devient « actif » après transformation."
+    }
+  ],
+  "kpi": [
+    {
+      "code_kpi": "anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 31,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "anomalies_ouvertes_gravite",
+      "dimension": "bloquante",
+      "numerateur": 4,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "age_max_anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 9,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "entrees_jour",
+      "dimension": "",
+      "numerateur": 3,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "sorties_jour",
+      "dimension": "",
+      "numerateur": 1,
+      "denominateur": 1
+    }
+  ],
+  "repartition": [
+    {
+      "cause_racine": "reprise_donnees",
+      "nombre": 12,
+      "part": 0.4
+    },
+    {
+      "cause_racine": "regle_transformation",
+      "nombre": 9,
+      "part": 0.3
+    },
+    {
+      "cause_racine": "environnement",
+      "nombre": 6,
+      "part": 0.2
+    },
+    {
+      "cause_racine": "interface_flux",
+      "nombre": 3,
+      "part": 0.1
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-H est en rouge sur deux règles : quatre Anomalies bloquantes ouvertes (DEMO-801 à DEMO-804) et 21 majeures ouvertes, dont DEMO-805 et DEMO-806. La reprise de données domine avec DEMO-801, IBAN étrangers non repris, et DEMO-804, lignes de commande orphelines. L'environnement bloque DEMO-802 et l'interface de paiement reste coupée (DEMO-803). Côté majeures, DEMO-805 décale les taxes d'un centime et DEMO-806 transcode mal le statut de contrat.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}

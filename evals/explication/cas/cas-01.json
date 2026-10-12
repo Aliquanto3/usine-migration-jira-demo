@@ -1,0 +1,52 @@
+{
+  "identifiant": "cas-01",
+  "description": "Rouge, une seule règle (IND-1), sans KPI ni Causes racines.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-A",
+    "couleur": "rouge",
+    "regles": [
+      {
+        "code": "IND-1",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 3,
+        "denominateur": 1,
+        "seuil_numerateur": 3,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-101",
+          "DEMO-102",
+          "DEMO-103"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-101",
+      "type_ticket": "anomalie",
+      "titre": "Soldes clients négatifs après reprise",
+      "description": "La reprise des comptes clients produit des soldes négatifs sur 4 % des contrats."
+    },
+    {
+      "cle_ticket": "DEMO-102",
+      "type_ticket": "anomalie",
+      "titre": "Rejet massif du flux des adresses",
+      "description": "Le flux des adresses est rejeté en totalité par le contrôle de format du code postal."
+    },
+    {
+      "cle_ticket": "DEMO-103",
+      "type_ticket": "anomalie",
+      "titre": "Batch de facturation bloqué",
+      "description": "Le batch de facturation s'arrête sur une table de référence vide."
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "L'Entité ENT-A est en rouge car trois Anomalies bloquantes restent ouvertes : DEMO-101, DEMO-102 et DEMO-103. DEMO-101 signale des soldes clients négatifs après la reprise des comptes. DEMO-102 bloque l'intégration des adresses, rejetées par le contrôle du code postal. DEMO-103 arrête le batch de facturation sur une table de référence vide.",
+      "brouillon_commentaire": "Prioriser la correction de DEMO-103, qui bloque la facturation."
+    }
+  ]
+}

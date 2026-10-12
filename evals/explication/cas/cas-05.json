@@ -1,0 +1,38 @@
+{
+  "identifiant": "cas-05",
+  "description": "Rouge, Certification refusée (IND-5), un seul ticket en cause.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-E",
+    "couleur": "rouge",
+    "regles": [
+      {
+        "code": "IND-5",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 1,
+        "denominateur": 1,
+        "seuil_numerateur": 1,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-501"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-501",
+      "type_ticket": "certification",
+      "titre": "Certification de la vague 2 refusée",
+      "description": "Le métier refuse la certification : écarts de soldes non expliqués."
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-E est en rouge car la certification de la vague 2, DEMO-501, a été refusée par le métier. Le refus de DEMO-501 tient à des écarts de soldes non expliqués.",
+      "brouillon_commentaire": "Organiser une revue des écarts de soldes avec le métier avant la nouvelle demande de DEMO-501."
+    }
+  ]
+}
