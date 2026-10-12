@@ -2,6 +2,7 @@
 
 Fonctions pures : Date d'arrêté, Entités, Grille et `version_grille` arrivent en paramètre.
 Seul IND-1 est calculé ici (walking skeleton) ; tout autre indicateur actif est refusé.
+`verifier_grille` contrôle la cohérence des seuils entre couleurs (FR-18).
 """
 
 from collections.abc import Callable, Mapping, Sequence
@@ -39,6 +40,56 @@ _COULEURS_DE_REGLE: tuple[Couleur, ...] = tuple(
     couleur for couleur in sorted(Couleur, reverse=True) if couleur is not Couleur.vert
 )
 """Couleurs portant un seuil, de la plus grave à la moins grave."""
+
+
+def _severite(seuil: tuple[Operateur, Fraction]) -> tuple[Fraction, int]:
+    """Clé de sévérité : plus elle est grande, plus le seuil est difficile à franchir.
+
+    `>= v` se déclenche sur `[v, ∞)`, `> v` sur `(v, ∞)` : à valeur égale, `>` est plus sévère.
+    """
+    operateur, valeur = seuil
+    return (valeur, 1 if operateur is Operateur.superieur else 0)
+
+
+def _decimal_exact(valeur: Fraction) -> str:
+    """Écriture décimale exacte d'un seuil (`Fraction(1, 5)` → `0.2`), fraction sinon."""
+    if valeur.denominator == 1:
+        return str(valeur.numerator)
+    for chiffres in range(1, 64):
+        mise_a_l_echelle = valeur * 10**chiffres
+        if mise_a_l_echelle.denominator == 1:
+            signe = "-" if valeur < 0 else ""
+            entier = str(abs(mise_a_l_echelle.numerator)).rjust(chiffres + 1, "0")
+            return f"{signe}{entier[:-chiffres]}.{entier[-chiffres:]}"
+    return str(valeur)
+
+
+def _ecrire_seuil(seuil: tuple[Operateur, Fraction]) -> str:
+    operateur, valeur = seuil
+    return f"{operateur.value} {_decimal_exact(valeur)}"
+
+
+def verifier_grille(grille: GrilleMeteo, source: str) -> GrilleMeteo:
+    """Refuse une Grille où une couleur est plus sévère qu'une couleur plus grave (FR-18).
+
+    Toutes les règles sont vérifiées, actives ou non, sur chaque paire de couleurs présentes.
+    Des seuils égaux sont acceptés. `source` (nom du fichier) préfixe le message d'erreur.
+    Renvoie la Grille inchangée.
+    """
+    for code, regle in grille.indicateurs.items():
+        presentes = [c for c in _COULEURS_DE_REGLE if c in regle.seuils]
+        for rang_grave, plus_grave in enumerate(presentes):
+            for moins_grave in presentes[rang_grave + 1 :]:
+                seuil_moins = regle.seuils[moins_grave]
+                seuil_plus = regle.seuils[plus_grave]
+                if _severite(seuil_moins) > _severite(seuil_plus):
+                    raise UsineErreur(
+                        f"{source} : règle {code.value} : seuil {moins_grave.value}"
+                        f" « {_ecrire_seuil(seuil_moins)} » plus sévère que le seuil"
+                        f" {plus_grave.value} « {_ecrire_seuil(seuil_plus)} » (une couleur"
+                        " moins grave doit se déclencher avant une plus grave)"
+                    )
+    return grille
 
 
 @dataclass(frozen=True)
