@@ -5,7 +5,7 @@ created: '2026-10-12'
 status: 'done'
 baseline_revision: '0714669752662ca46ca4afecbf08fc62b4bd2463'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
 warnings: ['oversized']
@@ -102,6 +102,37 @@ deferred: []
   - `low` `patch` (edge) Fournisseur LLM « branché dans composition.py » sans adaptateur livré — groupe « promesses ».
   - `low` `patch` (edge) « seule composition.py » contredit AD-1 (modules `cli`) — corrigé en « seuls `composition.py` et les modules `cli` ».
 
+### 2026-10-12 — Review pass (revue de suivi)
+- verdicts: 27 findings — high 0, medium 2, low 21, false 4, maybe-false 0 ; 12 `carried` (verdict de la passe précédente conservé)
+- findings:
+  - `low` `reject` (intent) Les cellules du tableau ne sont pas comparées à la spec § 8, seulement leur présence — comparer au texte de la spec ajouterait une lecture hors lane et un parseur ; contenu relu par l'humain (Story 8.2).
+  - `false` `reject` (intent) « validé par le client » s'écarte de la spec — carried : écart documenté dans les Design Notes, la contrainte « mot pour mot » ne vise que le tableau.
+  - `low` `reject` (intent) Le test ne vérifie pas qu'un contrôle est nommé par affirmation, ni les puces — carried : relecture humaine, garde-fou sans dommage nommé.
+  - `false` `reject` (intent) La fiche citerait `config/llm.yaml` et `usine.ui.cli` échapperait au contrat UI — la fiche ne cite pas `config/llm.yaml` ; `usine.ui.cli` n'importe aucun `usine.adaptateurs` en direct (imports : composition, config, consultation, contrats, ports).
+  - `low` `reject` (intent) Ni HTML ni noms de client testés — carried : impossible sans lister des noms dans un dépôt public.
+  - `low` `reject` (intent) « Une page » mesurée en mots — carried : proxy assumé par la spec.
+  - `medium` `patch` (blind) Dataiku : « Stockage SQLite » omet l'entrepôt DuckDB (`donnees/entrepot.duckdb`, spine l. 131), le stockage principal à porter — remplacé par « Entrepôt DuckDB, bases SQLite et fichiers Excel/PPT ».
+  - `low` `reject` (blind) Cellule Agent ✅ en poste seul contredite par la puce — carried : cellule de la spec reprise mot pour mot, la puce « l'Agent en dépend aussi » nuance déjà.
+  - `low` `patch` (blind) Pseudonymisation rattachée à AD-19 et gitleaks, qui ne la vérifient pas — déplacée sous AD-1 (passerelle `usine.ia`, `lint-imports`) ; AD-19 ne porte plus que les clés, dont `USINE_CLE_PSEUDO` (gitleaks).
+  - `low` `reject` (blind) Rien sur Jira Data Center, « jeton API » au vocabulaire Cloud — la demande 1 reprend la spec mot pour mot et la ligne Extraction nomme Data Center.
+  - `medium` `patch` (blind) Le modèle spaCy `fr_core_news_md` est un wheel hébergé sur GitHub (`pyproject.toml` l. 23) : un miroir PyPI ne suffit pas, `uv sync` échoue sur une VM fermée — accès GitHub au modèle ajouté à la première puce VM.
+  - `low` `reject` (blind) Power Platform ne dit pas qu'il faut aussi l'environnement Python — la demande 2 le couvre et les puces disent « garder l'extraction en Python ».
+  - `low` `reject` (blind) Liste des demandes sans proxy ni miroir — liste reprise de la spec § 8 ; les prérequis sont aux points d'attention VM.
+  - `low` `reject` (blind) Phrase sous le tableau annonçant des briques en construction — carried : correctif « promesses » de la passe précédente.
+  - `low` `reject` (blind) Aucun test NFR-4 (noms de client) — carried.
+  - `low` `reject` (blind) Contenu de la spec § 8 non testé — même raison que la première ligne.
+  - `low` `reject` (blind) Proxy « une page » en mots — carried.
+  - `low` `reject` (blind) Libellés de briques sans correspondance avec l'AC — carried : choix documenté (Design Notes).
+  - `low` `patch` (edge) `_section` lève `IndexError` sur un premier morceau vide — `morceau.partition("\n")[0]` remplace `splitlines()[0]`.
+  - `low` `reject` (edge) Section en double non détectée — ajoute une garde pour un cas jamais rencontré.
+  - `low` `reject` (edge) Pipe échappé dans une cellule — aucune cellule n'en contient ; le parseur serait plus complexe.
+  - `low` `reject` (edge) Titre de cible avec espace final — garde sans cas réel.
+  - `low` `reject` (edge) Largeur du tableau non bornée — carried : proxy « une page » en mots.
+  - `false` `reject` (edge) Le chargeur de `usine.config` ne validerait pas `config/jira.yaml` ni les autres YAML — `composition.py` charge `jira.yaml`, `chaine.yaml`, `programme.yaml` et la grille par `usine.config.charger_yaml` avec leur modèle (l. 174, 206-215).
+  - `low` `patch` (edge) Pseudonymisation attribuée à gitleaks — même entrée que la ligne blind correspondante.
+  - `false` `reject` (edge) Bascule Data Center présentée comme livrée — carried : la clé `mode: Literal["cloud", "dc"]` existe dans `ConfigJira`, la phrase sous le tableau signale l'extraction en construction.
+  - `low` `reject` (edge) Marge de 6 mots — carried ; la fiche compte 696 mots après correctifs.
+
 ## Design Notes
 
 Le tableau de la spec ne nomme pas toutes les briques de la story : « KPI, météo » couvre le calcul et la Météo, « Excel / PPT » le rendu, « Agent conversationnel » l'Agent ; seule l'UI manque. On ajoute donc une ligne au lieu de renommer celles de la spec, ce qui respecte « reprendre tel quel » (addendum § G) et l'AC de la story. Le dépôt étant public, « la banque » devient « le client » : la fiche s'adresse au Sponsor de tout client.
@@ -132,3 +163,19 @@ Status: done
 **Vérification :** `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` OK ; `uv run pytest -q` : 991 passed, 1 skipped ; `controle_lanes.py --branche lane/8-portage --base main` : tous les fichiers dans la lane.
 
 **Risques résiduels :** la fiche compte 694 mots pour une limite de 700. Les cellules Dataiku et Power Platform de la ligne UI sont des jugements, à confirmer à la validation M7 (Story 8.2). Aucun contrôle automatique ne détecte les noms de client : seule la relecture les écarte.
+
+### Revue de suivi (2026-10-12)
+
+**Résumé :** quatre couches (blind, edge, verification-gap, intent) ont relu la fiche et son test, en particulier les points d'attention Dataiku et VM réécrits par la première revue. Quatre entrées corrigées : le stockage Dataiku nomme l'entrepôt DuckDB en plus des bases SQLite ; la VM demande aussi l'accès GitHub au wheel spaCy `fr_core_news_md`, qu'un miroir PyPI ne sert pas ; la pseudonymisation de la ligne LLM est rattachée à AD-1 et à la passerelle `usine.ia` au lieu de gitleaks ; `_section` du test ne lève plus `IndexError` sur un morceau vide. Deux phrases resserrées pour rester sous 700 mots.
+
+**Fichiers :**
+- `docs/fiche-outillage.md` -- points d'attention Dataiku et VM, cellule Appui de la ligne LLM, phrase d'objet et deux puces resserrées (696 mots).
+- `tests/unit/docs/test_fiche_outillage.py` -- `_section` robuste à un morceau vide.
+
+**Revue :** 27 constats ; 5 corrigés en 4 correctifs (2 medium, 3 low, dont un doublon blind/edge), 0 différé, 22 rejetés (4 false, 18 low, raisons au Review Triage Log). Aucun nom réel de client dans la fiche.
+
+**Revue de suivi recommandée :** non. Passe de suivi sans correctif high : le travail a convergé. Corrigés par verdict d'entrée : high 0, medium 2, low 2.
+
+**Vérification :** `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` (13 contrats tenus) OK ; `uv run pytest -q` : 991 passed, 1 skipped ; `controle_lanes.py --branche lane/8-portage --base main` : tous les fichiers dans la lane.
+
+**Risques résiduels :** marge de 4 mots sous la limite de 700. Les cellules Dataiku et Power Platform de la ligne UI restent des jugements à confirmer à la validation M7 (Story 8.2).

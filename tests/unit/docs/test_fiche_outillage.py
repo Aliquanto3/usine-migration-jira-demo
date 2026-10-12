@@ -33,7 +33,7 @@ def texte() -> str:
 def _section(texte: str, titre: str) -> str:
     morceaux = re.split(r"^## ", texte, flags=re.MULTILINE)
     for morceau in morceaux:
-        if morceau.splitlines()[0].strip() == titre:
+        if morceau.partition("\n")[0].strip() == titre:
             return morceau
     pytest.fail(f"section « {titre} » absente de la fiche")
 
