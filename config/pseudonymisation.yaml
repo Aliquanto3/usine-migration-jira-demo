@@ -1,0 +1,36 @@
+# Pseudonymisation avant tout appel LLM (Story 6.2, AD-15, FR-4), lue par la composition.
+# Modèle : `ConfigPseudonymisation` (`src/usine/contrats/config.py`). Chaque valeur détectée
+# devient `<TYPE>_<6 hex HMAC-SHA256>` ; les clés de ticket (`DEMO-123`) ne sont jamais
+# remplacées. Les motifs sont des expressions régulières Python, sans drapeau (sensibles à la
+# casse), appliquées à l'identique par le moteur regex et par le moteur Presidio.
+
+# Langue des textes analysés par Presidio (code spaCy).
+langue: fr
+
+# Modèle spaCy du moteur Presidio, installé avec les dépendances (jamais téléchargé).
+modele_spacy: fr_core_news_md
+
+# Entités du modèle spaCy pseudonymisées en plus des reconnaisseurs maison (moteur Presidio
+# seulement) ; un reconnaisseur maison prime sur une entité qui le chevauche.
+entites_presidio: [PERSON]
+
+# Reconnaisseurs maison : type de jeton produit, motif et score Presidio (0 à 1).
+reconnaisseurs:
+  # Numéro de compte : IBAN français, groupé par 4 ou compact (`FR42 9999 9123 … 456`).
+  - type_jeton: COMPTE
+    # Expression régulière du compte.
+    motif: '\bFR\d{2}(?: ?\d{4}){5} ?\d{3}\b'
+    # Score Presidio du compte.
+    score: 0.95
+  # Client : civilité, prénom et NOM éventuel (`Mme Simulie MAQUETTEAU`).
+  - type_jeton: CLIENT
+    # Expression régulière du client.
+    motif: '\b(?:M\.|Mme|Mlle) [A-ZÀ-Þ][a-zß-ÿ''-]+(?: [A-ZÀ-Þ][A-ZÀ-Þ''-]+)*'
+    # Score Presidio du client.
+    score: 0.85
+  # Identifiant client : 10 chiffres préfixés `99` (`9912345670`).
+  - type_jeton: ID_CLIENT
+    # Expression régulière de l'identifiant client.
+    motif: '\b99\d{8}\b'
+    # Score Presidio de l'identifiant client.
+    score: 0.9

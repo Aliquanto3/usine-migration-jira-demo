@@ -323,6 +323,7 @@ def test_yaml_livres_en_e0(racine_depot: Path) -> None:
         "jira.yaml",
         "llm.yaml",
         "programme.yaml",
+        "pseudonymisation.yaml",
     ]
 
 

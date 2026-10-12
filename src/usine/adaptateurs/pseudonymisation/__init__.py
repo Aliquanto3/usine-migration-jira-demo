@@ -1,22 +1,28 @@
-"""Pseudonymisation par expressions régulières et HMAC-SHA256, sans Presidio (AD-15).
+"""Pseudonymisation par HMAC-SHA256 : base commune et moteur de repli regex (AD-15).
 
-`PseudonymiseurHmac` implémente le port `Pseudonymiseur` : chaque correspondance d'un motif
-devient `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>`. Le jeton ne dépend que de la clé
-(`USINE_CLE_PSEUDO`) et de la valeur : il est stable d'une exécution à l'autre. Une clé de
-ticket n'est jamais touchée : seules les parties d'une correspondance hors des clés de ticket
-sont pseudonymisées, chaque fragment restant devenant son propre jeton. `pseudonymiser`
-enregistre la correspondance dans la table, `apercu` ne l'enregistre pas, `reidentifier` la
-relit.
+`PseudonymiseurDerive` porte tout ce qui ne dépend pas du détecteur : dérivation des jetons,
+protection des clés de ticket, regroupement des chevauchements, table et port
+`Pseudonymiseur`. `PseudonymiseurHmac` (moteur de repli, sans Presidio) et
+`PseudonymiseurPresidio` (`adaptateurs.presidio`) n'en diffèrent que par la détection.
 
-Les reconnaisseurs Presidio et les motifs définitifs relèvent de la lane L6 ;
-`MOTIFS_PAR_DEFAUT` n'est qu'un motif d'amorce.
+Chaque plage détectée devient `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>`. Le jeton ne
+dépend que de la clé (`USINE_CLE_PSEUDO`) et de la valeur : il est stable d'une exécution à
+l'autre. Une clé de ticket n'est jamais touchée : seules les parties d'une détection hors
+des clés de ticket sont pseudonymisées, chaque fragment restant devenant son propre jeton.
+`pseudonymiser` enregistre la correspondance dans la table, `apercu` ne l'enregistre pas,
+`reidentifier` la relit.
+
+Les motifs livrés sont dans `config/pseudonymisation.yaml` ; `MOTIFS_PAR_DEFAUT` n'est
+qu'un motif d'amorce, utilisé sans ce fichier.
 """
 
+import copy
 import hashlib
 import hmac
 import re
-from collections.abc import Collection, Iterator, Mapping, Sequence
-from typing import Protocol
+from abc import ABC, abstractmethod
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from typing import Protocol, Self
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
@@ -28,7 +34,7 @@ from usine.contrats.llm import (
 from usine.contrats.tickets import MOTIF_CLE_TICKET
 
 MOTIFS_PAR_DEFAUT: Mapping[str, str] = {"COMPTE": r"FR\d{2}(?: \d{4}){5} \d{3}"}
-"""Motifs d'amorce, sans `config/pseudonymisation.yaml` ; remplacés par la lane L6."""
+"""Motif d'amorce, utilisé sans `config/pseudonymisation.yaml`."""
 
 LONGUEUR_MIN_CLE = 16
 """Longueur minimale de `USINE_CLE_PSEUDO`."""
@@ -88,23 +94,38 @@ class TablePseudonymes(Protocol):
         ...
 
 
-class PseudonymiseurHmac:
-    """Pseudonymiseur par motifs et HMAC-SHA256 ; correspondance gardée dans `table`."""
+def verifier_types_jeton(types: Collection[str]) -> None:
+    """Refuse un type de jeton hors de la grammaire de `contrats.llm` (`UsineErreur`)."""
+    invalides = sorted(t for t in types if not est_type_jeton(t))
+    if invalides:
+        raise UsineErreur(
+            f"Pseudonymisation : type de jeton invalide {invalides}"
+            " (majuscules et « _ », ex. COMPTE) ; reidentifier ne le reconnaîtrait pas"
+        )
 
-    def __init__(self, cle: bytes, motifs: Mapping[str, str], table: TablePseudonymes) -> None:
+
+class PseudonymiseurDerive(ABC):
+    """Base des pseudonymiseurs à jetons HMAC-SHA256 : un seul lieu de dérivation (AD-15).
+
+    Une sous-classe ne fournit que `_detecter` (plages brutes et types de jeton) ; la
+    protection des clés de ticket, le regroupement des chevauchements, la dérivation des
+    jetons, la table et le port `Pseudonymiseur` sont communs.
+    """
+
+    def __init__(self, cle: bytes, table: TablePseudonymes) -> None:
         verifier_cle(cle)
         self._cle = cle
-        invalides = sorted(t for t in motifs if not est_type_jeton(t))
-        if invalides:
-            raise UsineErreur(
-                f"Pseudonymisation : type de jeton invalide {invalides}"
-                " (majuscules et « _ », ex. COMPTE) ; reidentifier ne le reconnaîtrait pas"
-            )
-        try:
-            self._motifs = [(type_jeton, re.compile(motif)) for type_jeton, motif in motifs.items()]
-        except re.error as exc:
-            raise UsineErreur(f"Pseudonymisation : motif invalide ({exc})") from exc
         self._table = table
+
+    def avec_table(self, table: TablePseudonymes) -> Self:
+        """Même pseudonymiseur (clé, détecteur partagé) sur une autre table."""
+        copie = copy.copy(self)
+        copie._table = table
+        return copie
+
+    @abstractmethod
+    def _detecter(self, texte: str) -> Iterable[tuple[int, int, str]]:
+        """Plages `(debut, fin, type_jeton)` détectées dans `texte`, chevauchements permis."""
 
     def jeton(self, type_jeton: str, valeur: str) -> str:
         """Jeton `<TYPE>_<6 hex>` de `valeur`."""
@@ -114,20 +135,18 @@ class PseudonymiseurHmac:
     def _plages(self, texte: str) -> list[tuple[int, int, str]]:
         """Plages à remplacer, triées et disjointes, avec leur type de jeton.
 
-        Toutes les correspondances sont collectées ; seule est écartée celle qui tient tout
-        entière dans une clé de ticket. Des correspondances qui se chevauchent forment un
+        Toutes les détections sont collectées ; seule est écartée celle qui tient tout
+        entière dans une clé de ticket. Des détections qui se chevauchent forment un
         groupe (de son premier à son dernier caractère), avec le type de jeton de la plus
         longue, pour qu'aucun fragment ne reste en clair. Les clés de ticket sont ensuite
         retirées du groupe : chaque fragment restant est une plage.
         """
         proteges = [m.span() for m in _CLE_TICKET.finditer(texte)]
-        trouvees: list[tuple[int, int, str]] = []
-        for type_jeton, motif in self._motifs:
-            for trouve in motif.finditer(texte):
-                debut, fin = trouve.span()
-                if debut == fin or any(d <= debut and fin <= f for d, f in proteges):
-                    continue
-                trouvees.append((debut, fin, type_jeton))
+        trouvees = [
+            (debut, fin, type_jeton)
+            for debut, fin, type_jeton in self._detecter(texte)
+            if debut < fin and not any(d <= debut and fin <= f for d, f in proteges)
+        ]
         trouvees.sort(key=lambda t: (t[0], -(t[1] - t[0])))
         groupes: list[tuple[int, int, str]] = []
         longueur_type = 0
@@ -191,3 +210,20 @@ class PseudonymiseurHmac:
     def apercu(self, texte: str) -> str:
         """Comme `pseudonymiser`, sans écrire la table (FR-31)."""
         return self._remplacer(texte)[0]
+
+
+class PseudonymiseurHmac(PseudonymiseurDerive):
+    """Pseudonymiseur par motifs et HMAC-SHA256 ; correspondance gardée dans `table`."""
+
+    def __init__(self, cle: bytes, motifs: Mapping[str, str], table: TablePseudonymes) -> None:
+        super().__init__(cle, table)
+        verifier_types_jeton(motifs)
+        try:
+            self._motifs = [(type_jeton, re.compile(motif)) for type_jeton, motif in motifs.items()]
+        except re.error as exc:
+            raise UsineErreur(f"Pseudonymisation : motif invalide ({exc})") from exc
+
+    def _detecter(self, texte: str) -> Iterator[tuple[int, int, str]]:
+        for type_jeton, motif in self._motifs:
+            for trouve in motif.finditer(texte):
+                yield (*trouve.span(), type_jeton)
