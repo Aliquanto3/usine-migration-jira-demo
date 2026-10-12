@@ -258,6 +258,16 @@ def _textes_domaine(fournisseur: FournisseurLLM, domaine: str | None) -> TextesD
     return TextesDomaine(anomalies=anomalies, cas_de_test=cas_de_test)
 
 
+def prompts_corpus(domaines: Sequence[str]) -> tuple[str, ...]:
+    """Prompts de `produire_corpus`, dans l'ordre de ses appels (estimation du coût)."""
+    prompts: list[str] = []
+    for domaine in (*domaines, None):
+        prompts.extend(_prompt_anomalie(domaine, cause) for cause in CauseRacine)
+        prompts.append(_prompt_cas_de_test(domaine))
+    prompts.append(_prompt_certifications())
+    return tuple(prompts)
+
+
 def produire_corpus(
     fournisseur: FournisseurLLM,
     domaines: Sequence[str],

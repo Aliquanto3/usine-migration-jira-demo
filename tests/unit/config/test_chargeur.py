@@ -4,9 +4,15 @@ import pytest
 import yaml
 from pydantic import BaseModel
 
-from usine.config import MODELES, charger, charger_yaml
+from usine.config import (
+    MODELES,
+    charger,
+    charger_yaml,
+    modele_classification,
+    verifier_modele_corpus,
+)
 from usine.config.chargeur import _ChargeurSansDoublon
-from usine.contrats.config import ConfigChaine
+from usine.contrats.config import ConfigChaine, ConfigLLM
 from usine.contrats.erreurs import UsineErreur
 
 
@@ -135,3 +141,45 @@ def test_cle_valeur_yaml_acceptee(tmp_path: Path) -> None:
     chemin = _ecrire(tmp_path, "palier:\n  =: 1\n")
     texte = chemin.read_text(encoding="utf-8")
     assert yaml.load(texte, Loader=_ChargeurSansDoublon) == yaml.safe_load(texte)
+
+
+# --- Garde-fou AD-19 (Story 1.9) ---
+
+
+def _config_llm(**valeurs: object) -> ConfigLLM:
+    return ConfigLLM.model_validate(
+        {"fournisseur": "anthropic", "modele": "claude-sonnet-5-5", "plafond_cout_passage_eur": 1}
+        | valeurs
+    )
+
+
+def test_modele_classification() -> None:
+    assert modele_classification(_config_llm()) == "anthropic:claude-sonnet-5-5"
+    avec_tache = _config_llm(modeles_par_tache={"classification": "claude-haiku-5-5"})
+    assert modele_classification(avec_tache) == "anthropic:claude-haiku-5-5"
+
+
+def test_verifier_modele_corpus_distinct() -> None:
+    config = _config_llm(modeles_par_tache={"classification": "claude-haiku-5-5"})
+    verifier_modele_corpus(config, "mistral:mistral-medium-latest")
+    verifier_modele_corpus(config, "anthropic:claude-sonnet-5-5")
+    verifier_modele_corpus(config, "gabarits-provisoires")
+
+
+@pytest.mark.parametrize(
+    ("valeurs", "modele_corpus"),
+    [
+        (
+            {"modeles_par_tache": {"classification": "claude-haiku-5-5"}},
+            "anthropic:claude-haiku-5-5",
+        ),
+        ({}, "anthropic:claude-sonnet-5-5"),
+    ],
+)
+def test_verifier_modele_corpus_egal(valeurs: dict[str, object], modele_corpus: str) -> None:
+    with pytest.raises(UsineErreur) as erreur:
+        verifier_modele_corpus(_config_llm(**valeurs), modele_corpus)
+    message = str(erreur.value)
+    assert message.count(repr(modele_corpus)) == 2
+    assert "config/llm.yaml" in message
+    assert "donnees/corpus/textes.json" in message
