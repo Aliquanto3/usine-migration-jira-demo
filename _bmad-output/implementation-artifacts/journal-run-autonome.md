@@ -95,3 +95,30 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 - Story 1.6 (L1) : `config/jira.yaml` (L2 : `url_site` = site réel demandé par Anaël ; `champs` reste fictif), `tests/unit/contrats/test_config.py` (URL livrée), `tests/unit/rendu/conftest.py` (`URL_JIRA` lue dans `config/jira.yaml`, correctif d'intégration), `tests/unit/adaptateurs/jira_cloud/test_garde.py` (l'injecteur peut citer `customfield_` et `types_tickets`), `pyproject.toml` (exemption import-linter de `usine.generateur.injecteur.cli`).
 - Story 7.4 (L7) : `tests/unit/contrats/test_config.py` (une ligne : `demo.yaml` ajouté à la liste des YAML livrés de `test_yaml_livres_en_e0`).
 - Story 4.3 (L4) : `pyproject.toml` et `uv.lock` (pymongo retiré des dépendances d'exécution et placé dans le groupe `evaluation`, installé par défaut pour mypy et la CI, consigne d'Anaël).
+
+## Bilan (12/10/2026, fin du run)
+
+**Livré : 38 stories** fusionnées dans `main`, plus les contrats v1.1 (`CONTRATS_VERSION` 1.1.0). Aucun push.
+
+| Epic | Fait | Reste |
+|---|---|---|
+| 1 Données | 1.1 à 1.8 (dont injection réelle de 3 384 tickets dans `DEMO`) | 1.9 (LLM) |
+| 2 Extraction | 2.1 à 2.7 ✅ (recette en direct sur Jira Cloud verte) | — |
+| 3 Calcul | 3.1 à 3.8 ✅ | — |
+| 4 Prévision | 4.1 à 4.4 | 4.5 (bloquée, contrats 1.2) ; 4.6, 4.7 (bonus) |
+| 5 Rapport | 5.1 à 5.4 | 5.5 (bloquée, contrats 1.2), 5.6 (après 4.5), 5.7 (porte M3) |
+| 7 UI | 7.1 à 7.6 (Palier 1 complet) | 7.7 à 7.12 (après l'Epic 6) |
+| 8 Portage | 8.1 | 8.2 (validation humaine), 8.3 (bonus) |
+
+**État de `main`** : 2 310 tests verts au dernier contrôle (2.7), ruff, mypy, lint-imports verts. `usine rapport` publie un Passage depuis le vrai Jira en environ 20 s.
+
+**Décisions en attente (voir File humaine)** :
+1. Contrats 1.2 : configuration des Scénarios recalée par la 4.5 (`bloquantes_par_semaine`, `duree_bloquantes`) et `EXCLUSIONS_REJEU` des cellules de traçabilité Excel/PowerPoint (5.5). Débloque 4.5, 5.5, puis 5.6 et la porte M3.
+2. SM-10 : la Baseline bat la référence naïve sur le test temporel (Brier 0,0119 contre 0,0136) mais pas sur les projets tenus à l'écart (0,0476 contre 0,0452) ; voir `evaluation/zenodo/RAPPORT.md`.
+3. `version_donnees` inclut le manifeste d'injection (2.6), écart à la lettre du Glossaire (AD-16).
+
+**Étape suivante recommandée**
+- Skill : `bmad-correct-course`
+- Prompt : « Contrats 1.2 : appliquer les deux évolutions consignées dans la File humaine de `journal-run-autonome.md` (Scénarios recalés par la Story 4.5, branche `bloque/4-5` ; `EXCLUSIONS_REJEU` des rapports pour la Story 5.5), puis ordonner la reprise de 4.5, 5.5, 5.6 et la porte M3. »
+- Modèle : Opus 5.5 — Effort : high (contrats, générateur, configuration et Chaîne)
+- Nouveau chat (`/clear`) avant, en plan mode.
