@@ -54,6 +54,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 | 7.3 | L7 | done | `7d1006e` | Lancement de la Chaîne : statut et durée de chaque étape (progression), étape fautive nommée sans carte en cas d'échec, carte du nouveau Passage sous le succès sans clic, résumé latéral qui poursuit le suivi hors de l'écran Lancement et relance la page à la fin ; une passe de revue (3 correctifs low), pas de revue de suivi. |
 | 7.4 | L7 | done | `379bf92` | Écran Avant / après : temps manuel déclaré (`config/demo.yaml`, 120 min fictives, Q-5) à côté du temps mesuré du dernier Passage sans classification initiale, par Rapport et cumulé sur 5 Rapports, avertissement si seul un Passage avec classification initiale existe ; une passe de revue (4 correctifs low), pas de revue de suivi. |
 | 7.5 | L7 | done | `97734e6` | Écran « Ce qu'il faut pour le faire en vrai » : la fiche `docs/fiche-outillage.md` (Story 8.1) est lue sous la racine de l'UI et affichée telle quelle en lecture seule, sans copie de son texte dans `ui/` (garde de test) ; une passe de revue (4 correctifs low), pas de revue de suivi. |
+| 7.6 | L7 | done | `b9a9a9c` | Mode repli manuel par `USINE_MODE_REPLI` ou par la bascule latérale. Une fois actif, la carte, le détail et l'avant / après lisent via `Consultation` la copie versionnée `demo/repli/passage/` (Passage fictif `20261012T152755Z-5de91e`, graine 42, arrêté le 09/10/2026), sans lien Jira, avec le bandeau en tête et le lancement désactivé. Une passe de revue (7 correctifs low), pas de revue de suivi. |
 
 ## File humaine
 
