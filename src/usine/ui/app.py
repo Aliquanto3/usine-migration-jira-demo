@@ -18,6 +18,7 @@ from typing import IO, Protocol
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
 from usine.ui import carte, detail, lancement, navigation, progression
 from usine.ui.cli import consultation_dernier_passage, mode_repli, racine_ui
 from usine.ui.liens import echapper_markdown
@@ -198,24 +199,45 @@ def _erreur() -> str:
     return texte
 
 
-def _suivre() -> None:
-    """État de chaque étape du Passage lancé, relu à chaque sondage."""
-    processus: subprocess.Popen[bytes] = st.session_state[_PROCESSUS]
-    racine: Path = st.session_state[_RACINE]
-    code = processus.poll()
+def _evenements() -> tuple[EvenementProgression, ...]:
+    """Événements du Passage lancé, relus en ouvrir-lire-fermer ; lève `UsineErreur`."""
     fichier: Path | None = st.session_state.get(_FICHIER)
     if fichier is None:
-        fichier = progression.fichier_nouveau(st.session_state[_AVANT], racine)
+        fichier = progression.fichier_nouveau(st.session_state[_AVANT], st.session_state[_RACINE])
         st.session_state[_FICHIER] = fichier
+    return progression.lire_progression(fichier) if fichier is not None else ()
+
+
+def _evenements_ou_erreur() -> tuple[EvenementProgression, ...]:
+    """Événements du Passage lancé ; une progression illisible est signalée, sans arrêt."""
     try:
-        evenements = progression.lire_progression(fichier) if fichier is not None else ()
+        return _evenements()
     except UsineErreur as exc:
         st.error(str(exc))
-        evenements = ()
+        return ()
+
+
+def _lieu_echec(evenements: tuple[EvenementProgression, ...]) -> str:
+    """`à l'étape « X »` ou `hors d'une étape`, selon la progression."""
+    etape = progression.etape_en_echec(evenements)
+    return "hors d'une étape" if etape is None else f"à l'étape « {etape.value} »"
+
+
+def _finir() -> None:
+    """Relance unique de la page entière à la fin de la Chaîne : la carte relit le Passage."""
+    if not st.session_state.get(_FIN_VUE):
+        st.session_state[_FIN_VUE] = True
+        st.rerun()  # la page entière relit la carte et cesse de sonder
+
+
+def _suivre() -> None:
+    """État et durée de chaque étape du Passage lancé, relus à chaque sondage."""
+    processus: subprocess.Popen[bytes] = st.session_state[_PROCESSUS]
+    code = processus.poll()
+    evenements = _evenements_ou_erreur()
     st.markdown(
         "\n".join(
-            f"- **{etape.value}** : {progression.LIBELLES_ETATS[etat]}"
-            for etape, etat in progression.etat_des_etapes(evenements)
+            progression.ligne_suivi(suivi) for suivi in progression.suivi_des_etapes(evenements)
         )
     )
     if code is None:
@@ -226,14 +248,16 @@ def _suivre() -> None:
         st.success("Chaîne terminée : Passage publié.")
     else:
         fin = "\n".join(message.splitlines()[-LIGNES_ERREUR_MAX:])
-        st.error(f"Échec de la Chaîne (code {code}) : {fin}")
-    if not st.session_state.get(_FIN_VUE):
-        st.session_state[_FIN_VUE] = True
-        st.rerun()  # la page entière relit la carte et cesse de sonder
+        st.error(f"Échec de la Chaîne {_lieu_echec(evenements)} (code {code}) : {fin}")
+    _finir()
 
 
 def afficher_lancement(racine: Path) -> None:
-    """Bouton de lancement et suivi de la progression, sans bloquer la page."""
+    """Bouton de lancement et suivi de la progression, sans bloquer la page.
+
+    Une fois la Chaîne terminée : la carte du dernier Passage publié après un succès, sinon
+    `progression.AUCUN_RAPPORT` (jamais de rapport partiel).
+    """
     st.subheader("Chaîne de reporting")
     en_cours = _en_cours()
     st.button(
@@ -245,9 +269,52 @@ def afficher_lancement(racine: Path) -> None:
     echec = st.session_state.get(_ECHEC_LANCEMENT)
     if echec:
         st.error(echec)
-    if st.session_state.get(_PROCESSUS) is None:
+    processus: subprocess.Popen[bytes] | None = st.session_state.get(_PROCESSUS)
+    if processus is None:
         return
     st.fragment(run_every=INTERVALLE_SONDAGE if en_cours else None)(_suivre)()
+    if en_cours:
+        return
+    if processus.poll() == 0:
+        afficher_carte(st.session_state.get(_RACINE, racine))
+    else:
+        st.info(progression.AUCUN_RAPPORT)
+
+
+def _resumer() -> None:
+    """Résumé latéral du lancement hors de l'écran Lancement, sondé tant que la Chaîne tourne."""
+    processus: subprocess.Popen[bytes] = st.session_state[_PROCESSUS]
+    code = processus.poll()
+    try:
+        evenements = _evenements()
+    except UsineErreur:
+        evenements = ()  # l'écran Lancement nomme l'erreur ; le résumé reste neutre
+    if code is None:
+        courante: Etape | None = None  # dernière étape `en_cours` non encore terminée
+        for evenement in evenements:
+            if evenement.statut is StatutEtape.en_cours:
+                courante = evenement.etape
+            elif evenement.etape is courante:
+                courante = None
+        if courante is not None:
+            st.info(f"Chaîne en cours : étape « {courante.value} »")
+        else:
+            st.info("Chaîne en cours…")
+        return
+    _erreur()  # lue une seule fois et fermée, comme sur l'écran Lancement
+    if code == 0:
+        st.success("Dernier lancement : Passage publié.")
+    else:
+        st.error(f"Dernier lancement en échec {_lieu_echec(evenements)}.")
+    _finir()
+
+
+def afficher_resume() -> None:
+    """Résumé du lancement de cette session dans la barre latérale (hors écran Lancement)."""
+    if st.session_state.get(_PROCESSUS) is None:
+        return
+    with st.sidebar:
+        st.fragment(run_every=INTERVALLE_SONDAGE if _en_cours() else None)(_resumer)()
 
 
 def principal() -> None:
@@ -260,6 +327,8 @@ def principal() -> None:
         racine = Path.cwd()  # la page reste utilisable : carte et lancement s'affichent
     afficher_bandeau(racine)
     ecran = Ecran(st.sidebar.radio("Écran", navigation.libelles_ecrans(), key=navigation.CLE_ECRAN))
+    if ecran is not Ecran.lancement:
+        afficher_resume()  # avant l'écran : une relance de fin évite de lire la carte deux fois
     st.title("Usine de migration")
     if ecran is Ecran.carte:
         afficher_carte(racine)

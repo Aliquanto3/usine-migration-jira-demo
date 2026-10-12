@@ -1,9 +1,11 @@
 """Bout en bout (constat 23 de la rétro E0) : un vrai `usine rapport` lancé depuis la page.
 
 Le sous-processus est réel (`subprocess.Popen`) ; seule la Date d'arrêté est fixée au
-09/10/2026 pour retrouver le Passage d'essai. La page sonde la progression jusqu'à la fin.
+09/10/2026 pour retrouver le Passage d'essai. La page sonde la progression jusqu'à la fin,
+puis affiche durées et carte du nouveau Passage sur l'écran Lancement (Story 7.3).
 """
 
+import re
 import time
 from functools import partial
 from pathlib import Path
@@ -50,7 +52,9 @@ def test_vrai_rapport_depuis_la_page(tmp_path: Path, monkeypatch: pytest.MonkeyP
     # et se constate par le répertoire publié du Passage, puis par la carte.
     etapes = "\n".join(str(m.value) for m in page.markdown)
     for etape in Etape:
-        assert f"**{etape.value}** : " in etapes
+        # chaque étape terminée porte sa durée, au format français (`0,3 s`, `2 s`)
+        motif = rf"^- \*\*{etape.value}\*\* : (Réussie|Sautée) \(\d[\d ]*(,\d)? s\)$"
+        assert re.search(motif, etapes, re.MULTILINE), (etape, etapes)
     assert "En attente" not in etapes
     assert "Échec" not in etapes
     assert f"**{list(Etape)[-1].value}** : Réussie" in etapes
@@ -58,7 +62,14 @@ def test_vrai_rapport_depuis_la_page(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert len(publies) == 1
     assert (publies[0] / "manifeste.json").is_file()
 
+    # la carte du nouveau Passage s'affiche sous le succès, sans changer d'écran
+    assert page.sidebar.radio[0].value == Ecran.lancement.value
+    assert page.subheader[-1].value == "Carte météo du dernier Passage"
+    assert "09/10/2026" in page.caption[0].value
+    assert any(str(m.value).startswith("| Entité |") for m in page.markdown)
+
     page.sidebar.radio[0].set_value(Ecran.carte.value).run()
     assert not page.exception
     assert "09/10/2026" in page.caption[0].value
     assert any(str(m.value).startswith("| Entité |") for m in page.markdown)
+    assert page.sidebar.success[0].value == "Dernier lancement : Passage publié."

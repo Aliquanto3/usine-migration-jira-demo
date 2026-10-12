@@ -35,6 +35,7 @@ from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import STORY_A_VENIR, Ecran
+from usine.ui.progression import AUCUN_RAPPORT
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
 APP = REPERTOIRE_UI / "app.py"
@@ -533,8 +534,8 @@ def _installer(monkeypatch: pytest.MonkeyPatch, lanceur: Any) -> None:
     )
 
 
-def _ligne(etape: Etape, statut: StatutEtape) -> str:
-    instant = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
+def _ligne(etape: Etape, statut: StatutEtape, secondes: float = 0.0) -> str:
+    instant = datetime(2026, 10, 12, 7, 30, tzinfo=UTC) + timedelta(seconds=secondes)
     evenement = EvenementProgression(
         passage_id="20261012T073000Z-aaaaaa", etape=etape, statut=statut, horodatage=instant
     )
@@ -561,21 +562,23 @@ def test_lancement_et_progression(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     nouveau = ancien.with_name("20261012T073000Z-aaaaaa.jsonl")
     nouveau.write_text(
         _ligne(Etape.extraction, StatutEtape.en_cours)
-        + _ligne(Etape.extraction, StatutEtape.reussie)
-        + _ligne(Etape.instantanes, StatutEtape.en_cours)
+        + _ligne(Etape.extraction, StatutEtape.reussie, 0.5)
+        + _ligne(Etape.instantanes, StatutEtape.en_cours, 0.5)
         + '{"partielle',
         encoding="utf-8",
     )
     page.run()
-    textes = _textes(page)
-    assert "**extraction** : Réussie" in textes
-    assert "**instantanes** : En cours" in textes
-    assert "**kpi** : En attente" in textes
+    lignes = _textes(page).splitlines()
+    assert "- **extraction** : Réussie (0,5 s)" in lignes
+    assert "- **instantanes** : En cours" in lignes
+    assert "- **kpi** : En attente" in lignes
 
     lanceur.processus.code = 1
     page.run()
     assert not page.exception
     assert "étape kpi en échec" in page.error[0].value
+    assert page.error[0].value.startswith("Échec de la Chaîne hors d'une étape (code 1) : ")
+    assert any(info.value == AUCUN_RAPPORT for info in page.info)
     assert not page.button[0].disabled
     assert lanceur.erreurs.closed
 
@@ -590,11 +593,168 @@ def test_lancement_succes(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch)
     assert not page.exception
     assert "Chaîne terminée" in page.success[0].value
     assert lanceur.erreurs.closed
+    # carte du dernier Passage sous le succès, sans changer d'écran
+    assert page.sidebar.radio[0].value == Ecran.lancement.value
+    assert page.subheader[-1].value == "Carte météo du dernier Passage"
+    assert "09/10/2026" in page.caption[0].value
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+    assert not any(info.value == AUCUN_RAPPORT for info in page.info)
     page.run()
     assert not page.exception
     assert len(lanceur.appels) == 1
     _aller(page, Ecran.carte)
     assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+    assert page.sidebar.success[0].value == "Dernier lancement : Passage publié."
+
+
+def _racine_copiee(racine_publiee: Path, tmp_path: Path) -> Path:
+    """Copie du Passage d'essai : les tests qui y écrivent une progression restent isolés."""
+    shutil.copytree(racine_publiee / "sorties" / "passages", tmp_path / "sorties" / "passages")
+    return tmp_path
+
+
+def _progression(racine: Path, *lignes: str) -> None:
+    fichier = racine / "sorties" / "progression" / "20261012T073000Z-aaaaaa.jsonl"
+    fichier.parent.mkdir(parents=True, exist_ok=True)
+    fichier.write_text("".join(lignes), encoding="utf-8")
+
+
+def test_echec_nomme_sans_carte(
+    racine_publiee: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    racine = _racine_copiee(racine_publiee, tmp_path)
+    monkeypatch.chdir(racine)
+    lanceur = _Lanceur("Erreur : division par zéro")
+    _installer(monkeypatch, lanceur)
+    page = _page(Ecran.lancement)
+    page.button[0].click().run()
+    _progression(
+        racine,
+        _ligne(Etape.extraction, StatutEtape.en_cours),
+        _ligne(Etape.extraction, StatutEtape.reussie, 0.3),
+        _ligne(Etape.instantanes, StatutEtape.en_cours, 0.3),
+        _ligne(Etape.instantanes, StatutEtape.reussie, 0.4),
+        _ligne(Etape.kpi, StatutEtape.en_cours, 0.4),
+        _ligne(Etape.kpi, StatutEtape.echouee, 1.4),
+    )
+    lanceur.processus.code = 1
+    page.run()
+    assert not page.exception
+    (erreur,) = page.error
+    assert erreur.value == (
+        "Échec de la Chaîne à l'étape « kpi » (code 1) : Erreur : division par zéro"
+    )
+    lignes = _textes(page).splitlines()
+    assert "- **extraction** : Réussie (0,3 s)" in lignes
+    assert "- **kpi** : Échec (1 s)" in lignes
+    assert [info.value for info in page.info] == [AUCUN_RAPPORT]
+    assert _sans_tableau(page)
+    assert page.subheader[-1].value == "Chaîne de reporting"
+    _aller(page, Ecran.carte)  # la carte reste celle du dernier Passage publié
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+    assert page.sidebar.error[0].value == "Dernier lancement en échec à l'étape « kpi »."
+
+
+def test_resume_lateral_et_relance_unique(
+    racine_publiee: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    racine = _racine_copiee(racine_publiee, tmp_path)
+    monkeypatch.chdir(racine)
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    page = _page(Ecran.lancement)
+    assert not page.sidebar.info  # aucun lancement dans cette session : aucun résumé
+    page.button[0].click().run()
+    _aller(page, Ecran.carte)
+    assert not page.exception
+    assert page.sidebar.info[0].value == "Chaîne en cours…"
+    _progression(racine, _ligne(Etape.extraction, StatutEtape.en_cours))
+    page.run()
+    assert page.sidebar.info[0].value == "Chaîne en cours : étape « extraction »"
+    _progression(
+        racine,
+        _ligne(Etape.extraction, StatutEtape.en_cours),
+        _ligne(Etape.extraction, StatutEtape.reussie, 0.5),
+    )
+    page.run()
+    assert "étape « extraction »" not in page.sidebar.info[0].value  # étape déjà finie
+    assert page.sidebar.info[0].value == "Chaîne en cours…"
+    _progression(
+        racine,
+        _ligne(Etape.extraction, StatutEtape.en_cours),
+        _ligne(Etape.extraction, StatutEtape.reussie, 0.5),
+        _ligne(Etape.instantanes, StatutEtape.en_cours, 0.5),
+    )
+    page.run()
+    assert page.sidebar.info[0].value == "Chaîne en cours : étape « instantanes »"
+    assert page.sidebar.radio[0].value == Ecran.carte.value
+
+    relances: list[object] = []
+    monkeypatch.setattr(streamlit, "rerun", lambda *args, **kwargs: relances.append(args))
+    lanceur.processus.code = 0
+    page.run()
+    assert not page.exception
+    assert len(relances) == 1
+    assert lanceur.erreurs.closed
+    assert page.sidebar.success[0].value == "Dernier lancement : Passage publié."
+    page.run()
+    assert len(relances) == 1
+    assert page.sidebar.radio[0].value == Ecran.carte.value  # l'écran ne change pas
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+
+
+def test_resume_lateral_progression_invalide(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    page = _page(Ecran.lancement)
+    page.button[0].click().run()
+    _aller(page, Ecran.carte)
+    _progression(tmp_path, '{"etape": "inconnue"}\n')
+    page.run()
+    assert not page.exception
+    assert page.sidebar.info[0].value == "Chaîne en cours…"
+
+
+def test_resume_lateral_relit_la_carte(
+    racine_publiee: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    page = _page(Ecran.lancement)
+    page.button[0].click().run()
+    _aller(page, Ecran.carte)
+    assert "Aucun Passage publié" in page.main.info[0].value
+    _racine_copiee(racine_publiee, tmp_path)  # le sous-processus publie son Passage
+    lanceur.processus.code = 0
+    page.run()  # fin vue par le résumé latéral : relance réelle de la page
+    assert not page.exception
+    assert page.sidebar.success[0].value == "Dernier lancement : Passage publié."
+    assert page.sidebar.radio[0].value == Ecran.carte.value
+    assert "09/10/2026" in page.caption[0].value
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+
+
+def test_resume_lateral_echec_hors_etape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    lanceur = _Lanceur("Erreur : configuration illisible")
+    _installer(monkeypatch, lanceur)
+    page = _page(Ecran.lancement)
+    page.button[0].click().run()
+    _aller(page, Ecran.detail)
+    lanceur.processus.code = 2
+    page.run()
+    assert not page.exception
+    assert page.sidebar.error[0].value == "Dernier lancement en échec hors d'une étape."
+    assert lanceur.erreurs.closed
+    _aller(page, Ecran.lancement)
+    assert page.error[0].value == (
+        "Échec de la Chaîne hors d'une étape (code 2) : Erreur : configuration illisible"
+    )
+    assert not page.sidebar.error  # pas de résumé latéral sur l'écran Lancement
 
 
 def test_rerun_unique_en_fin_de_chaine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
