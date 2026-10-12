@@ -101,8 +101,8 @@ development_status:
   3-8-rapport-de-référence-et-réconciliation-à-100: done
   epic-3-retrospective: optional
 
-  epic-4: backlog  # lane L4 Prévision (après L3)
-  4-1-prévision-de-sortie-du-rouge-par-baseline: backlog
+  epic-4: in-progress  # lane L4 Prévision (après L3)
+  4-1-prévision-de-sortie-du-rouge-par-baseline: done
   4-2-risque-d-entrée-en-rouge: backlog
   4-3-conversion-du-public-jira-dataset-en-seriestock: backlog
   4-4-évaluation-de-la-baseline-sur-données-réelles: backlog
