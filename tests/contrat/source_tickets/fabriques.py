@@ -20,6 +20,7 @@ from tests.unit.adaptateurs.jira_dc.outils import (
     evenements_attendus as evenements_attendus_dc,
 )
 from tests.unit.adaptateurs.jira_dc.outils import source_fixtures_dc
+from tests.unit.adaptateurs.journal.outils import cle_jira, manifeste_pour
 from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
@@ -128,6 +129,24 @@ def fabrique_journal() -> CasSourceTickets:
     return CasSourceTickets(SourceJournal(chemin), generation.evenements)
 
 
+def fabrique_journal_correspondance() -> CasSourceTickets:
+    """`SourceJournal` du mini-générateur lu aux clés Jira (`DEMO-n` → `DEMO-(n+100000)`)."""
+    config = charger_yaml(
+        Path(__file__).resolve().parents[3] / "tests/unit/generateur/programme_reduit.yaml",
+        ConfigProgramme,
+    )
+    generation = generer(config, 42, date(2026, 10, 12))
+    repertoire = Path(tempfile.mkdtemp(prefix="usine-journal-"))
+    atexit.register(shutil.rmtree, repertoire, True)
+    chemin = repertoire / "journal.jsonl"
+    chemin.write_bytes(serialiser_journal(generation))
+    manifeste = manifeste_pour(generation.entete, generation.evenements)
+    attendus = tuple(
+        e.model_copy(update={"cle_ticket": cle_jira(e.cle_ticket)}) for e in generation.evenements
+    )
+    return CasSourceTickets(SourceJournal(chemin, manifeste), attendus)
+
+
 def fabrique_jira_cloud() -> CasSourceTickets:
     """`SourceJiraCloud` sur les fixtures `tests/fixtures/jira_cloud/source_*`, sans réseau."""
     return CasSourceTickets(source_fixtures(), evenements_attendus_cloud())
@@ -142,6 +161,7 @@ FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("source_en_memoire", fabrique_source_en_memoire),
     ("journal_genere", fabrique_journal_genere),
     ("journal", fabrique_journal),
+    ("journal_correspondance", fabrique_journal_correspondance),
     ("jira_cloud", fabrique_jira_cloud),
     ("jira_dc", fabrique_jira_dc),
 ]

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import polars as pl
 import pytest
 
 from tests.unit.adaptateurs.jira_dc.outils import ServeurFixturesDC
@@ -12,12 +13,14 @@ from tests.unit.adaptateurs.jira_dc.outils import (
     evenements_attendus as evenements_attendus_dc,
 )
 from tests.unit.adaptateurs.jira_http.outils import Attentes
+from tests.unit.adaptateurs.journal.outils import couper_reseau, manifeste_pour
 from tests.unit.chaine.environnement import DATE_ARRETE, INSTANT, horloge_figee, preparer_racine
 from usine import composition
 from usine.adaptateurs.entrepot_duckdb import EntrepotDuckDB, EtapeExtraction
 from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
 from usine.adaptateurs.jira_http import construire_client_lecture
+from usine.adaptateurs.journal import CHEMIN_MANIFESTE_INJECTION, SourceJournal
 from usine.chaine.etapes import EtapeBouchon
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigJira, ConfigProgramme
@@ -185,6 +188,51 @@ def test_passage_sans_secret_journal_seul_sans_requete(
     assert lance.manifeste.source == "journal"
     assert lance.repertoire.is_dir()
     assert not (racine_journal / "donnees" / "entrepot.duckdb").exists()
+
+
+# --- Journal lu aux clés Jira (Story 2.5) ---
+
+
+def _cles_tickets_etats(repertoire: Path) -> set[str]:
+    return set(pl.read_parquet(repertoire / "tickets_etats.parquet")["cle_ticket"].to_list())
+
+
+def test_passage_journal_seul_avec_manifeste_aux_cles_jira(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brut = SourceJournal(racine_journal / "donnees" / "journal.jsonl")
+    manifeste = manifeste_pour(brut.entete, brut.evenements())
+    chemin = racine_journal / CHEMIN_MANIFESTE_INJECTION
+    chemin.parent.mkdir(parents=True)
+    chemin.write_text(manifeste.model_dump_json(indent=2), encoding="utf-8")
+    _interdire_le_client(monkeypatch)
+    couper_reseau(monkeypatch)
+    lance = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+    assert lance.manifeste.source == "journal"
+    cles = _cles_tickets_etats(lance.repertoire)
+    assert cles
+    assert cles <= set(manifeste.correspondance_cles.values())
+    assert not cles & set(manifeste.correspondance_cles)
+
+
+def test_passage_sans_manifeste_aux_cles_generees(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brut = SourceJournal(racine_journal / "donnees" / "journal.jsonl")
+    _interdire_le_client(monkeypatch)
+    couper_reseau(monkeypatch)
+    lance = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+    cles = _cles_tickets_etats(lance.repertoire)
+    assert cles
+    assert cles <= {e.cle_ticket for e in brut.evenements()}
+
+
+def test_manifeste_invalide_nomme_le_fichier(racine_journal: Path) -> None:
+    chemin = racine_journal / CHEMIN_MANIFESTE_INJECTION
+    chemin.parent.mkdir(parents=True)
+    chemin.write_text("[]", encoding="utf-8")
+    with pytest.raises(UsineErreur, match=r"manifeste_injection.json"):
+        composition.construire_rapport(racine_journal)
 
 
 def test_passage_dc_de_bout_en_bout(racine_journal: Path, monkeypatch: pytest.MonkeyPatch) -> None:
