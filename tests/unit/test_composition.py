@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 import polars as pl
 import pytest
+from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from tests.doublures import SourceEnMemoire
 from tests.unit.adaptateurs.composite.outils import (
@@ -39,15 +40,19 @@ from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
 from usine.adaptateurs.jira_http import construire_client_lecture
 from usine.adaptateurs.journal import CHEMIN_MANIFESTE_INJECTION, SourceJournal
-from usine.chaine.etapes import EtapeBouchon
+from usine.chaine.etapes import EtapeBouchon, EtapePrevision
 from usine.config import charger_yaml
+from usine.consultation.passage import ConsultationPassage
 from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement
+from usine.contrats.meteo import Couleur
 from usine.contrats.passage import Etape
 from usine.contrats.tickets import Champ
 from usine.contrats.versions import version_donnees
 from usine.ports.etape import Etape as PortEtape
+from usine.rendu.commun import depuis_manifeste, formater_horodatage
+from usine.rendu.etape import EtapeRendu
 
 _VARIABLES_JIRA = ("USINE_MODE_REPLI", "JIRA_EMAIL", "JIRA_TOKEN_LECTURE", "JIRA_DC_PAT")
 
@@ -209,6 +214,29 @@ def test_passage_sans_secret_journal_seul_sans_requete(
     assert lance.manifeste.source == "journal"
     assert lance.repertoire.is_dir()
     assert not (racine_journal / "donnees" / "entrepot.duckdb").exists()
+
+
+def test_registre_prevision_et_rendu(racine_journal: Path) -> None:
+    """Story 5.3 : `prevision` et `rendu` au registre ; Prévisions des Entités rouges publiées,
+    tracées à l'horloge ; contexte du rendu relu du manifeste."""
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    assert isinstance(rapport.registre[Etape.prevision], EtapePrevision)
+    rendu = rapport.registre[Etape.rendu]
+    assert isinstance(rendu, EtapeRendu)
+    lance = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+    consultation = ConsultationPassage(lance.repertoire)
+    previsions = consultation.previsions()
+    assert [p.entite for p in previsions] == [
+        m.entite for m in consultation.meteo() if m.couleur is Couleur.rouge
+    ]
+    assert {t.horodatage for t in consultation.traces()} == {INSTANT}
+    contexte = depuis_manifeste(lance.manifeste, rapport.configuration.grille_meteo)
+    assert (contexte.source, contexte.version_grille, contexte.version_donnees) == (
+        rapport.donnees.source,
+        rapport.donnees.version_grille,
+        rapport.donnees.version_donnees,
+    )
+    assert contexte.previsions_calculees
 
 
 # --- Journal lu aux clés Jira (Story 2.5) ---
@@ -400,6 +428,14 @@ def test_passage_composite_de_bout_en_bout(
     # La transition faite à la main dans Jira après l'injection apparaît au Passage.
     assert statut != nouveau_statut
     assert _etat(lance.repertoire, manuel, "statut") == nouveau_statut
+    # Le classeur publié affiche la source et l'instant d'extraction transmis au rendu.
+    classeur = load_workbook(lance.repertoire / "rapport-2026-10-09.xlsx")
+    tracabilite = {
+        ligne[0]: ligne[1] for ligne in classeur["Traçabilité"].iter_rows(values_only=True)
+    }
+    assert tracabilite["Source"] == "composite"
+    assert lance.manifeste.horodatage_extraction == INSTANT
+    assert tracabilite["Horodatage d'extraction"] == formater_horodatage(INSTANT)
     # L'alignement, horodaté à la détection (après la Date d'arrêté), ne change pas cette date.
     assert _etat(lance.repertoire, ecart, "gravite") != gravite
     attendu = [(id_alignement(ecart, Champ.gravite, gravite), INSTANT)]

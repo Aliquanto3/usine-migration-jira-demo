@@ -91,7 +91,7 @@ def test_autre_version_majeure(tmp_path: Path, generation: Generation) -> None:
     entete = json.loads(lignes[0])
     entete["contrats_version"] = "2.0.0"
     chemin = _ecrire(tmp_path, [json.dumps(entete), *lignes[1:]])
-    with pytest.raises(UsineErreur, match=r"2\.0\.0.*1\.0\.0") as erreur:
+    with pytest.raises(UsineErreur, match=r"2\.0\.0.*1\.1\.0") as erreur:
         SourceJournal(chemin)
     assert "journal.jsonl" in str(erreur.value)
 

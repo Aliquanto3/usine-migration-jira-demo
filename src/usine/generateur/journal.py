@@ -54,6 +54,7 @@ from usine.generateur.scenarios import (
     ScenarioMenace,
     Scenarios,
     scenarios_applicables,
+    scenarios_de_config,
 )
 from usine.generateur.textes import corpus_provisoire
 
@@ -832,15 +833,17 @@ def generer(
     sensibles fictifs (`_injecter_identifiants`) : ce tirage ne change que les descriptions
     des Anomalies choisies, le reste du Journal d'une graine est inchangé.
 
-    Scénarios de démo (Stories 1.5 et 1.8) : `scenarios` omis (`None`), `SCENARIOS_PAR_DEFAUT`
-    réduits à ceux qui tiennent dans l'historique (`scenarios_applicables` : un programme
-    court génère sans erreur) ; des Scénarios explicites sont contrôlés strictement (une
-    semaine au-delà de la dernière semaine générée est refusée), `AUCUN_SCENARIO` les
-    désactive. Un Scénario dont l'Entité est absente de `config` est sans effet ;
-    `Generation.scenarios` porte les Scénarios appliqués. La semaine de bascule de A (vague)
-    et de B (début de l'enlisement), les `bloquantes_bascule` premières créations de la
-    semaine sont des bloquantes lentes de l'Entité, créées le premier Jour ouvré (bascule au
-    rouge ce jour-là) ; les autres créations ont leur Entité tirée par poids
+    Scénarios de démo (Stories 1.5 et 1.8) : `scenarios` omis (`None`), ceux de
+    `config.scenarios` (contrats 1.1.0, `scenarios_de_config`) ou, sans cette clé,
+    `SCENARIOS_PAR_DEFAUT`, réduits à ceux qui tiennent dans l'historique
+    (`scenarios_applicables` : un programme court génère sans erreur) ; des Scénarios
+    explicites sont contrôlés strictement (une semaine au-delà de la dernière semaine générée
+    est refusée), `AUCUN_SCENARIO` les désactive. Un Scénario dont l'Entité est absente de
+    `config` est sans effet ; `Generation.scenarios` porte les Scénarios appliqués. La
+    semaine de bascule de A (vague) et de B (début de l'enlisement), les `bloquantes_bascule`
+    premières créations de la semaine sont des bloquantes lentes de l'Entité, créées le
+    premier Jour ouvré (bascule au rouge ce jour-là) ; les autres créations ont leur Entité
+    tirée par poids
     (`_poids_entites` : B renforcé dès sa semaine de début, A renforcé pendant sa vague puis
     réduit pendant sa décrue), sans changer le nombre de créations de la semaine ; la
     gravité, la Cause racine des bloquantes et les délais suivent le profil de l'Entité
@@ -879,7 +882,11 @@ def generer(
     codes = {entite.code for entite in config.entites}
     derniere_semaine = max(jours_par_semaine)
     if scenarios is None:
-        scenarios = SCENARIOS_PAR_DEFAUT
+        scenarios = (
+            SCENARIOS_PAR_DEFAUT
+            if config.scenarios is None
+            else scenarios_de_config(config.scenarios)
+        )
     else:
         _verifier_semaines_scenarios(scenarios, codes, derniere_semaine)
     scenarios = scenarios_applicables(scenarios, codes, derniere_semaine)

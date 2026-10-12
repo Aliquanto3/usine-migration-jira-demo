@@ -4,8 +4,10 @@ Les étapes déterministes enveloppent le domaine sans aucun recalcul : `EtapeIn
 `EtapeMeteo` couvrent chaque Jour ouvré de l'historique jusqu'à la Date d'arrêté ;
 `EtapeKpi` (KPI quotidiens et Tendances) couvre chaque Jour ouvré du premier jour où un ticket
 existe jusqu'à la Date d'arrêté, aucun avant ; `EtapePrevision` reçoit la prévision sous forme de
-fonction injectée et trace chaque Prévision et chaque Risque (AD-16, FR-34). Les étapes pas
-encore implémentées sont des bouchons, et les étapes LLM sont sautées en Palier 1. Aucune
+fonction injectée et trace chaque Prévision et chaque Risque (AD-16, FR-34) ;
+`prevision_du_passage` est cette fonction pour un Passage (Baseline des Entités rouges, Risques
+des autres, chaque Jour ouvré). Les étapes pas encore implémentées sont des bouchons, et les
+étapes LLM sont sautées en Palier 1. Aucune
 étape n'écrit : elle lit le Passage en cours par `ctx.consultation` et renvoie un
 `ResultatEtape`, que l'`EcrivainPassage` écrit.
 """
@@ -21,13 +23,16 @@ from usine.contrats.calcul import SCHEMA_INDICATEUR
 from usine.contrats.calendrier import TAILLE_FENETRE_GLISSANTE, jours_ouvres
 from usine.contrats.config import ConfigProgramme, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.meteo import MeteoEntite
+from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import ContextePassage, ResultatEtape, StatutEtape
-from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.prevision import ContenuPrevisions, Prevision, RisqueEntreeRouge
 from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.domaine.instantanes import instantane, tickets_etats, tickets_textes
 from usine.domaine.kpi import kpi, tendances
 from usine.domaine.meteo import DECALAGE_IND8, indicateurs, meteo
+from usine.domaine.prevision.baseline import ParametresBaseline, prevoir_sortie
+from usine.domaine.prevision.risque import ParametresRisque, risques_entree_rouge
+from usine.domaine.prevision.serie import series_stock
 from usine.ports.consultation import Consultation
 from usine.ports.source_tickets import SourceTickets
 
@@ -160,6 +165,52 @@ class EtapeKpi:
                 "tendances": tendances(quotidiens, ctx.date_arrete, self._premier_jour),
             },
         )
+
+
+def prevision_du_passage(
+    grille: GrilleMeteo, entites: Sequence[str], premier_jour: date
+) -> Prevoir:
+    """Prévision d'un Passage, à injecter dans `EtapePrevision` (FR-20, FR-21, AD-7).
+
+    Pour chaque Jour ouvré de `premier_jour` à la Date d'arrêté, dans l'ordre, puis pour chaque
+    Entité dans l'ordre de `meteo.json` : une Entité rouge reçoit la Prévision de la Baseline
+    (`prevoir_sortie`) sur sa `SerieStock`, une autre ses Risques d'entrée en rouge
+    (`risques_entree_rouge`) sur ses Indicateurs. Les paramètres sont ceux du domaine par
+    défaut (H-7, H-8). La série vient de `series_stock` sur l'état des tickets du Passage :
+    aucun calcul ici.
+    """
+    entites = tuple(entites)
+    baseline = ParametresBaseline()
+    risque = ParametresRisque()
+
+    def prevoir(ctx: ContextePassage[Consultation]) -> ContenuPrevisions:
+        consultation = ctx.consultation
+        jours = jours_du_passage(premier_jour, ctx.date_arrete)
+        etats = pl.concat([consultation.tickets_etats(jour) for jour in jours], how="vertical")
+        series = series_stock(etats, entites, jours)
+        tables = pl.concat([consultation.indicateurs(jour) for jour in jours], how="vertical")
+        # Lignes de chaque Entité seulement : chaque appel du domaine valide sa table entière.
+        serie_de: dict[str, pl.DataFrame] = {}
+        indicateurs_de: dict[str, pl.DataFrame] = {}
+        previsions: list[Prevision] = []
+        risques: list[RisqueEntreeRouge] = []
+        for jour in jours:
+            for meteo_entite in consultation.meteo(jour):
+                entite = meteo_entite.entite
+                if meteo_entite.couleur is Couleur.rouge:
+                    if entite not in serie_de:
+                        serie_de[entite] = series.filter(pl.col("serie") == entite)
+                    previsions.append(prevoir_sortie(serie_de[entite], meteo_entite, baseline))
+                else:
+                    if entite not in indicateurs_de:
+                        indicateurs_de[entite] = tables.filter(pl.col("entite") == entite)
+                    resultat = risques_entree_rouge(
+                        indicateurs_de[entite], meteo_entite, grille, risque
+                    )
+                    risques.extend(projete.risque for projete in resultat.risques)
+        return ContenuPrevisions(previsions=tuple(previsions), risques=tuple(risques))
+
+    return prevoir
 
 
 def _json(identite: dict[str, str]) -> str:
