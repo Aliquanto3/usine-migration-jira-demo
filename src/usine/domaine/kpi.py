@@ -1,4 +1,4 @@
-"""KPI quotidiens par Entité et pour le Programme (FR-11, H-17, H-19, AD-9, AD-10, AD-17).
+"""KPI quotidiens et Tendances hebdomadaires (FR-11, FR-12, H-17, H-19, AD-9, AD-10, AD-17).
 
 Fonction pure : l'état des tickets de chaque Jour ouvré (`SCHEMA_TICKET_ETAT`) et les Entités
 arrivent en paramètre. Sortie dense au `SCHEMA_KPI` (format long) : une ligne par date,
@@ -14,12 +14,13 @@ from fractions import Fraction
 
 import polars as pl
 
-from usine.contrats.calcul import PERIMETRE_PROGRAMME, SCHEMA_KPI
+from usine.contrats.calcul import PERIMETRE_PROGRAMME, SCHEMA_KPI, SCHEMA_TENDANCE
 from usine.contrats.calendrier import (
     est_jour_ouvre,
     fenetre_glissante,
     jour_ouvre_precedent,
     jours_ouvres,
+    semaine_programme,
 )
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.schemas import valider
@@ -84,6 +85,21 @@ DIMENSIONS_KPI: dict[str, tuple[str, ...]] = {
     CERTIFICATIONS: _dimensions(StatutCertification),
 }
 """Dimensions de chaque code, dans l'ordre de l'énumération ; `""` = KPI non ventilé."""
+
+ENTREES_SEMAINE = "entrees_semaine"
+SORTIES_SEMAINE = "sorties_semaine"
+
+CODES_TENDANCE: tuple[str, ...] = (*CODES_KPI, ENTREES_SEMAINE, SORTIES_SEMAINE)
+"""Catalogue des Tendances : les KPI du dernier Jour ouvré, puis les cumuls de la semaine."""
+
+NOMBRE_SEMAINES_TENDANCE = 8
+"""Nombre de semaines du Programme restituées, semaine de la Date d'arrêté comprise."""
+
+_CUMULS: tuple[tuple[str, str], ...] = (
+    (ENTREES_SEMAINE, ENTREES_JOUR),
+    (SORTIES_SEMAINE, SORTIES_JOUR),
+)
+"""(code cumulé sur la semaine, code quotidien sommé)."""
 
 _CODES_SANS_VALEUR_PAR_DEFAUT = frozenset(
     {
@@ -339,3 +355,99 @@ def kpi(tickets_etats: pl.DataFrame, entites: Sequence[str]) -> pl.DataFrame:
                         lignes["denominateur"].append(denominateur)
     table = pl.DataFrame(lignes, schema=dict(SCHEMA_KPI.colonnes))
     return valider(table, SCHEMA_KPI)
+
+
+def tendances(kpi_quotidiens: pl.DataFrame, date_arrete: date, ancrage: date) -> pl.DataFrame:
+    """`SCHEMA_TENDANCE` : les `NOMBRE_SEMAINES_TENDANCE` dernières semaines jusqu'à `date_arrete`.
+
+    Semaine du Programme = `semaine_programme(date, ancrage)`, l'ancrage venant de l'appelant
+    (`EnteteJournal.ancrage_semaines`). Les lignes postérieures à `date_arrete` sont ignorées.
+    Pour chaque semaine de `max(1, s − 7)` à `s` (`s` = semaine de `date_arrete`) ayant au
+    moins une date dans la table : toutes les lignes de son dernier Jour ouvré présent (la
+    semaine en cours, partielle, est donc datée de `date_arrete`), puis, par périmètre de ce
+    jour, `entrees_semaine` et `sorties_semaine` (`n/1`, dimension `""`) = somme des
+    `entrees_jour` / `sorties_jour` des dates présentes de la semaine. Une semaine sans date
+    n'a aucune ligne. Rien n'est recalculé depuis l'état des tickets.
+
+    Ordre : semaine croissante, périmètre par première apparition dans la table (dates
+    ≤ `date_arrete`), code dans l'ordre de `CODES_TENDANCE`, dimension dans l'ordre d'entrée.
+
+    Table vide → table vide (`date_arrete` non exigée). Sinon `UsineErreur` si un code est
+    hors de `CODES_KPI`, si `date_arrete` n'est pas une date de la table, ou (via
+    `semaine_programme`) si l'ancrage n'est pas un lundi ou suit une date de la table
+    antérieure ou égale à `date_arrete`.
+    """
+    table = valider(kpi_quotidiens, SCHEMA_KPI)
+    inconnus = sorted(set(table.get_column("code_kpi").to_list()) - set(CODES_KPI))
+    if inconnus:
+        raise UsineErreur(f"Tendances : code(s) KPI inconnu(s) : {', '.join(inconnus)}")
+    colonnes = list(SCHEMA_TENDANCE.colonnes)
+    if table.is_empty():
+        return valider(pl.DataFrame(schema=dict(SCHEMA_TENDANCE.colonnes)), SCHEMA_TENDANCE)
+
+    passe = table.filter(pl.col("date") <= date_arrete)
+    dates: list[date] = sorted(passe.get_column("date").unique().to_list())
+    if not dates or dates[-1] != date_arrete:
+        toutes: list[date] = sorted(table.get_column("date").unique().to_list())
+        premiere_date, derniere_date = toutes[0], toutes[-1]
+        raise UsineErreur(
+            f"Tendances : Date d'arrêté {date_arrete.isoformat()} absente des KPI quotidiens"
+            f" (dates de {premiere_date.isoformat()} à {derniere_date.isoformat()})"
+        )
+    semaines = {jour: semaine_programme(jour, ancrage) for jour in dates}
+    premiere = max(1, semaines[date_arrete] - NOMBRE_SEMAINES_TENDANCE + 1)
+    derniers: dict[int, date] = {}
+    for jour in dates:
+        if semaines[jour] >= premiere:
+            derniers[semaines[jour]] = jour
+
+    rang_perimetre = {
+        perimetre: rang
+        for rang, perimetre in enumerate(
+            passe.get_column("perimetre").unique(maintain_order=True).to_list()
+        )
+    }
+    fenetre = passe.with_columns(
+        pl.col("date")
+        .replace_strict(list(semaines), list(semaines.values()), return_dtype=pl.Int64())
+        .alias("_semaine")
+    ).filter(pl.col("_semaine") >= premiere)
+    valeurs = fenetre.filter(pl.col("date").is_in(list(derniers.values()))).select(
+        "_semaine", *colonnes
+    )
+    perimetres = valeurs.select("_semaine", "date", "perimetre").unique()
+    cumuls = [
+        perimetres.join(
+            fenetre.filter(pl.col("code_kpi") == quotidien)
+            .group_by("_semaine", "perimetre")
+            .agg(pl.col("numerateur").sum()),
+            on=["_semaine", "perimetre"],
+            how="left",
+        )
+        .with_columns(
+            pl.lit(code, dtype=pl.Utf8()).alias("code_kpi"),
+            pl.lit("", dtype=pl.Utf8()).alias("dimension"),
+            pl.col("numerateur").fill_null(0).cast(pl.Int64()),
+            pl.lit(1, dtype=pl.Int64()).alias("denominateur"),
+        )
+        .select("_semaine", *colonnes)
+        for code, quotidien in _CUMULS
+    ]
+    resultat = (
+        pl.concat([valeurs, *cumuls], how="vertical")
+        .with_columns(
+            pl.col("perimetre")
+            .replace_strict(
+                list(rang_perimetre), list(rang_perimetre.values()), return_dtype=pl.Int64()
+            )
+            .alias("_rang_perimetre"),
+            pl.col("code_kpi")
+            .replace_strict(
+                list(CODES_TENDANCE), list(range(len(CODES_TENDANCE))), return_dtype=pl.Int64()
+            )
+            .alias("_rang_code"),
+        )
+        .sort("_semaine", "_rang_perimetre", "_rang_code", maintain_order=True)
+        .select(colonnes)
+    )
+    return valider(resultat, SCHEMA_TENDANCE)

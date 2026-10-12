@@ -1,4 +1,4 @@
-"""Tests des KPI quotidiens (Story 3.2, FR-11)."""
+"""Tests des KPI quotidiens et des Tendances hebdomadaires (Stories 3.2 et 3.3)."""
 
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -8,14 +8,26 @@ import pytest
 
 from tests.unit.domaine.constructeur import Flux
 from usine.config import charger_yaml
-from usine.contrats.calcul import PERIMETRE_PROGRAMME, SCHEMA_KPI
-from usine.contrats.calendrier import fenetre_glissante, jour_ouvre_precedent, jours_ouvres
+from usine.contrats.calcul import PERIMETRE_PROGRAMME, SCHEMA_KPI, SCHEMA_TENDANCE
+from usine.contrats.calendrier import (
+    fenetre_glissante,
+    jour_ouvre_precedent,
+    jours_ouvres,
+    semaine_programme,
+)
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.schemas import valider
 from usine.contrats.tickets import SCHEMA_TICKET_ETAT, STATUTS_FERMES, Champ, TypeTicket
 from usine.domaine.instantanes import instantane, tickets_etats
-from usine.domaine.kpi import CODES_KPI, DIMENSIONS_KPI, kpi
+from usine.domaine.kpi import (
+    CODES_KPI,
+    CODES_TENDANCE,
+    DIMENSIONS_KPI,
+    NOMBRE_SEMAINES_TENDANCE,
+    kpi,
+    tendances,
+)
 from usine.generateur.journal import Generation, generer
 
 RACINE = Path(__file__).resolve().parents[3]
@@ -386,3 +398,187 @@ def test_journal_genere_conservation_du_stock(etats_generes: pl.DataFrame) -> No
             ), f"{perimetre} {d}"
             mouvements += entrees + sorties
     assert mouvements > 0
+
+
+# --- Tendances hebdomadaires (Story 3.3, FR-12) ---
+
+
+def _kpi_a_la_main(
+    jours: list[date],
+    entrees: list[int] | None = None,
+    sorties: list[int] | None = None,
+    perimetres: tuple[str, ...] = ("ENT-A", PERIMETRE_PROGRAMME),
+) -> pl.DataFrame:
+    """Table `SCHEMA_KPI` réduite : stock = rang du jour + 1, Entrées et Sorties données."""
+    entrees = entrees or [0] * len(jours)
+    sorties = sorties or [0] * len(jours)
+    lignes = []
+    for rang, jour in enumerate(jours):
+        for perimetre in perimetres:
+            lignes += [
+                (jour, perimetre, "anomalies_ouvertes", "", rang + 1, 1),
+                (jour, perimetre, "anomalies_ouvertes_gravite", "bloquante", rang, 1),
+                (jour, perimetre, "anomalies_ouvertes_gravite", "majeure", 1, 1),
+                (jour, perimetre, "entrees_jour", "", entrees[rang], 1),
+                (jour, perimetre, "sorties_jour", "", sorties[rang], 1),
+                (jour, perimetre, "taux_ko_cas_de_test", "recette", rang, rang + 2),
+            ]
+    return pl.DataFrame(lignes, schema=dict(SCHEMA_KPI.colonnes), orient="row")
+
+
+def _semaines(table: pl.DataFrame) -> list[int]:
+    return sorted({semaine_programme(d, LUNDI_28) for d in table["date"].to_list()})
+
+
+def test_tendance_semaine_complete() -> None:
+    entree = _kpi_a_la_main(list(jours_ouvres(LUNDI_28, VENDREDI)))
+    table = tendances(entree, VENDREDI, LUNDI_28)
+    valider(table, SCHEMA_TENDANCE)
+    assert set(table["date"]) == {VENDREDI}
+    du_vendredi = entree.filter(pl.col("date") == VENDREDI)
+    assert table.filter(pl.col("code_kpi").is_in(CODES_KPI)).equals(du_vendredi)
+    assert _v(table, VENDREDI, "ENT-A", "taux_ko_cas_de_test", "recette") == (4, 6)
+
+
+def test_tendance_cumul_de_la_semaine() -> None:
+    jours = list(jours_ouvres(LUNDI_28, VENDREDI))
+    table = tendances(_kpi_a_la_main(jours, [1, 0, 2, 0, 1], [0, 1, 1, 0, 0]), VENDREDI, LUNDI_28)
+    for perimetre in ("ENT-A", PERIMETRE_PROGRAMME):
+        assert _v(table, VENDREDI, perimetre, "entrees_semaine") == (4, 1)
+        assert _v(table, VENDREDI, perimetre, "sorties_semaine") == (2, 1)
+        assert _v(table, VENDREDI, perimetre, "entrees_jour") == (1, 1)
+
+
+def test_tendance_semaine_partielle() -> None:
+    jours = list(jours_ouvres(LUNDI_28, MERCREDI))
+    entree = _kpi_a_la_main(jours, [1, 1, 1, 1, 1, 2, 3, 4], [0, 1, 0, 0, 0, 1, 0, 2])
+    table = tendances(entree, MERCREDI, LUNDI_28)
+    assert sorted(set(table["date"])) == [VENDREDI, MERCREDI]
+    assert _v(table, MERCREDI, "ENT-A", "anomalies_ouvertes") == (8, 1)
+    assert _v(table, MERCREDI, "ENT-A", "entrees_semaine") == (9, 1)
+    assert _v(table, MERCREDI, "ENT-A", "sorties_semaine") == (3, 1)
+    assert _v(table, VENDREDI, "ENT-A", "entrees_semaine") == (5, 1)
+    assert _v(table, VENDREDI, "ENT-A", "sorties_semaine") == (1, 1)
+
+
+def test_tendance_ignore_le_futur() -> None:
+    jours = list(jours_ouvres(LUNDI_28, date(2026, 10, 9)))
+    complete = _kpi_a_la_main(jours, list(range(len(jours))), [1] * len(jours))
+    tronquee = complete.filter(pl.col("date") <= MERCREDI)
+    assert tendances(complete, MERCREDI, LUNDI_28).equals(tendances(tronquee, MERCREDI, LUNDI_28))
+
+
+def test_tendance_huit_dernieres_semaines() -> None:
+    fin = date(2026, 12, 2)  # mercredi de la semaine 10
+    table = tendances(_kpi_a_la_main(list(jours_ouvres(LUNDI_28, fin))), fin, LUNDI_28)
+    assert semaine_programme(fin, LUNDI_28) == 10
+    assert _semaines(table) == list(range(3, 11))
+    assert len(_semaines(table)) == NOMBRE_SEMAINES_TENDANCE
+
+
+def test_tendance_semaine_sans_jour() -> None:
+    fin = date(2026, 10, 14)  # mercredi de la semaine 3
+    table = tendances(_kpi_a_la_main(list(jours_ouvres(LUNDI, fin))), fin, LUNDI_28)
+    assert _semaines(table) == [2, 3]
+
+
+def test_tendance_date_d_arrete_absente() -> None:
+    entree = _kpi_a_la_main(list(jours_ouvres(LUNDI_28, VENDREDI)))
+    with pytest.raises(UsineErreur, match="2026-10-07"):
+        tendances(entree, MERCREDI, LUNDI_28)
+
+
+def test_tendance_date_d_arrete_anterieure() -> None:
+    entree = _kpi_a_la_main(list(jours_ouvres(LUNDI, MERCREDI)))
+    with pytest.raises(UsineErreur, match="2026-10-01"):
+        tendances(entree, JEUDI, LUNDI_28)
+
+
+def test_tendance_code_inconnu() -> None:
+    entree = _kpi_a_la_main([LUNDI]).with_columns(
+        pl.when(pl.col("code_kpi") == "anomalies_ouvertes")
+        .then(pl.lit("code_mystere"))
+        .otherwise(pl.col("code_kpi"))
+        .alias("code_kpi")
+    )
+    with pytest.raises(UsineErreur, match="code_mystere"):
+        tendances(entree, LUNDI, LUNDI_28)
+
+
+@pytest.mark.parametrize(("ancrage", "valeur"), [(LUNDI, "2026-10-01"), (MARDI, "2026-10-06")])
+def test_tendance_ancrage_refuse(ancrage: date, valeur: str) -> None:
+    entree = _kpi_a_la_main(list(jours_ouvres(JEUDI, LUNDI)))
+    with pytest.raises(UsineErreur, match=valeur):
+        tendances(entree, LUNDI, ancrage)
+
+
+def test_tendance_table_vide() -> None:
+    table = tendances(pl.DataFrame(schema=dict(SCHEMA_KPI.colonnes)), MERCREDI, LUNDI_28)
+    assert table.is_empty()
+    valider(table, SCHEMA_TENDANCE)
+
+
+def test_tendance_ordre() -> None:
+    jours = list(jours_ouvres(LUNDI_28, MARDI))
+    entree = _kpi_a_la_main(jours, perimetres=("ENT-B", "ENT-A", PERIMETRE_PROGRAMME))
+    table = tendances(entree.reverse(), MARDI, LUNDI_28)
+    codes = [
+        ("anomalies_ouvertes", ""),
+        ("anomalies_ouvertes_gravite", "majeure"),
+        ("anomalies_ouvertes_gravite", "bloquante"),
+        ("entrees_jour", ""),
+        ("sorties_jour", ""),
+        ("taux_ko_cas_de_test", "recette"),
+        ("entrees_semaine", ""),
+        ("sorties_semaine", ""),
+    ]
+    attendu = [
+        (d, perimetre, code, dimension)
+        for d in (VENDREDI, MARDI)
+        for perimetre in (PERIMETRE_PROGRAMME, "ENT-A", "ENT-B")
+        for code, dimension in codes
+    ]
+    assert table.select("date", "perimetre", "code_kpi", "dimension").rows() == attendu
+
+
+@pytest.fixture(scope="module")
+def kpi_generes(etats_generes: pl.DataFrame) -> pl.DataFrame:
+    return kpi(etats_generes, _entites(etats_generes))
+
+
+def test_journal_genere_tendances(generation: Generation, kpi_generes: pl.DataFrame) -> None:
+    d, ancrage = generation.entete.date_injection, generation.entete.ancrage_semaines
+    table = tendances(kpi_generes, d, ancrage)
+    valider(table, SCHEMA_TENDANCE)
+    assert not any(dtype.is_float() for dtype in table.schema.values())
+    assert table.equals(tendances(kpi_generes, d, ancrage))
+    semaines = {semaine_programme(jour, ancrage): jour for jour in table["date"].unique()}
+    assert sorted(semaines) == list(range(1, 9))
+    assert semaines[8] == d
+    assert set(table["code_kpi"]) == set(CODES_TENDANCE)
+    numeros = {jour: semaine_programme(jour, ancrage) for jour in kpi_generes["date"].unique()}
+    avec_semaine = kpi_generes.with_columns(
+        pl.col("date").replace_strict(numeros, return_dtype=pl.Int64()).alias("semaine")
+    )
+    perimetres = kpi_generes["perimetre"].unique().to_list()
+    for semaine, jour in semaines.items():
+        assert (
+            table.filter((pl.col("date") == jour) & pl.col("code_kpi").is_in(CODES_KPI))
+            .sort("perimetre", "code_kpi", "dimension")
+            .equals(
+                kpi_generes.filter(pl.col("date") == jour).sort(
+                    "perimetre", "code_kpi", "dimension"
+                )
+            )
+        )
+        for perimetre in perimetres:
+            for cumul, quotidien in (
+                ("entrees_semaine", "entrees_jour"),
+                ("sorties_semaine", "sorties_jour"),
+            ):
+                somme = avec_semaine.filter(
+                    (pl.col("semaine") == semaine)
+                    & (pl.col("perimetre") == perimetre)
+                    & (pl.col("code_kpi") == quotidien)
+                )["numerateur"].sum()
+                assert _v(table, jour, perimetre, cumul) == (somme, 1)
