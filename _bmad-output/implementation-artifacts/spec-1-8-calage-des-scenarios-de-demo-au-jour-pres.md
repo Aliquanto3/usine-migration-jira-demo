@@ -5,7 +5,7 @@ created: '2026-10-12'
 status: 'done'
 baseline_revision: 'dfb33e339759e2158a9258452148f305632a9bfb'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md'
 warnings: [oversized]
@@ -149,6 +149,33 @@ Le diff relu couvre les Stories 1.5 et 1.8 (`26311420..` sur les fichiers de la 
   - `[false]` `[reject]` (intent) `test_meteo_hors_scenarios` plus strict que l'AC. Ce n'est pas un défaut : les deux contrôles tiennent.
   - `[false]` `[reject]` (intent) `test_excel.py` passe de « orange ou rouge » à « rouge ». C'est voulu (report de la 1.3, relu à la 1.5).
 
+### 2026-10-12 — Review pass (revue de suivi)
+Le diff relu est celui de `tests/unit/generateur/test_calage.py` depuis la base, où vivent les deux correctifs medium de la première passe : le Corpus versionné et la semaine partielle dans la suite rapide. Les quatre couches les jugent corrects : `_corpus_versionne` charge `RACINE / CHEMIN_CORPUS`, le chemin par défaut de la CLI, et le test du mercredi vérifie 2 Jours ouvrés en semaine 8.
+- verdicts: 22 findings — high 0, medium 0, low 15, false 7, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (verification-gap) Les tests `lent` (autres graines, dates partielles) ne tournent pas en CI. C'est un choix de projet : le marqueur `lent` est exclu par `addopts`. Le lundi et le mercredi sont couverts en rapide, et un job CI planifié sortirait de la lane.
+  - `[low]` `[reject]` (verification-gap, autre) `_ecarts` plante sans Entité hors Scénario. Ce constat était déjà rejeté à la passe précédente (helper de test).
+  - `[low]` `[reject]` (blind) `_ecarts` plante sans Entité hors Scénario, `dernier` venant d'une seule Entité. Ce constat était déjà rejeté.
+  - `[low]` `[patch]` (blind) Un jour ou une semaine manquant passe `attendre` sans être signalé. Correctif : `_verifier_calage` exige maintenant une couleur pour chaque Entité à chaque Jour ouvré.
+  - `[low]` `[reject]` (blind) La semaine 1 de B n'est pas contrainte. Ce constat était déjà rejeté (FR-3 est muet sur ce point).
+  - `[low]` `[reject]` (blind) Le volet B de `test_bascule_au_premier_jour_ouvre` est plus faible. Le rouge de B est vérifié chaque jour par le calage, et ce constat était déjà rejeté.
+  - `[low]` `[reject]` (blind) La précondition de `test_bloquantes_bascule_prises_sur_la_semaine` (50 dépasse les créations, 5 non) n'est pas affirmée. La configuration réduite est versionnée, et le cas 50 a été relu à la passe précédente.
+  - `[low]` `[reject]` (blind) Les programmes courts ne passent pas par `_ecarts`. Ce constat était déjà rejeté : l'intention demande que ces programmes restent utilisables, pas qu'ils soient calés.
+  - `[low]` `[reject]` (blind) Le test importe `_cas_du_jour`, qui est privé. Ce test unitaire a été ajouté à la passe précédente, et le rendre public ajouterait une surface.
+  - `[low]` `[reject]` (blind) `_cas_du_jour` n'est pas testé pour 0 ni pour un rang hors 0-4. Ces cas ne sont pas atteignables depuis `generer`.
+  - `[low]` `[reject]` (blind) Le dimanche n'est pas testé, et les cas lents n'affirment pas leur nombre de jours. Le dimanche donne la même semaine partielle que le samedi, et le nombre de jours est vérifié sur le mercredi.
+  - `[false]` `[reject]` (blind) Docstrings manquantes et `resume` partiel non testé. C'est cosmétique, et `resume` est aussi exercé par `test_cli.py`.
+  - `[low]` `[reject]` (edge) Division par zéro dans `_ecarts` sans Entité hors Scénario. Ce constat était déjà rejeté.
+  - `[low]` `[reject]` (edge) StopIteration ou ValueError dans `_ecarts` sur `dernier`. Ce constat était déjà rejeté.
+  - `[false]` `[reject]` (edge) KeyError sur `du_jour[dernier]`. Le correctif de couverture quotidienne ci-dessus garantit maintenant que chaque Entité a ce jour.
+  - `[low]` `[patch]` (edge) Jours manquants non détectés. Même racine et même correctif que le constat de couverture du blind.
+  - `[false]` `[reject]` (edge) KeyError dans `_bloquantes_du_jour` sur un ticket sans création. Le générateur émet toujours la création en premier (test 1.3).
+  - `[low]` `[reject]` (edge) Créations nulles en semaine 6 dans la configuration réduite. Ce n'est pas le cas avec la configuration versionnée.
+  - `[low]` `[reject]` (edge) Bloquantes de B comptées avec `>= 3`. Ce constat était déjà rejeté (voir le volet B ci-dessus).
+  - `[false]` `[reject]` (intent) La CLI `--sans-scenarios` n'est pas testée. C'est faux : `test_cli.py` la couvre, hors du diff relu.
+  - `[false]` `[reject]` (intent) Les paramètres invalides ne sont pas testés. C'est faux : `test_scenarios.py` les couvre.
+  - `[false]` `[reject]` (intent) Le code de production est absent du diff. Le périmètre de la relecture est volontairement limité aux tests.
+
 ## Design Notes
 
 - **KO cumulés.** IND-4 est un taux cumulé par Phase, évalué en fin de journée. Les KO de C se décident jour par jour pour que le cumul de la Phase vaille ⌊taux visé × exécutés⌋. IND-4 reste ainsi sous le taux visé, à moins d'un exécuté près, quel que soit le jour.
@@ -222,3 +249,21 @@ Les correctifs de la 1.5 relus (contrôle des semaines, cause `reprise_donnees` 
 - Le calage dépend du calendrier V1 livré et du Corpus versionné. La Story 1.9 doit relancer `test_calage`.
 - Les autres graines ne sont pas garanties au-delà de 1, 7, 42 et 123.
 - Les bloquantes de bascule restent soumises au rejet du workflow : le rouge repose sur l'accumulation des autres bloquantes lentes.
+
+### Revue de suivi (2026-10-12)
+
+**Résultat.** Les deux correctifs medium de la première passe sont confirmés :
+- Le calage utilise le Corpus versionné. Il s'agit du même chemin que la CLI, `CHEMIN_CORPUS`.
+- La semaine partielle du mercredi est couverte dans la suite rapide.
+
+**Constats.** Il y en a 22 :
+- 1 entrée low corrigée. `_verifier_calage` exige désormais une couleur pour chaque Entité à chaque Jour ouvré. Un jour manquant ne passe donc plus en silence.
+- 0 reporté.
+- 21 rejetés. 7 étaient faux, et la plupart des autres reprenaient des rejets déjà consignés.
+
+**Revue complémentaire recommandée : non.** C'est une passe de suivi sans correctif high.
+
+**Vérification.**
+- `ruff check`, `ruff format --check`, `mypy` et `lint-imports` passent.
+- `pytest -q` : 1 866 passés, 1 sauté.
+- `test_calage.py` : 18 passés en 7,5 s.
