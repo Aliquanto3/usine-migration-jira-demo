@@ -76,7 +76,7 @@ development_status:
   1-5-scénarios-de-démo-scriptés: done
   1-6-injection-initiale-dans-jira-cloud-free: backlog  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: backlog
-  1-8-calage-des-scénarios-de-démo-au-jour-près: backlog  # prérequis : Epic 3 terminé
+  1-8-calage-des-scénarios-de-démo-au-jour-près: done  # prérequis : Epic 3 terminé
   1-9-corpus-de-textes-définitif-par-llm: backlog  # prérequis : 6.1 (après la porte M3)
   epic-1-retrospective: optional
 
@@ -137,8 +137,8 @@ development_status:
   6-13-bonus-observabilité-externe: backlog  # BONUS — après tous les indispensables
   epic-6-retrospective: optional
 
-  epic-7: backlog  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
-  7-1-carte-météo-et-navigation: backlog  # Palier 1 (7.1–7.6) : prérequis 5.2, avant la porte M3
+  epic-7: in-progress  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
+  7-1-carte-météo-et-navigation: done  # Palier 1 (7.1–7.6) : prérequis 5.2, avant la porte M3
   7-2-détail-d-une-entité-palier-1: backlog
   7-3-lancement-de-la-chaîne-et-progression: backlog
   7-4-avant-après: backlog

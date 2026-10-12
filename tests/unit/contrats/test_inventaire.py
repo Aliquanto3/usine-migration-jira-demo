@@ -140,6 +140,13 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "ConfigPseudonymisation",
         "ConfigDemo",
         "ConfigUsine",
+        "ConfigScenarioSortie",
+        "ConfigScenarioEnlisement",
+        "ConfigScenarioMenace",
+        "ConfigScenarios",
+        "ConfigBaseline",
+        "ConfigRisque",
+        "ConfigPrevision",
     ),
     "calendrier": (
         "FUSEAU",

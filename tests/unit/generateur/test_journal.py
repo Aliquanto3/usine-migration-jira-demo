@@ -443,7 +443,7 @@ def test_config_livree(config_livree: ConfigProgramme) -> None:
         "epargne",
     )
     volumetrie = config_livree.volumetrie
-    assert (volumetrie.anomalies_min, volumetrie.anomalies_max) == (3000, 5000)
+    assert (volumetrie.anomalies_min, volumetrie.anomalies_max) == (3000, 4000)
     assert (volumetrie.entrees_semaine_min, volumetrie.entrees_semaine_max) == (200, 500)
 
 
