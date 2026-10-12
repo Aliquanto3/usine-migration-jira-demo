@@ -128,3 +128,25 @@ deferred: []
 - `uv run mypy` -- expected: aucune erreur.
 - `uv run lint-imports` -- expected: tous les contrats KEPT.
 - `uv run pytest -q tests/unit/ui` puis `uv run pytest -q` -- expected: tout vert.
+
+## Auto Run Result
+
+Status: done
+
+- **Résumé.** Le Mode repli s'active à la main, par `USINE_MODE_REPLI` (qui force la bascule à l'état activé et la verrouille) ou par la bascule « Mode repli » de la barre latérale. Une fois actif, la carte, le détail (Prévisions comprises) et l'avant / après lisent via `Consultation` la copie versionnée `demo/repli/passage/`, sans lien Jira. Le bandeau reste en tête de chaque écran et le lancement est désactivé. Copie absente : erreur explicite, sans repli silencieux. Aucune détection automatique (H-30). La copie est un vrai Passage fictif : graine 42, arrêté le 09/10/2026, `passage_id` `20261012T152755Z-5de91e`, 644 Ko, durée mesurée d'environ 5 s.
+- **Fichiers.**
+  - `demo/repli/passage/` — copie versionnée du Passage publié (tables, Météo, Prévisions, trace, rapports).
+  - `src/usine/ui/cli.py` — `REPERTOIRE_REPLI` (procédure de régénération en docstring), `consultation_repli`.
+  - `src/usine/ui/navigation.py` — `CLE_REPLI`.
+  - `src/usine/ui/app.py` — bascule, mode effectif, bandeau, écrans branchés sur la copie, lancement désactivé, messages d'erreur propres au repli.
+  - `tests/unit/ui/conftest.py` — copie de `demo/repli/passage/` dans `racine_publiee`.
+  - `tests/unit/ui/test_repli.py` — validité de la copie.
+  - `tests/unit/ui/test_app.py` — matrice I/O par `AppTest`, dont un clone frais avec les connexions réseau non locales interdites.
+- **Revue (une passe, mode économique).** 25 constats. 7 lignes `low` patchées : message d'erreur du repli, procédure de régénération, assertion de déduplication, aide de la bascule, test du manifeste illisible, docstring du lancement. Aucun différé. 18 rejetés, 13 `low` et 5 `false`, avec leurs motifs dans le Triage Log. La copie générée n'a pas été relue ligne à ligne : seule sa liste de fichiers était dans le diff de revue.
+- **Revue de suivi recommandée :** non (aucun `high` ni `medium` patché).
+- **Vérification.** `ruff check`, `ruff format --check`, `mypy` et `lint-imports` (13 contrats KEPT) passent. `pytest -q` : 2203 passed, 1 skipped.
+- **Risques résiduels.**
+  - Une Chaîne lancée avant l'activation du repli continue d'écrire sous `sorties/`, et sa fin affiche la carte de la copie.
+  - Si `USINE_MODE_REPLI` est retiré en cours de session, la bascule reste activée jusqu'à ce qu'on la désactive à la main.
+  - Le « clone frais sans réseau » est simulé par `AppTest`. Le vrai clone sera éprouvé aux répétitions (Story 7.12).
+  - Un changement de version majeure des contrats impose de régénérer la copie, selon la procédure inscrite dans `cli.py`.
