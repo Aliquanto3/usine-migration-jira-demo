@@ -344,8 +344,8 @@ def construire_rapport(
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
         Etape.kpi: EtapeKpi(entites, premier_jour),
         Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
-        # Bouchon tant que `domaine/prevision` (lane L4, Stories 4.1 et 4.2) n'est pas sur
-        # `main` ; ensuite `EtapePrevision(prevoir, empreinte_donnees, horloge)`.
+        # Bouchon tant que le domaine L4 ne construit pas la `SerieStock` depuis le Passage et
+        # les Risques (Story 4.2) ; ensuite `EtapePrevision(prevoir, empreinte_donnees, horloge)`.
         Etape.prevision: EtapeBouchon(),
         Etape.rendu: EtapeRendu(gabarit),
     }
