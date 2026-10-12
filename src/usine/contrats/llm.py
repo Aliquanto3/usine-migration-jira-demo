@@ -176,6 +176,16 @@ class ReponseExplication(Enregistrement):
     brouillon_commentaire: str = ""
 
 
+class ReponseClassification(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `classification` (FR-35).
+
+    Publiée : `SortieClassification`, après le contrôle déterministe de la justification.
+    """
+
+    cause_racine: CauseRacine
+    justification: str = ""
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 

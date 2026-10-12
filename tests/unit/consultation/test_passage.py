@@ -402,7 +402,7 @@ def test_version_etrangere_meteo(passage: Path) -> None:
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
     contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.3\.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.4\.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 

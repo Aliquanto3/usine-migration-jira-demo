@@ -19,6 +19,7 @@ amendments:
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12.md (rétrospective de l''Epic 0, décisions D1 à D10 de la Story 0.9)'
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12-contrats-1-2.md (contrats 1.2 : Scénarios à flux scripté, exclusions des rendus)'
   - '2026-10-12 : Story 6.3 (contrats 1.3 : clé `moteur` de `ConfigPseudonymisation`, ajout additif)'
+  - '2026-10-12 : Story 6.4 (contrats 1.4 : `ReponseClassification`, schéma demandé au fournisseur pour la tâche `classification`, ajout additif)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo
