@@ -170,7 +170,9 @@ def test_date_par_defaut_en_cli(
     with time_machine.travel(datetime(2026, 10, 12, 10, tzinfo=FUSEAU), tick=False):
         code, _, erreur = _usine(monkeypatch, capsys)
     assert code == 0, erreur
-    assert len(_passages(racine)) == 1
+    (passage,) = _passages(racine)
+    assert (passage / "rapport-2026-10-09.xlsx").is_file()
+    assert (passage / "rapport-2026-10-09.pptx").is_file()
 
 
 def test_verrou_pris(

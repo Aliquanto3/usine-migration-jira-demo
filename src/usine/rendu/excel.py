@@ -121,8 +121,8 @@ EN_TETES_TRACABILITE = ("Libellé", "Valeur")
 # Onglet Traçabilité : en-têtes en ligne 1, puis une ligne par entrée de
 # `rendu.commun.LIBELLES_TRACABILITE`, dans son ordre, à partir de la ligne 2 (valeur en
 # colonne B). Le 4e libellé (« Horodatage d'extraction ») tombe donc en `Traçabilité!B5` et le
-# 7e (« Version des données ») en `Traçabilité!B8` : deux champs exclus du Rejeu au manifeste, à
-# déclarer sous `EXCLUSIONS_REJEU["rapport_xlsx"]` (Story 5.5). Réordonner
+# 7e (« Version des données ») en `Traçabilité!B8` : deux champs exclus du Rejeu au manifeste,
+# déclarés sous `EXCLUSIONS_REJEU["rapport_xlsx"]` (contrats 1.2). Réordonner
 # `LIBELLES_TRACABILITE` déplace ces cellules.
 
 NON_EVALUABLE = "non évaluable"
