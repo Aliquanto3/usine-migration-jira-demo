@@ -1,8 +1,8 @@
-"""Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement et progression."""
+"""Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement, avant / après."""
 
 import re
 import shutil
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
 from functools import partial
 from pathlib import Path
@@ -12,6 +12,7 @@ import pytest
 import streamlit
 from streamlit.testing.v1 import AppTest
 
+from tests.unit.ui.test_avant_apres import manifeste, publier
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date, formater_pourcentage
 from usine.contrats.meteo import (
@@ -30,12 +31,12 @@ from usine.contrats.prevision import (
     RisqueEntreeRouge,
     StatutPrevision,
 )
-from usine.ui import cli, detail, lancement
+from usine.ui import avant_apres, cli, detail, lancement
 from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import STORY_A_VENIR, Ecran
-from usine.ui.progression import AUCUN_RAPPORT
+from usine.ui.progression import AUCUN_RAPPORT, texte_duree
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
 APP = REPERTOIRE_UI / "app.py"
@@ -147,6 +148,10 @@ def test_navigation(ecran: Ecran, racine_publiee: Path, monkeypatch: pytest.Monk
     elif ecran is Ecran.detail:
         assert page.subheader[0].value == ecran.value
         assert detail.EXPLICATION_PALIER_1 in _textes(page)
+        assert not page.info  # plus un emplacement
+    elif ecran is Ecran.avant_apres:
+        assert page.subheader[0].value == ecran.value
+        assert _tableau_avant_apres(page)
         assert not page.info  # plus un emplacement
     elif ecran is not Ecran.carte:
         assert page.subheader[0].value == ecran.value
@@ -832,3 +837,152 @@ def test_ui_sans_acces_interdit() -> None:
     for chemin in sorted(REPERTOIRE_UI.glob("*.py")):
         texte = chemin.read_text(encoding="utf-8")
         assert [m for m in interdits if m in texte] == [], chemin.name
+
+
+# --- Avant / après (Story 7.4) ---
+
+
+def _tableau_avant_apres(page: AppTest) -> list[str]:
+    """Lignes du tableau avant / après (une seule occurrence attendue), ou liste vide."""
+    tableaux = [str(m.value) for m in page.markdown if str(m.value).startswith("| Rapport |")]
+    assert len(tableaux) <= 1
+    return tableaux[0].splitlines() if tableaux else []
+
+
+def _demo(
+    racine: Path, contenu: str = "# Temps manuel.\ntemps_manuel_minutes_par_rapport: 120\n"
+) -> None:
+    (racine / "config").mkdir(parents=True, exist_ok=True)
+    (racine / "config" / "demo.yaml").write_text(contenu, encoding="utf-8")
+
+
+def test_avant_apres_passage_publie(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert not page.error
+    assert not page.warning
+    mesure, _ = cli.manifestes_avant_apres(racine_publiee)
+    assert mesure is not None
+    duree = avant_apres.duree_mesuree(mesure)
+    lignes = _tableau_avant_apres(page)
+    assert lignes[0] == "| Rapport | Reporting manuel (déclaré) | Chaîne (mesuré) |"
+    assert lignes[2] == f"| Par Rapport quotidien | 120 min | {texte_duree(duree)} |"
+    assert lignes[3] == f"| Cumulé sur 5 Rapports | 600 min | {texte_duree(duree * 5)} |"
+    legende = page.caption[0].value
+    assert "09/10/2026" in legende
+    assert mesure.passage_id in legende
+    assert avant_apres.MENTION_FICTIVE in legende
+
+
+def test_avant_apres_nominal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _demo(tmp_path)
+    publier(tmp_path, manifeste(3.4))
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert _tableau_avant_apres(page)[2:] == [
+        "| Par Rapport quotidien | 120 min | 3,4 s |",
+        "| Cumulé sur 5 Rapports | 600 min | 17 s |",
+    ]
+    assert "20261012T073000Z-aaaaaa" in page.caption[0].value
+
+
+def test_avant_apres_classification_initiale_plus_recente(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _demo(tmp_path)
+    publier(
+        tmp_path,
+        manifeste(2.0, passage_id="20261011T073000Z-bbbbbb", date_arrete=date(2026, 10, 8)),
+    )
+    publier(tmp_path, manifeste(9.0, classification_initiale=True))
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert not page.warning
+    assert _tableau_avant_apres(page)[2] == "| Par Rapport quotidien | 120 min | 2 s |"
+    assert "20261011T073000Z-bbbbbb" in page.caption[0].value
+    assert "08/10/2026" in page.caption[0].value
+
+
+def test_avant_apres_seule_classification_initiale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _demo(tmp_path)
+    publier(tmp_path, manifeste(9.0, classification_initiale=True))
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert [w.value for w in page.warning] == [avant_apres.SEULE_CLASSIFICATION_INITIALE]
+    assert not _tableau_avant_apres(page)
+    assert not page.caption
+    assert "9 s" not in _textes(page)
+
+
+def test_avant_apres_sans_passage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _demo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert [i.value for i in page.info] == [
+        "Aucun Passage publié : lancer la Chaîne pour mesurer son temps."
+    ]
+    assert not page.warning
+    assert not _tableau_avant_apres(page)
+
+
+def test_avant_apres_config_absente(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    publier(tmp_path, manifeste(3.4))
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    (avertissement,) = page.warning
+    assert "config/demo.yaml" in avertissement.value
+    assert "temps_manuel_minutes_par_rapport" in avertissement.value
+    assert not _tableau_avant_apres(page)
+
+
+def test_avant_apres_config_invalide(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _demo(tmp_path, "# Temps manuel.\ntemps_manuel_minutes_par_rapport: 0\n")
+    publier(tmp_path, manifeste(3.4))
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    with pytest.raises(UsineErreur) as attendue:
+        cli.config_demo(tmp_path)
+    assert [e.value for e in page.error] == [
+        f"Configuration de la démo invalide : {attendue.value}"
+    ]
+    assert "temps_manuel_minutes_par_rapport" in page.error[0].value
+    assert not _tableau_avant_apres(page)
+
+
+def test_avant_apres_racine_introuvable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    absente = tmp_path / "absente"
+    monkeypatch.setenv("USINE_RACINE", str(absente))
+    page = _page()
+    message_carte = page.error[0].value
+    _aller(page, Ecran.avant_apres)
+    assert not page.exception
+    assert [e.value for e in page.error] == [message_carte]
+    assert str(absente) in message_carte
+    assert not page.info
+    assert not page.warning
+    assert not _tableau_avant_apres(page)
+
+
+def test_avant_apres_passages_illisibles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _demo(tmp_path)
+
+    def illisibles(racine: Path) -> Any:
+        raise PermissionError(13, "accès refusé", str(racine / "sorties" / "passages"))
+
+    monkeypatch.setattr(cli, "manifestes_avant_apres", illisibles)  # importé par app.py
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    (erreur,) = page.error
+    assert erreur.value.startswith("Lecture des Passages publiés impossible : ")
+    assert "accès refusé" in erreur.value
+    assert not _tableau_avant_apres(page)

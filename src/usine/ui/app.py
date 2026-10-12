@@ -8,7 +8,8 @@ La page lit le dernier Passage publié via `Consultation` seulement, et la progr
 Passage lancé dans `sorties/progression/`. Elle n'écrit rien sous `sorties/` et n'exécute
 jamais la Chaîne dans son propre processus : `usine rapport` tourne dans un sous-processus.
 La racine est `USINE_RACINE` si elle est définie, sinon le répertoire courant. Racine, Mode
-repli et `Consultation` viennent des services de `ui/cli.py` (racine de composition).
+repli, `Consultation`, configuration de la démo (`config/demo.yaml`) et manifestes de l'avant
+/ après viennent des services de `ui/cli.py` (racine de composition).
 """
 
 import subprocess
@@ -18,9 +19,15 @@ from typing import IO, Protocol
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
-from usine.ui import carte, detail, lancement, navigation, progression
-from usine.ui.cli import consultation_dernier_passage, mode_repli, racine_ui
+from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
+from usine.ui import avant_apres, carte, detail, lancement, navigation, progression
+from usine.ui.cli import (
+    config_demo,
+    consultation_dernier_passage,
+    manifestes_avant_apres,
+    mode_repli,
+    racine_ui,
+)
 from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import Ecran
 
@@ -57,13 +64,20 @@ class _Lecture(carte.LectureCarte, detail.LectureDetail, Protocol):
     """Lectures de la `Consultation` utilisées par la carte et par le détail."""
 
 
+def _racine_introuvable(racine: Path) -> bool:
+    """Vrai, après un message d'erreur, si la racine n'est pas un répertoire."""
+    if racine.is_dir():
+        return False
+    st.error(
+        f"Racine introuvable : {racine} (variable USINE_RACINE ou répertoire courant) ;"
+        " aucun Passage ne peut être lu ni lancé"
+    )
+    return True
+
+
 def _lecture(racine: Path) -> _Lecture | None:
     """`Consultation` du dernier Passage publié, ou `None` après un message explicite."""
-    if not racine.is_dir():
-        st.error(
-            f"Racine introuvable : {racine} (variable USINE_RACINE ou répertoire courant) ;"
-            " aucun Passage ne peut être lu ni lancé"
-        )
+    if _racine_introuvable(racine):
         return None
     try:
         consultation = consultation_dernier_passage(racine)
@@ -144,6 +158,47 @@ def afficher_detail(racine: Path) -> None:
     _bloc("Prévision de sortie du rouge", detail.texte_prevision(meteo, previsions, calculees))
     _bloc("Risque d'entrée en rouge", detail.texte_risques(meteo, risques, calculees))
     _bloc("Explication", detail.texte_explication(manifeste.palier))
+
+
+def _temps_manuel(racine: Path) -> int | None:
+    """Temps manuel déclaré dans `config/demo.yaml`, ou `None` après un message explicite."""
+    try:
+        config = config_demo(racine)
+    except UsineErreur as exc:
+        st.error(f"Configuration de la démo invalide : {exc}")
+        return None
+    if config is None:
+        st.warning(avant_apres.CONFIG_ABSENTE)
+        return None
+    return config.temps_manuel_minutes_par_rapport
+
+
+def _passage_mesure(racine: Path) -> ManifestePassage | None:
+    """Dernier Passage publié sans classification initiale, ou `None` après un message."""
+    try:
+        mesure, dernier = manifestes_avant_apres(racine)
+    except (UsineErreur, OSError) as exc:
+        st.error(f"Lecture des Passages publiés impossible : {exc}")
+        return None
+    if mesure is None:
+        if dernier is None:
+            st.info(avant_apres.AUCUN_PASSAGE)
+        else:
+            st.warning(avant_apres.SEULE_CLASSIFICATION_INITIALE)
+    return mesure
+
+
+def afficher_avant_apres(racine: Path) -> None:
+    """Temps de reporting manuel déclaré et temps mesuré de la Chaîne, par Rapport et cumulé."""
+    st.subheader(Ecran.avant_apres.value)
+    if _racine_introuvable(racine):
+        return
+    minutes = _temps_manuel(racine)
+    manifeste = _passage_mesure(racine)
+    if minutes is None or manifeste is None:
+        return
+    st.markdown(avant_apres.tableau_avant_apres(minutes, avant_apres.duree_mesuree(manifeste)))
+    st.caption(avant_apres.legende(manifeste))
 
 
 def afficher_a_venir(ecran: Ecran) -> None:
@@ -336,6 +391,8 @@ def principal() -> None:
         afficher_detail(racine)
     elif ecran is Ecran.lancement:
         afficher_lancement(racine)
+    elif ecran is Ecran.avant_apres:
+        afficher_avant_apres(racine)
     else:
         afficher_a_venir(ecran)
 

@@ -1,0 +1,7 @@
+# Paramètres de l'interface de démonstration (Story 7.4, FR-44), lus par `usine ui`.
+# Modèle : `ConfigDemo` (`src/usine/contrats/config.py`).
+
+# Temps de reporting manuel déclaré pour un Rapport quotidien, en minutes entières (> 0).
+# Valeur déclarative fictive (Q-5) : aucune mesure réelle, affichée à côté du temps mesuré de la
+# Chaîne sur l'écran « Avant / après ».
+temps_manuel_minutes_par_rapport: 120

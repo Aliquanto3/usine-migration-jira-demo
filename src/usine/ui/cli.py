@@ -1,8 +1,9 @@
 """Sous-application `usine ui` et services de la page Streamlit (racine de composition, AD-1).
 
 Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
-Mode repli et la `Consultation` du dernier Passage publié. La page n'importe ni `ports`, ni
-`config`, ni `adaptateurs` : elle passe par ces services.
+Mode repli, la `Consultation` du dernier Passage publié, la configuration de la démo
+(`config/demo.yaml`) et les manifestes mesurés par l'avant / après. La page n'importe ni
+`ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
 import subprocess
@@ -12,10 +13,12 @@ from pathlib import Path
 import typer
 
 from usine import composition
-from usine.config import charger_secrets
+from usine.config import charger_secrets, charger_yaml
 from usine.consultation.passage import ConsultationPassage
-from usine.contrats.passage import REPERTOIRE_PASSAGES
+from usine.contrats.config import ConfigDemo
+from usine.contrats.passage import REPERTOIRE_PASSAGES, ManifestePassage
 from usine.ports.consultation import Consultation
+from usine.ui.avant_apres import FICHIER_CONFIG
 
 CHEMIN_APP = Path(__file__).resolve().with_name("app.py")
 """Page Streamlit lancée par `usine ui`."""
@@ -56,6 +59,33 @@ def consultation_dernier_passage(racine: Path) -> Consultation | None:
         racine_passages=racine_passages,
         url_jira=composition.url_jira(racine),
         date_arrete=manifeste.date_arrete,
+    )
+
+
+def config_demo(racine: Path) -> ConfigDemo | None:
+    """`racine/config/demo.yaml` validé par `ConfigDemo`, ou `None` si le fichier est absent.
+
+    Un fichier invalide lève l'`UsineErreur` de `charger_yaml` (fichier, clé et valeur).
+    """
+    chemin = racine / FICHIER_CONFIG
+    if not chemin.exists():
+        return None
+    return charger_yaml(chemin, ConfigDemo)
+
+
+def manifestes_avant_apres(
+    racine: Path,
+) -> tuple[ManifestePassage | None, ManifestePassage | None]:
+    """Derniers manifestes publiés sous `racine/sorties/passages/`, ou `None` pour chacun.
+
+    Le premier est le dernier Passage sans classification initiale (mesure de l'avant /
+    après), le second le dernier Passage tous Passages confondus.
+    """
+    racine_passages = racine / REPERTOIRE_PASSAGES
+    lecteur = ConsultationPassage(racine_passages, racine_passages=racine_passages)
+    return (
+        lecteur.dernier_passage(sans_classification_initiale=True),
+        lecteur.dernier_passage(),
     )
 
 

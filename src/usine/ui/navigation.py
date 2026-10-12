@@ -21,7 +21,6 @@ ECRAN_PAR_DEFAUT = Ecran.carte
 
 STORY_A_VENIR: Mapping[Ecran, str] = MappingProxyType(
     {
-        Ecran.avant_apres: "7.4",
         Ecran.outillage: "7.5",
         Ecran.agent: "7.9",
     }
