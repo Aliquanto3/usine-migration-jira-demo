@@ -103,7 +103,7 @@ development_status:
 
   epic-4: in-progress  # lane L4 Prévision (après L3)
   4-1-prévision-de-sortie-du-rouge-par-baseline: done
-  4-2-risque-d-entrée-en-rouge: backlog
+  4-2-risque-d-entrée-en-rouge: done
   4-3-conversion-du-public-jira-dataset-en-seriestock: backlog
   4-4-évaluation-de-la-baseline-sur-données-réelles: backlog
   4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: backlog  # prérequis : 1.8 et Epic 3
