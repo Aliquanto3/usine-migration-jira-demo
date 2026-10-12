@@ -146,6 +146,52 @@ def test_manifeste(rapport: Rapport) -> None:
     nb_attendu = etats.filter(pl.col("date") == DATE_ARRETE).height
     assert manifeste.nb_tickets == nb_attendu > 0
     assert manifeste.horodatage_debut < manifeste.horodatage_fin
+    assert manifeste.horodatage_extraction is None
+    assert manifeste.nb_alignements == 0
+
+
+class EtapeNotee:
+    """Étape réussie sans sortie qui note son passage."""
+
+    def __init__(self, journal: list[str], nom: str) -> None:
+        self._journal = journal
+        self._nom = nom
+
+    def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
+        self._journal.append(self._nom)
+        return ResultatEtape(StatutEtape.reussie)
+
+
+def test_extraction_et_alignements_recopies_au_manifeste(rapport: Rapport) -> None:
+    """Constat 17 : `nb_alignements` et `horodatage_extraction` viennent de l'extraction."""
+    ordre: list[str] = []
+
+    def compter() -> int:
+        ordre.append("compte")
+        return 3
+
+    extraction = INSTANT - timedelta(minutes=5)
+    horloge = horloge_pas_a_pas()
+    registre = {
+        **rapport.registre,
+        Etape.extraction: EtapeNotee(ordre, "extraction"),
+        Etape.rendu: EtapeNotee(ordre, "rendu"),
+    }
+    manifeste = executer_passage(
+        registre,
+        rapport.configuration,
+        DATE_ARRETE,
+        EcrivainPassage(rapport.racine_sorties, horloge),
+        ConsultationPassage,
+        horloge,
+        lambda: "abc123",
+        rapport.donnees,
+        horodatage_extraction=extraction,
+        nb_alignements=compter,
+    )
+    assert ordre == ["extraction", "rendu", "compte"]
+    assert manifeste.horodatage_extraction == extraction
+    assert manifeste.nb_alignements == 3
 
 
 def test_manifeste_complet_relu(rapport: Rapport) -> None:

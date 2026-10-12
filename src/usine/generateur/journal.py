@@ -1,8 +1,8 @@
-"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 à 1.4, FR-2, FR-4).
+"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 à 1.5, FR-2 à FR-4).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
-`(config, graine, date_generation, cle_projet, corpus)` (la clé de projet ne fixe que le préfixe
-des clés de tickets) ; tout le hasard vient d'une seule instance de
+`(config, graine, date_generation, cle_projet, corpus, scenarios)` (la clé de projet ne fixe
+que le préfixe des clés de tickets) ; tout le hasard vient d'une seule instance de
 `Random` initialisée par la graine, tirée dans un ordre fixe. Seule `ecrire_journal` écrit
 sur disque : le Journal, la vérité terrain et la liste des identifiants injectés d'une
 `Generation`.
@@ -11,7 +11,7 @@ sur disque : le Journal, la vérité terrain et la liste des identifiants inject
 import json
 import random
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -48,6 +48,11 @@ from usine.contrats.tickets import (
 )
 from usine.generateur.corpus import Corpus, TexteTicket
 from usine.generateur.identifiants import IdentifiantInjecte, TypeIdentifiant, phrase_identifiants
+from usine.generateur.scenarios import (
+    SCENARIOS_PAR_DEFAUT,
+    ScenarioMenace,
+    Scenarios,
+)
 from usine.generateur.textes import corpus_provisoire
 
 CLE_PROJET_ESSAI = "DEMO"
@@ -79,8 +84,53 @@ DELAIS_PAR_STATUT: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
         StatutAnomalie.rejetee: (2, 10),
     }
 )
-"""Bornes, en Jours ouvrés (≥ 1), du séjour d'une Anomalie dans un statut avant l'étape
-suivante : un cycle complet Nouvelle → Fermée dure environ deux semaines."""
+"""Bornes, en Jours ouvrés (≥ 1), du séjour d'une Anomalie mineure du profil normal dans un
+statut avant l'étape suivante : un cycle complet Nouvelle → Fermée dure environ deux semaines."""
+
+DELAIS_BLOQUANTE_NORMALE: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
+    {
+        **DELAIS_PAR_STATUT,
+        StatutAnomalie.nouvelle: (1, 1),
+        StatutAnomalie.en_analyse: (1, 1),
+        StatutAnomalie.en_correction: (1, 2),
+        StatutAnomalie.a_retester: (1, 1),
+    }
+)
+"""Délais prioritaires d'une bloquante du profil normal : traitée en une semaine environ."""
+
+DELAIS_MAJEURE_NORMALE: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
+    {
+        **DELAIS_PAR_STATUT,
+        StatutAnomalie.nouvelle: (1, 2),
+        StatutAnomalie.en_analyse: (1, 2),
+        StatutAnomalie.en_correction: (1, 3),
+        StatutAnomalie.a_retester: (1, 2),
+    }
+)
+"""Délais d'une majeure du profil normal, plus courts que ceux d'une mineure."""
+
+DELAIS_LENTS: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
+    {
+        **DELAIS_PAR_STATUT,
+        StatutAnomalie.nouvelle: (1, 3),
+        StatutAnomalie.en_analyse: (3, 6),
+        StatutAnomalie.en_correction: (15, 30),
+        StatutAnomalie.a_retester: (2, 4),
+    }
+)
+"""Délais d'une Anomalie enlisée (Scénario B) ou d'une bloquante de la vague du Scénario A :
+la correction dure de trois à six semaines."""
+
+POIDS_GRAVITE_NORMAL: tuple[int, int, int] = (2, 40, 958)
+"""Poids (pour mille) des gravités bloquante, majeure et mineure du profil normal : bloquantes
+rares, majeures peu nombreuses ; les mineures, invisibles pour la Grille, portent l'essentiel
+de la volumétrie."""
+
+STATUTS_CERTIFICATION_NORMAUX: tuple[StatutCertification, ...] = (
+    StatutCertification.accordee,
+    StatutCertification.reservee,
+)
+"""Statuts tirés pour la Certification d'une Entité normale : jamais refusée."""
 
 MARGE_REOUVERTURES_POURCENT = 10
 """Part (en %) du maximum d'Entrées d'une semaine laissée libre par les créations, pour les
@@ -90,7 +140,7 @@ JOURS_OUVRES_SEMAINE = 5
 """Jours ouvrés d'une semaine pleine (lundi à vendredi), base de la proratisation."""
 
 CAS_DE_TEST_PAR_ENTITE = (2, 3)
-"""Bornes du nombre de Cas de test par Entité."""
+"""Bornes du nombre de Cas de test d'une Entité hors Scénario C."""
 
 PROBA_EXECUTION_TEST = 0.7
 """Probabilité qu'un Cas de test soit exécuté (passage à `ok` ou `ko`)."""
@@ -152,6 +202,128 @@ class _Ticket:
     cause: CauseRacine | None = None
     identifiants: tuple[tuple[TypeIdentifiant, str], ...] = ()
     """Identifiants fictifs ajoutés à la description, avant attribution de la clé."""
+
+
+_GRAVITES: tuple[Gravite, ...] = (Gravite.bloquante, Gravite.majeure, Gravite.mineure)
+"""Ordre des gravités des poids d'un `_Profil`."""
+
+
+@dataclass(frozen=True)
+class _Profil:
+    """Tirage d'une Anomalie : poids des gravités, délais par gravité, Cause racine imposée
+    aux bloquantes (`None` : tirée)."""
+
+    poids_gravite: tuple[float, float, float]
+    delais: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]]
+    cause_bloquante: CauseRacine | None = None
+
+
+_DELAIS_NORMAUX: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]] = MappingProxyType(
+    {
+        Gravite.bloquante: DELAIS_BLOQUANTE_NORMALE,
+        Gravite.majeure: DELAIS_MAJEURE_NORMALE,
+        Gravite.mineure: DELAIS_PAR_STATUT,
+    }
+)
+
+PROFIL_NORMAL = _Profil(POIDS_GRAVITE_NORMAL, _DELAIS_NORMAUX)
+"""Profil des Entités hors Scénario : vise le vert ou le jaune avec la Grille par défaut."""
+
+POIDS_GRAVITE_CALME: tuple[int, int, int] = (0, 20, 980)
+"""Poids (pour mille) des gravités du profil calme : aucune bloquante, deux fois moins de
+majeures qu'au profil normal."""
+
+PROFIL_CALME = _Profil(POIDS_GRAVITE_CALME, _DELAIS_NORMAUX)
+"""Profil d'une Entité scénarisée hors des semaines de son Scénario : pour que sa trajectoire
+ne dépende pas d'une bloquante tirée au hasard (IND-1 est orange dès une bloquante ouverte)
+ni d'une rafale de majeures (IND-7 au-delà de son garde-fou), pas de bloquante et peu de
+majeures."""
+
+
+def _profil(code: str, semaine: int, scenarios: Scenarios) -> _Profil:
+    """Profil de tirage d'une Anomalie de l'Entité `code` créée en semaine `semaine`.
+
+    A : pendant sa vague, `part_bloquantes_vague` de bloquantes « reprise de données » lentes,
+    le reste réparti comme au profil normal entre majeures et mineures. B : dès sa semaine
+    de début, parts de bloquantes et de majeures du Scénario, toutes gravités lentes. Hors
+    de ces semaines, et pour C, `PROFIL_CALME` ; Entité sans Scénario : `PROFIL_NORMAL`.
+    """
+    sortie, enlisement, menace = scenarios.sortie, scenarios.enlisement, scenarios.menace
+    if sortie is not None and code == sortie.entite and semaine == sortie.semaine_vague:
+        part = sortie.part_bloquantes_vague
+        _, poids_majeures, poids_mineures = POIDS_GRAVITE_NORMAL
+        reste = (1 - part) / (poids_majeures + poids_mineures)
+        return _Profil(
+            (part, poids_majeures * reste, poids_mineures * reste),
+            MappingProxyType({**_DELAIS_NORMAUX, Gravite.bloquante: DELAIS_LENTS}),
+            CauseRacine.reprise_donnees,
+        )
+    if enlisement is not None and code == enlisement.entite and semaine >= enlisement.semaine_debut:
+        bloquantes, majeures = enlisement.part_bloquantes, enlisement.part_majeures
+        return _Profil(
+            (bloquantes, majeures, max(0.0, 1 - bloquantes - majeures)),
+            MappingProxyType(dict.fromkeys(_GRAVITES, DELAIS_LENTS)),
+        )
+    if code in {s.entite for s in (sortie, enlisement, menace) if s is not None}:
+        return PROFIL_CALME
+    return PROFIL_NORMAL
+
+
+def _verifier_semaines_scenarios(
+    scenarios: Scenarios, entites: tuple[EntiteProgramme, ...], derniere: int
+) -> None:
+    """Refuse une semaine de Scénario au-delà de la dernière semaine générée `derniere`,
+    pour un Scénario dont l'Entité est dans la configuration (sinon il est ignoré)."""
+    codes = {entite.code for entite in entites}
+    semaines: list[tuple[str, str, int]] = []
+    if scenarios.sortie is not None and scenarios.sortie.entite in codes:
+        semaines += [
+            ("A", "semaine_vague", scenarios.sortie.semaine_vague),
+            ("A", "semaine_certification", scenarios.sortie.semaine_certification),
+        ]
+    if scenarios.enlisement is not None and scenarios.enlisement.entite in codes:
+        semaines += [
+            ("B", "semaine_debut", scenarios.enlisement.semaine_debut),
+            ("B", "semaine_certification", scenarios.enlisement.semaine_certification),
+        ]
+    if scenarios.menace is not None and scenarios.menace.entite in codes:
+        semaines += [
+            ("C", "semaine_hausse", scenarios.menace.semaine_hausse),
+            ("C", "semaine_certification", scenarios.menace.semaine_certification),
+        ]
+    for scenario, nom, semaine in semaines:
+        if semaine > derniere:
+            raise UsineErreur(
+                f"Scénario {scenario} : {nom} = {semaine} au-delà de la dernière semaine"
+                f" générée ({derniere})"
+            )
+
+
+def _poids_entites(
+    entites: tuple[EntiteProgramme, ...], semaine: int, scenarios: Scenarios
+) -> list[float]:
+    """Poids de chaque Entité dans le tirage des créations de la semaine `semaine`.
+
+    1 pour une Entité normale ; A : `poids_vague` pendant sa vague, `poids_decrue` après ;
+    B : `poids` dès sa semaine de début.
+    """
+    sortie, enlisement = scenarios.sortie, scenarios.enlisement
+    poids: list[float] = []
+    for entite in entites:
+        valeur = 1.0
+        if sortie is not None and entite.code == sortie.entite:
+            if semaine == sortie.semaine_vague:
+                valeur = sortie.poids_vague
+            elif semaine > sortie.semaine_vague:
+                valeur = sortie.poids_decrue
+        if (
+            enlisement is not None
+            and entite.code == enlisement.entite
+            and semaine >= enlisement.semaine_debut
+        ):
+            valeur = enlisement.poids
+        poids.append(valeur)
+    return poids
 
 
 def _horodatage(jour: date, rng: random.Random) -> datetime:
@@ -275,13 +447,18 @@ def _anomalie(
     domaines: tuple[str, ...],
     corpus: Corpus,
     calendrier: _Calendrier,
+    profil: _Profil,
     rng: random.Random,
 ) -> _Ticket:
     creation = _horodatage(jour, rng)
-    gravite = rng.choice(tuple(Gravite))
+    gravite = rng.choices(_GRAVITES, weights=profil.poids_gravite)[0]
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
-    cause = rng.choice(tuple(CauseRacine))
+    if gravite is Gravite.bloquante and profil.cause_bloquante is not None:
+        cause = profil.cause_bloquante
+    else:
+        cause = rng.choice(tuple(CauseRacine))
+    delais = profil.delais[gravite]
     case = corpus.textes_domaine(domaine).anomalies[cause]
     titre, description = _textes(case, entite.code, domaine, rng)
     ticket = _Ticket(
@@ -304,9 +481,7 @@ def _anomalie(
     statut = StatutAnomalie.nouvelle
     jour_courant = jour
     for _ in range(TRANSITIONS_MAX):
-        jour_transition = calendrier.jour_apres(
-            jour_courant, rng.randint(*DELAIS_PAR_STATUT[statut])
-        )
+        jour_transition = calendrier.jour_apres(jour_courant, rng.randint(*delais[statut]))
         if jour_transition is None:
             break
         suivant = _statut_suivant(statut, rng)
@@ -329,21 +504,21 @@ def _anomalie(
     return ticket
 
 
-def _cas_de_test(
+def _nouveau_cas_de_test(
     entite: EntiteProgramme,
+    jour: date,
     domaines: tuple[str, ...],
     corpus: Corpus,
     calendrier: _Calendrier,
     rng: random.Random,
 ) -> _Ticket:
-    jours = calendrier.jours
-    jour = rng.choice(jours)
+    """Cas de test non exécuté créé le jour `jour`, Phase du calendrier ce jour-là."""
     creation = _horodatage(jour, rng)
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
     case = corpus.textes_domaine(domaine).cas_de_test
     titre, description = _textes(case, entite.code, domaine, rng)
-    ticket = _Ticket(
+    return _Ticket(
         TypeTicket.cas_de_test,
         creation,
         {
@@ -356,26 +531,86 @@ def _cas_de_test(
             Champ.description: description,
         },
     )
+
+
+def _executer(ticket: _Ticket, jour: date, resultat: StatutTest, rng: random.Random) -> None:
+    """Exécution du Cas de test le jour `jour` : passage de non exécuté à `resultat`."""
+    ticket.changements.append(
+        _Changement(
+            _horodatage(jour, rng),
+            NatureEvenement.modification_champ,
+            Champ.statut_test,
+            StatutTest.non_execute.value,
+            resultat.value,
+        )
+    )
+
+
+def _cas_de_test(
+    entite: EntiteProgramme,
+    domaines: tuple[str, ...],
+    corpus: Corpus,
+    calendrier: _Calendrier,
+    rng: random.Random,
+) -> _Ticket:
+    """Cas de test du profil normal : créé un jour tiré, exécuté ou non, résultat tiré."""
+    jours = calendrier.jours
+    jour = rng.choice(jours)
+    ticket = _nouveau_cas_de_test(entite, jour, domaines, corpus, calendrier, rng)
     if rng.random() < PROBA_EXECUTION_TEST:
         resultat = StatutTest.ok if rng.random() < PROBA_TEST_OK else StatutTest.ko
         for jour_execution in _jours_ulterieurs(jours, jour, 1, rng):
-            ticket.changements.append(
-                _Changement(
-                    _horodatage(jour_execution, rng),
-                    NatureEvenement.modification_champ,
-                    Champ.statut_test,
-                    StatutTest.non_execute.value,
-                    resultat.value,
-                )
-            )
+            _executer(ticket, jour_execution, resultat, rng)
     return ticket
 
 
+def _cas_de_test_menace(
+    entite: EntiteProgramme,
+    scenario: ScenarioMenace,
+    jours_par_semaine: Mapping[int, list[date]],
+    domaines: tuple[str, ...],
+    corpus: Corpus,
+    calendrier: _Calendrier,
+    rng: random.Random,
+) -> list[_Ticket]:
+    """Cas de test du Scénario C, semaine par semaine.
+
+    Chaque semaine d'au moins deux Jours ouvrés : `cas_de_test_par_semaine` Cas de test créés
+    un jour tiré hors du dernier Jour ouvré de la semaine, exécutés un jour ultérieur de la
+    même semaine. Leur Phase est celle du jour de création ; elle est aussi celle du jour
+    d'exécution parce que le calendrier des Phases est exprimé en semaines (les bornes de
+    Phase tombent sur des bornes de semaine) ; `nombre_ko` d'entre eux,
+    tirés par `rng.sample`, sont KO, les autres OK. Une semaine d'un seul Jour ouvré n'en a
+    aucun.
+    """
+    tickets: list[_Ticket] = []
+    for semaine, jours in sorted(jours_par_semaine.items()):
+        if len(jours) < 2:
+            continue
+        nombre = scenario.cas_de_test_par_semaine
+        ko = set(rng.sample(range(nombre), scenario.nombre_ko(semaine, nombre)))
+        for rang in range(nombre):
+            jour = rng.choice(jours[:-1])
+            ticket = _nouveau_cas_de_test(entite, jour, domaines, corpus, calendrier, rng)
+            jour_execution = rng.choice([j for j in jours if j > jour])
+            resultat = StatutTest.ko if rang in ko else StatutTest.ok
+            _executer(ticket, jour_execution, resultat, rng)
+            tickets.append(ticket)
+    return tickets
+
+
 def _certification(
-    entite: EntiteProgramme, corpus: Corpus, jours: tuple[date, ...], rng: random.Random
+    entite: EntiteProgramme,
+    corpus: Corpus,
+    jours: Sequence[date],
+    rng: random.Random,
+    statut: StatutCertification | None = None,
 ) -> _Ticket:
+    """Certification créée un jour tiré dans `jours` ; statut imposé par un Scénario, ou tiré
+    parmi `STATUTS_CERTIFICATION_NORMAUX`."""
     creation = _horodatage(rng.choice(jours), rng)
-    statut = rng.choice(tuple(StatutCertification))
+    if statut is None:
+        statut = rng.choice(STATUTS_CERTIFICATION_NORMAUX)
     titre, description = _textes(corpus.certifications, entite.code, "", rng)
     return _Ticket(
         TypeTicket.certification,
@@ -546,6 +781,7 @@ def generer(
     *,
     cle_projet: str = CLE_PROJET_ESSAI,
     corpus: Corpus | None = None,
+    scenarios: Scenarios = SCENARIOS_PAR_DEFAUT,
 ) -> Generation:
     """Génère le Journal du Programme fictif pour `graine` et `date_generation`.
 
@@ -558,8 +794,19 @@ def generer(
     sensibles fictifs (`_injecter_identifiants`) : ce tirage ne change que les descriptions
     des Anomalies choisies, le reste du Journal d'une graine est inchangé.
 
+    Scénarios de démo (`scenarios`, défaut `SCENARIOS_PAR_DEFAUT`, Story 1.5) : l'Entité de
+    chaque création est tirée par poids (`_poids_entites` : B renforcé dès sa semaine de
+    début, A renforcé pendant sa vague puis réduit pendant sa décrue), sans changer le
+    nombre de créations de la semaine ; la gravité, la Cause racine des bloquantes et les
+    délais suivent le profil de l'Entité cette semaine-là (`_profil` ; Entité sans Scénario :
+    `PROFIL_NORMAL` ; Entité scénarisée hors de ses semaines : `PROFIL_CALME`). L'Entité de
+    C reçoit les Cas de test du Scénario (`_cas_de_test_menace`) au lieu des Cas de test
+    normaux ; la Certification de A, B et C
+    a le statut du Scénario et est créée dans sa semaine ; celle d'une autre Entité est
+    accordée ou réservée. Un Scénario dont l'Entité est absente de `config` est sans effet.
+
     Cycle de vie : marche le long du workflow H-17 (`_statut_suivant`), un séjour tiré en
-    Jours ouvrés (`DELAIS_PAR_STATUT`) dans chaque statut, arrêtée au-delà de la Date
+    Jours ouvrés (délais du profil, par gravité) dans chaque statut, arrêtée au-delà de la Date
     d'injection, sur un statut fermé non rouvert ou après `TRANSITIONS_MAX` transitions. Une
     réouverture (depuis Fermée ou Rejetée) n'est gardée que si sa semaine reste sous le
     maximum d'Entrées. La Phase d'un ticket est celle du calendrier de la Vague de son
@@ -584,6 +831,7 @@ def generer(
     jours_par_semaine: dict[int, list[date]] = {}
     for jour in jours:
         jours_par_semaine.setdefault(semaine_programme(jour, ancrage), []).append(jour)
+    _verifier_semaines_scenarios(scenarios, config.entites, max(jours_par_semaine))
     bornes_entrees = _bornes_entrees(
         config.volumetrie, {s: len(j) for s, j in sorted(jours_par_semaine.items())}
     )
@@ -608,16 +856,41 @@ def generer(
     tickets: list[_Ticket] = []
     for semaine, nombre in zip(semaines, repartition, strict=True):
         jours_semaine = jours_par_semaine[semaine]
+        poids = _poids_entites(config.entites, semaine, scenarios)
         for _ in range(nombre):
             jour = rng.choice(jours_semaine)
-            entite = rng.choice(config.entites)
-            tickets.append(_anomalie(entite, jour, config.domaines, corpus, calendrier, rng))
-    for entite in config.entites:
-        nb_tests = rng.randint(*CAS_DE_TEST_PAR_ENTITE)
-        tickets.extend(
-            _cas_de_test(entite, config.domaines, corpus, calendrier, rng) for _ in range(nb_tests)
+            entite = rng.choices(config.entites, weights=poids)[0]
+            profil = _profil(entite.code, semaine, scenarios)
+            tickets.append(
+                _anomalie(entite, jour, config.domaines, corpus, calendrier, profil, rng)
+            )
+    certifications = {
+        s.entite: (s.statut_certification, s.semaine_certification)
+        for s in (scenarios.sortie, scenarios.enlisement)
+        if s is not None
+    }
+    if scenarios.menace is not None:
+        certifications[scenarios.menace.entite] = (
+            StatutCertification.reservee,
+            scenarios.menace.semaine_certification,
         )
-        tickets.append(_certification(entite, corpus, calendrier.jours, rng))
+    for entite in config.entites:
+        menace = scenarios.menace
+        if menace is not None and entite.code == menace.entite:
+            tickets.extend(
+                _cas_de_test_menace(
+                    entite, menace, jours_par_semaine, config.domaines, corpus, calendrier, rng
+                )
+            )
+        else:
+            nb_tests = rng.randint(*CAS_DE_TEST_PAR_ENTITE)
+            tickets.extend(
+                _cas_de_test(entite, config.domaines, corpus, calendrier, rng)
+                for _ in range(nb_tests)
+            )
+        statut, semaine_certification = certifications.get(entite.code, (None, 0))
+        jours_certification = jours_par_semaine.get(semaine_certification, calendrier.jours)
+        tickets.append(_certification(entite, corpus, jours_certification, rng, statut))
     _injecter_identifiants(tickets, rng)
 
     ordre = sorted(range(len(tickets)), key=lambda i: (tickets[i].creation, i))
