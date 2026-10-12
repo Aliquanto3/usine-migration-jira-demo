@@ -106,7 +106,7 @@ development_status:
   4-2-risque-d-entrée-en-rouge: done
   4-3-conversion-du-public-jira-dataset-en-seriestock: done
   4-4-évaluation-de-la-baseline-sur-données-réelles: done
-  4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: backlog  # prérequis : contrats 1.2 ; reprise depuis bloque/4-5, recette seule
+  4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: done
   4-6-bonus-modèle-ml-validé-sur-données-réelles: backlog  # BONUS — après tous les indispensables
   4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
   epic-4-retrospective: optional
