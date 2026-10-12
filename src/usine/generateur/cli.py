@@ -12,7 +12,7 @@ from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import CHEMIN_JOURNAL
 from usine.generateur.corpus import CHEMIN_CORPUS, charger_corpus
-from usine.generateur.journal import ecrire_journal
+from usine.generateur.journal import NOM_IDENTIFIANTS, ecrire_journal
 from usine.generateur.journal import generer as generer_journal
 
 app = typer.Typer(
@@ -56,13 +56,14 @@ def generer(
         ),
     ] = Path("config/jira.yaml"),
     sortie: Annotated[
-        Path, typer.Option(help="Répertoire où écrire le Journal et la vérité terrain.")
+        Path, typer.Option(help="Répertoire du Journal, de la vérité terrain et des identifiants.")
     ] = CHEMIN_JOURNAL.parent,
     corpus: Annotated[
         Path, typer.Option(help="Corpus de textes versionné (titres et descriptions).")
     ] = CHEMIN_CORPUS,
 ) -> None:
-    """Génère le Journal d'événements du Programme fictif et sa vérité terrain.
+    """Génère le Journal d'événements du Programme fictif, sa vérité terrain et la liste des
+    identifiants sensibles fictifs injectés (`identifiants_injectes.json`, à côté du Journal).
 
     Les clés de tickets sont `<cle_projet>-<n>`, avec la clé de projet de `--config-jira`.
     Les textes viennent du Corpus `--corpus`, déjà écrit : aucun appel LLM.
@@ -83,4 +84,8 @@ def generer(
         f"Journal écrit : {journal} ({len(generation.evenements)} événements,"
         f" graine {generation.entete.graine}, Date d'injection"
         f" {generation.entete.date_injection.isoformat()})"
+    )
+    typer.echo(
+        f"Identifiants injectés : {journal.parent / NOM_IDENTIFIANTS}"
+        f" ({len(generation.identifiants)} identifiants fictifs)"
     )

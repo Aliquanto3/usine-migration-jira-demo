@@ -1,10 +1,11 @@
-"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1, 1.2 et 1.3, FR-2).
+"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 à 1.4, FR-2, FR-4).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
 `(config, graine, date_generation, cle_projet, corpus)` (la clé de projet ne fixe que le préfixe
 des clés de tickets) ; tout le hasard vient d'une seule instance de
 `Random` initialisée par la graine, tirée dans un ordre fixe. Seule `ecrire_journal` écrit
-sur disque : le Journal et la vérité terrain d'une `Generation`.
+sur disque : le Journal, la vérité terrain et la liste des identifiants injectés d'une
+`Generation`.
 """
 
 import json
@@ -46,6 +47,7 @@ from usine.contrats.tickets import (
     TypeTicket,
 )
 from usine.generateur.corpus import Corpus, TexteTicket
+from usine.generateur.identifiants import IdentifiantInjecte, TypeIdentifiant, phrase_identifiants
 from usine.generateur.textes import corpus_provisoire
 
 CLE_PROJET_ESSAI = "DEMO"
@@ -105,15 +107,27 @@ PROBA_RETOUR_CORRECTION = 0.2
 PROBA_REOUVERTURE = 0.1
 """Probabilité qu'une Anomalie fermée ou rejetée soit rouverte (retour en analyse)."""
 
+PROPORTION_IDENTIFIANTS_POURCENT = 15
+"""Part (en %, arrondie au-dessus) des Anomalies dont la description porte des identifiants
+sensibles fictifs (FR-4 : au moins 10 %)."""
+
+NOM_IDENTIFIANTS = "identifiants_injectes.json"
+"""Nom du fichier des identifiants injectés, écrit à côté du Journal (sous `donnees/`, hors
+git) et lu par le test de balayage de la Pseudonymisation. Constante du générateur :
+`contrats.passage` est gelé."""
+
 
 @dataclass(frozen=True)
 class Generation:
-    """Résultat d'une génération : en-tête, événements du Journal et vérité terrain."""
+    """Résultat d'une génération : en-tête, événements du Journal, vérité terrain et
+    identifiants injectés."""
 
     entete: EnteteJournal
     evenements: tuple[Evenement, ...]
     verite_terrain: Mapping[str, CauseRacine]
     """Cause racine de chaque Anomalie, par clé de ticket ; jamais dans le Journal."""
+    identifiants: tuple[IdentifiantInjecte, ...] = ()
+    """Identifiants sensibles fictifs insérés dans les descriptions, triés par numéro de clé."""
 
 
 @dataclass(frozen=True)
@@ -136,6 +150,8 @@ class _Ticket:
     attributs: dict[Champ, str]
     changements: list[_Changement] = field(default_factory=list)
     cause: CauseRacine | None = None
+    identifiants: tuple[tuple[TypeIdentifiant, str], ...] = ()
+    """Identifiants fictifs ajoutés à la description, avant attribution de la clé."""
 
 
 def _horodatage(jour: date, rng: random.Random) -> datetime:
@@ -374,6 +390,21 @@ def _certification(
     )
 
 
+def _injecter_identifiants(tickets: list[_Ticket], rng: random.Random) -> None:
+    """Ajoute une phrase d'identifiants fictifs à la description de ⌈15 %⌉ des Anomalies.
+
+    Anomalies tirées par `rng.sample`, puis traitées dans l'ordre de construction de la
+    liste des tickets.
+    """
+    anomalies = [i for i, t in enumerate(tickets) if t.type_ticket is TypeTicket.anomalie]
+    nombre = -(-len(anomalies) * PROPORTION_IDENTIFIANTS_POURCENT // 100)
+    for indice in sorted(rng.sample(anomalies, nombre)):
+        ticket = tickets[indice]
+        phrase, identifiants = phrase_identifiants(ticket.attributs[Champ.entite], rng)
+        ticket.attributs[Champ.description] = f"{ticket.attributs[Champ.description]} {phrase}"
+        ticket.identifiants = identifiants
+
+
 def fenetre_generation(date_generation: date, nb_semaines: int) -> tuple[date, date]:
     """`(ancrage des semaines, Date d'injection)` pour une date de génération.
 
@@ -523,7 +554,9 @@ def generer(
     bornes d'Entrées, sous Σ plafonds de créations qui réservent une marge aux
     réouvertures), répartition par semaine, puis, semaine par semaine, le jour, l'Entité et
     le cycle de vie de chaque Anomalie ; enfin, Entité par Entité (ordre de la
-    configuration), ses Cas de test et sa Certification.
+    configuration), ses Cas de test et sa Certification ; en dernier, les identifiants
+    sensibles fictifs (`_injecter_identifiants`) : ce tirage ne change que les descriptions
+    des Anomalies choisies, le reste du Journal d'une graine est inchangé.
 
     Cycle de vie : marche le long du workflow H-17 (`_statut_suivant`), un séjour tiré en
     Jours ouvrés (`DELAIS_PAR_STATUT`) dans chaque statut, arrêtée au-delà de la Date
@@ -585,15 +618,18 @@ def generer(
             _cas_de_test(entite, config.domaines, corpus, calendrier, rng) for _ in range(nb_tests)
         )
         tickets.append(_certification(entite, corpus, calendrier.jours, rng))
+    _injecter_identifiants(tickets, rng)
 
     ordre = sorted(range(len(tickets)), key=lambda i: (tickets[i].creation, i))
     a_trier: list[tuple[datetime, int, int, Evenement]] = []
     verite: dict[str, CauseRacine] = {}
+    identifiants: list[IdentifiantInjecte] = []
     for numero, indice in enumerate(ordre, start=1):
         ticket = tickets[indice]
         cle = f"{cle_projet}-{numero}"
         if ticket.cause is not None:
             verite[cle] = ticket.cause
+        identifiants.extend(IdentifiantInjecte(cle, t, valeur) for t, valeur in ticket.identifiants)
         a_trier.extend(
             (e.horodatage, numero, rang, e)
             for rang, e in enumerate(_evenements_du_ticket(cle, ticket))
@@ -613,7 +649,7 @@ def generer(
         version_corpus=corpus.version_corpus,
         modele_corpus=corpus.modele_corpus,
     )
-    return Generation(entete, evenements, MappingProxyType(verite))
+    return Generation(entete, evenements, MappingProxyType(verite), tuple(identifiants))
 
 
 def serialiser_journal(generation: Generation) -> bytes:
@@ -630,10 +666,23 @@ def serialiser_verite(generation: Generation) -> bytes:
     return (texte + "\n").encode("utf-8")
 
 
-def ecrire_journal(generation: Generation, repertoire: Path) -> Path:
-    """Écrit le Journal et la vérité terrain dans `repertoire` ; renvoie le chemin du Journal.
+def serialiser_identifiants(generation: Generation) -> bytes:
+    """Identifiants injectés : `[{cle_ticket, type, valeur}]` en JSON, triés par numéro de clé
+    (ordre de la phrase pour une même clé), UTF-8, fin de ligne `\\n`."""
+    contenu = [
+        {"cle_ticket": i.cle_ticket, "type": i.type.value, "valeur": i.valeur}
+        for i in generation.identifiants
+    ]
+    texte = json.dumps(contenu, ensure_ascii=False, indent=2)
+    return (texte + "\n").encode("utf-8")
 
-    Les noms sont ceux de `contrats.passage` (`journal.jsonl`, `verite_terrain.json`). Une
+
+def ecrire_journal(generation: Generation, repertoire: Path) -> Path:
+    """Écrit le Journal, la vérité terrain et les identifiants injectés dans `repertoire` ;
+    renvoie le chemin du Journal.
+
+    Les noms du Journal et de la vérité terrain sont ceux de `contrats.passage`
+    (`journal.jsonl`, `verite_terrain.json`), celui de la liste est `NOM_IDENTIFIANTS`. Une
     erreur d'écriture lève une `UsineErreur` qui nomme le répertoire.
     """
     journal = repertoire / CHEMIN_JOURNAL.name
@@ -641,6 +690,7 @@ def ecrire_journal(generation: Generation, repertoire: Path) -> Path:
         repertoire.mkdir(parents=True, exist_ok=True)
         journal.write_bytes(serialiser_journal(generation))
         (repertoire / CHEMIN_VERITE_TERRAIN.name).write_bytes(serialiser_verite(generation))
+        (repertoire / NOM_IDENTIFIANTS).write_bytes(serialiser_identifiants(generation))
     except OSError as exc:
         raise UsineErreur(f"{repertoire} : écriture impossible ({exc.strerror or exc})") from exc
     return journal

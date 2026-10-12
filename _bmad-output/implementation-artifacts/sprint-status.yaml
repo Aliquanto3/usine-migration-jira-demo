@@ -72,7 +72,7 @@ development_status:
   1-1-configuration-complète-du-programme: done
   1-2-corpus-de-textes-provisoire-et-outil-de-génération: done
   1-3-génération-reproductible-à-la-volumétrie-cible: done
-  1-4-identifiants-sensibles-fictifs: backlog
+  1-4-identifiants-sensibles-fictifs: done
   1-5-scénarios-de-démo-scriptés: backlog
   1-6-injection-initiale-dans-jira-cloud-free: backlog  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: backlog
@@ -85,7 +85,7 @@ development_status:
   2-2-adaptateur-jira-cloud-v3-et-vocabulaire-canonique: done
   2-3-entrepôt-duckdb-et-extraction-incrémentale: done
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: done
-  2-5-source-journal-à-l-échelle-et-correspondance-des-clés: backlog
+  2-5-source-journal-à-l-échelle-et-correspondance-des-clés: done
   2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
