@@ -1,0 +1,81 @@
+{
+  "identifiant": "cas-03",
+  "description": "Orange, Anomalies majeures (IND-3), avec répartition des Causes racines.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-C",
+    "couleur": "orange",
+    "regles": [
+      {
+        "code": "IND-3",
+        "couleur": "orange",
+        "operateur": ">=",
+        "numerateur": 12,
+        "denominateur": 1,
+        "seuil_numerateur": 10,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-301",
+          "DEMO-302",
+          "DEMO-303",
+          "DEMO-304"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-301",
+      "type_ticket": "anomalie",
+      "titre": "Code pays mal transcodé",
+      "description": "Le transcodage du code pays ignore les territoires d'outre-mer."
+    },
+    {
+      "cle_ticket": "DEMO-302",
+      "type_ticket": "anomalie",
+      "titre": "Paramètre de TVA absent",
+      "description": "Le taux de TVA intermédiaire n'est pas paramétré dans le nouveau système."
+    },
+    {
+      "cle_ticket": "DEMO-303",
+      "type_ticket": "anomalie",
+      "titre": "Dates de naissance inversées",
+      "description": "Jour et mois sont inversés pour les dates antérieures à 1970."
+    },
+    {
+      "cle_ticket": "DEMO-304",
+      "type_ticket": "anomalie",
+      "titre": "Libellés tronqués",
+      "description": "Les libellés produits sont tronqués à 30 caractères."
+    }
+  ],
+  "repartition": [
+    {
+      "cause_racine": "regle_transformation",
+      "nombre": 6,
+      "part": 0.5
+    },
+    {
+      "cause_racine": "parametrage",
+      "nombre": 3,
+      "part": 0.25
+    },
+    {
+      "cause_racine": "reprise_donnees",
+      "nombre": 2,
+      "part": 0.1667
+    },
+    {
+      "cause_racine": "donnee_test",
+      "nombre": 1,
+      "part": 0.0833
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-C passe en orange avec 12 Anomalies majeures ouvertes, dont DEMO-301, DEMO-302, DEMO-303 et DEMO-304. Les règles de transformation dominent : DEMO-301 transcode mal le code pays et DEMO-303 inverse jour et mois. DEMO-302 relève du paramétrage, le taux de TVA intermédiaire manquant. DEMO-304 tronque les libellés produits à 30 caractères.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}

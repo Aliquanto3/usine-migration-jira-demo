@@ -1,0 +1,102 @@
+{
+  "identifiant": "cas-02",
+  "description": "Rouge, deux règles (IND-1 et IND-2), avec KPI.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-B",
+    "couleur": "rouge",
+    "regles": [
+      {
+        "code": "IND-1",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 3,
+        "denominateur": 1,
+        "seuil_numerateur": 3,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-201",
+          "DEMO-202",
+          "DEMO-203"
+        ]
+      },
+      {
+        "code": "IND-2",
+        "couleur": "rouge",
+        "operateur": ">",
+        "numerateur": 14,
+        "denominateur": 1,
+        "seuil_numerateur": 10,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-201"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-201",
+      "type_ticket": "anomalie",
+      "titre": "Doublons de tiers à la reprise",
+      "description": "La reprise crée des doublons de tiers quand le SIRET est absent ; ouverte depuis 14 Jours ouvrés."
+    },
+    {
+      "cle_ticket": "DEMO-202",
+      "type_ticket": "anomalie",
+      "titre": "Montants arrondis faux",
+      "description": "La règle de transformation arrondit les montants au centime inférieur."
+    },
+    {
+      "cle_ticket": "DEMO-203",
+      "type_ticket": "anomalie",
+      "titre": "Interface comptable indisponible",
+      "description": "L'interface vers la comptabilité renvoie une erreur 503 à chaque envoi."
+    }
+  ],
+  "kpi": [
+    {
+      "code_kpi": "anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 9,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "age_max_anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 14,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "age_median_anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 6,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "entrees_fenetre",
+      "dimension": "",
+      "numerateur": 7,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "sorties_fenetre",
+      "dimension": "",
+      "numerateur": 3,
+      "denominateur": 1
+    },
+    {
+      "code_kpi": "anomalies_ouvertes_gravite",
+      "dimension": "bloquante",
+      "numerateur": 3,
+      "denominateur": 1
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-B est en rouge sur deux règles : trois Anomalies bloquantes ouvertes (DEMO-201, DEMO-202, DEMO-203) et une bloquante ouverte depuis 14 Jours ouvrés, DEMO-201. DEMO-201 crée des doublons de tiers quand le SIRET manque à la reprise. DEMO-202 arrondit à tort les montants au centime inférieur. DEMO-203 empêche tout envoi vers la comptabilité.",
+      "brouillon_commentaire": "DEMO-201 dépasse le seuil d'âge : une relance de l'équipe de reprise s'impose."
+    }
+  ]
+}

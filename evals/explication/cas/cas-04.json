@@ -1,0 +1,86 @@
+{
+  "identifiant": "cas-04",
+  "description": "Rouge, taux de KO (IND-4) porté par des Cas de test, avec KPI.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-D",
+    "couleur": "rouge",
+    "regles": [
+      {
+        "code": "IND-4",
+        "couleur": "rouge",
+        "operateur": ">=",
+        "numerateur": 5,
+        "denominateur": 20,
+        "seuil_numerateur": 1,
+        "seuil_denominateur": 5,
+        "tickets_en_cause": [
+          "DEMO-401",
+          "DEMO-402",
+          "DEMO-403",
+          "DEMO-404",
+          "DEMO-405"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-401",
+      "type_ticket": "cas_de_test",
+      "titre": "Contrôle des soldes après reprise",
+      "description": "Comparer les soldes avant et après reprise."
+    },
+    {
+      "cle_ticket": "DEMO-402",
+      "type_ticket": "cas_de_test",
+      "titre": "Édition des factures",
+      "description": "Éditer une facture multi-lignes."
+    },
+    {
+      "cle_ticket": "DEMO-403",
+      "type_ticket": "cas_de_test",
+      "titre": "Calcul des échéances",
+      "description": "Vérifier le calendrier d'échéances d'un prêt."
+    },
+    {
+      "cle_ticket": "DEMO-404",
+      "type_ticket": "cas_de_test",
+      "titre": "Export comptable",
+      "description": "Exporter le journal comptable du jour."
+    },
+    {
+      "cle_ticket": "DEMO-405",
+      "type_ticket": "cas_de_test",
+      "titre": "Recherche client",
+      "description": "Rechercher un client par SIRET."
+    }
+  ],
+  "kpi": [
+    {
+      "code_kpi": "taux_ko_cas_de_test",
+      "dimension": "recette",
+      "numerateur": 5,
+      "denominateur": 20
+    },
+    {
+      "code_kpi": "taux_non_execution_cas_de_test",
+      "dimension": "recette",
+      "numerateur": 4,
+      "denominateur": 24
+    },
+    {
+      "code_kpi": "anomalies_ouvertes",
+      "dimension": "",
+      "numerateur": 6,
+      "denominateur": 1
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "ENT-D est en rouge : 5 des 20 Cas de test exécutés sont en KO, soit 25 %, au-delà du seuil de 20 %, avec DEMO-401 en tête. Les KO touchent la reprise (DEMO-401) et la facturation (DEMO-402). Le calcul des échéances (DEMO-403) et l'export comptable (DEMO-404) échouent aussi. La recherche par SIRET, DEMO-405, complète la liste.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}

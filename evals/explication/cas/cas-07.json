@@ -1,0 +1,42 @@
+{
+  "identifiant": "cas-07",
+  "description": "Orange, IND-1 ; la première réponse est rejetée (phrases sans Citation), la régénération est conforme.",
+  "meteo": {
+    "date_arrete": "2026-10-09",
+    "entite": "ENT-G",
+    "couleur": "orange",
+    "regles": [
+      {
+        "code": "IND-1",
+        "couleur": "orange",
+        "operateur": ">=",
+        "numerateur": 1,
+        "denominateur": 1,
+        "seuil_numerateur": 1,
+        "seuil_denominateur": 1,
+        "tickets_en_cause": [
+          "DEMO-701"
+        ]
+      }
+    ],
+    "version_grille": "grille-evaluation-v3"
+  },
+  "textes": [
+    {
+      "cle_ticket": "DEMO-701",
+      "type_ticket": "anomalie",
+      "titre": "Plantage de la reprise des contrats",
+      "description": "La reprise des contrats s'arrête sur un contrat sans date d'effet."
+    }
+  ],
+  "reponses": [
+    {
+      "texte": "La situation de l'Entité se dégrade. Plusieurs équipes sont concernées. DEMO-701 bloque la reprise des contrats.",
+      "brouillon_commentaire": ""
+    },
+    {
+      "texte": "ENT-G est en orange à cause d'une Anomalie bloquante ouverte, DEMO-701. DEMO-701 arrête la reprise des contrats sur un contrat sans date d'effet.",
+      "brouillon_commentaire": ""
+    }
+  ]
+}
