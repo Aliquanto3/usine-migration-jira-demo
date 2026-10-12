@@ -1,78 +1,78 @@
 {
-  "contrats_version": "1.1.0",
-  "passage_id": "20261012T152755Z-5de91e",
+  "contrats_version": "1.6.0",
+  "passage_id": "20261012T221158Z-96c621",
   "date_arrete": "2026-10-09",
   "palier": 1,
   "source": "journal",
-  "horodatage_debut": "2026-10-12T15:27:55.064401Z",
-  "horodatage_fin": "2026-10-12T15:27:59.873540Z",
+  "horodatage_debut": "2026-10-12T22:11:58.886532Z",
+  "horodatage_fin": "2026-10-12T22:12:03.328366Z",
   "horodatage_extraction": null,
   "version_grille": "c344967e71de",
-  "version_donnees": "8c0025b12291697467ff5bf4d24b52fc21674297378578e92cf7e58324c79035",
+  "version_donnees": "ccd712eb3c328843477dbc8ea0ea9a3becdbee5e7d5c04d8bafbf96550416a13",
   "classification_initiale": false,
   "cout_llm_eur": "0",
   "nb_alignements": 0,
-  "nb_tickets": 3384,
+  "nb_tickets": 3547,
   "etapes": [
     {
       "etape": "extraction",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:55.065402Z",
-      "horodatage_fin": "2026-10-12T15:27:55.065903Z"
+      "horodatage_debut": "2026-10-12T22:11:58.887534Z",
+      "horodatage_fin": "2026-10-12T22:11:58.888035Z"
     },
     {
       "etape": "instantanes",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:55.066403Z",
-      "horodatage_fin": "2026-10-12T15:27:55.506469Z"
+      "horodatage_debut": "2026-10-12T22:11:58.888534Z",
+      "horodatage_fin": "2026-10-12T22:11:59.304630Z"
     },
     {
       "etape": "kpi",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:55.506971Z",
-      "horodatage_fin": "2026-10-12T15:27:55.578496Z"
+      "horodatage_debut": "2026-10-12T22:11:59.305133Z",
+      "horodatage_fin": "2026-10-12T22:11:59.371145Z"
     },
     {
       "etape": "meteo",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:55.578996Z",
-      "horodatage_fin": "2026-10-12T15:27:58.882457Z"
+      "horodatage_debut": "2026-10-12T22:11:59.371645Z",
+      "horodatage_fin": "2026-10-12T22:12:02.349646Z"
     },
     {
       "etape": "prevision",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:58.882956Z",
-      "horodatage_fin": "2026-10-12T15:27:59.603005Z"
+      "horodatage_debut": "2026-10-12T22:12:02.350147Z",
+      "horodatage_fin": "2026-10-12T22:12:03.079780Z"
     },
     {
       "etape": "classification",
       "statut": "sautee",
-      "horodatage_debut": "2026-10-12T15:27:59.603506Z",
-      "horodatage_fin": "2026-10-12T15:27:59.604006Z"
+      "horodatage_debut": "2026-10-12T22:12:03.080279Z",
+      "horodatage_fin": "2026-10-12T22:12:03.080780Z"
     },
     {
       "etape": "repartition_causes",
       "statut": "sautee",
-      "horodatage_debut": "2026-10-12T15:27:59.604006Z",
-      "horodatage_fin": "2026-10-12T15:27:59.604006Z"
+      "horodatage_debut": "2026-10-12T22:12:03.080780Z",
+      "horodatage_fin": "2026-10-12T22:12:03.081279Z"
     },
     {
       "etape": "explications",
       "statut": "sautee",
-      "horodatage_debut": "2026-10-12T15:27:59.604505Z",
-      "horodatage_fin": "2026-10-12T15:27:59.604505Z"
+      "horodatage_debut": "2026-10-12T22:12:03.081279Z",
+      "horodatage_fin": "2026-10-12T22:12:03.081279Z"
     },
     {
       "etape": "narration",
       "statut": "sautee",
-      "horodatage_debut": "2026-10-12T15:27:59.605007Z",
-      "horodatage_fin": "2026-10-12T15:27:59.605007Z"
+      "horodatage_debut": "2026-10-12T22:12:03.081279Z",
+      "horodatage_fin": "2026-10-12T22:12:03.082282Z"
     },
     {
       "etape": "rendu",
       "statut": "reussie",
-      "horodatage_debut": "2026-10-12T15:27:59.605507Z",
-      "horodatage_fin": "2026-10-12T15:27:59.873039Z"
+      "horodatage_debut": "2026-10-12T22:12:03.082282Z",
+      "horodatage_fin": "2026-10-12T22:12:03.327866Z"
     }
   ]
 }

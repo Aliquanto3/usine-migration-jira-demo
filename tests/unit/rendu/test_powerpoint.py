@@ -5,7 +5,7 @@ Passage, nombres écrits par `contrats.format` : chaque texte doit être égal.
 """
 
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -26,9 +26,11 @@ from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.agent import AnomalieResume, ResultatListAnomalies
 from usine.contrats.calcul import PERIMETRE_PROGRAMME
+from usine.contrats.calendrier import jour_ouvre_precedent
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date, formater_entier
+from usine.contrats.llm import SortieExplication, StatutControle
 from usine.contrats.meteo import (
     CodeIndicateur,
     Couleur,
@@ -395,6 +397,91 @@ def test_palier_2_brouillons(passage_palier_2: Path) -> None:
         ),
     }
     assert slides[0].zones[0].endswith("Palier 2")
+
+
+REGLE_ORANGE = RegleDeclenchante(
+    code=CodeIndicateur.ind_4,
+    couleur=Couleur.orange,
+    operateur=Operateur.superieur,
+    numerateur=1,
+    denominateur=4,
+    seuil_numerateur=1,
+    seuil_denominateur=5,
+    tickets_en_cause=(),
+)
+
+
+def _meteo(jour: date, entite: str, couleur: Couleur) -> MeteoEntite:
+    regles = {
+        Couleur.jaune: (REGLE_JAUNE,),
+        Couleur.orange: (REGLE_ORANGE,),
+        Couleur.rouge: (REGLE_ROUGE,),
+    }.get(couleur, ())
+    return MeteoEntite(
+        date_arrete=jour, entite=entite, couleur=couleur, regles=regles, version_grille="abc"
+    )
+
+
+def _ecrire_enveloppe[T](chemin: Path, contenu: T) -> None:
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    enveloppe = EnveloppeFichier[T](
+        passage_id="20261012T073000Z-abcdef", date_arrete=DATE_ARRETE, contenu=contenu
+    )
+    chemin.write_text(enveloppe.model_dump_json(), encoding="utf-8")
+
+
+def test_carte_meteo_aggravation(tmp_path: Path) -> None:
+    """ENT-X jaune à J-5 et rouge à J : flèche « ↗ aggravation » (perdue en contrats 1.2)."""
+    j5 = jour_ouvre_precedent(DATE_ARRETE, 5)
+    _ecrire_enveloppe(
+        tmp_path / "meteo.json",
+        (_meteo(j5, "ENT-X", Couleur.jaune), _meteo(DATE_ARRETE, "ENT-X", Couleur.rouge)),
+    )
+    consultation = ConsultationPassage(tmp_path, date_arrete=DATE_ARRETE)
+    slides = _lire(
+        rendre_powerpoint(consultation, GABARIT.read_bytes(), DATE_ARRETE, CONTEXTE_FICTIF)
+    )
+    (tableau,) = slides[2].tableaux
+    assert tableau[1] == ["ENT-X", "Rouge", "↗ aggravation", formater_regle(REGLE_ROUGE)]
+
+
+def test_palier_2_sans_brouillon(tmp_path: Path) -> None:
+    """Palier 2, ENT-R rouge et ENT-O orange, Brouillon pour ENT-R seule : ENT-O « aucun »."""
+    _ecrire_enveloppe(
+        tmp_path / "meteo.json",
+        (_meteo(DATE_ARRETE, "ENT-R", Couleur.rouge), _meteo(DATE_ARRETE, "ENT-O", Couleur.orange)),
+    )
+    _ecrire_enveloppe(
+        tmp_path / "llm" / "explications.json",
+        (
+            SortieExplication(
+                date_arrete=DATE_ARRETE,
+                entite="ENT-R",
+                texte="DEMO-6 bloque la recette de ENT-R.",
+                citations=("DEMO-6",),
+                brouillon_commentaire="Relancer l'équipe paramétrage.",
+                statut_controle=StatutControle.conforme,
+            ),
+            SortieExplication(
+                date_arrete=DATE_ARRETE,
+                entite="ENT-O",
+                texte="DEMO-24 retarde la recette de ENT-O.",
+                citations=("DEMO-24",),
+                brouillon_commentaire="",
+                statut_controle=StatutControle.conforme,
+            ),
+        ),
+    )
+    consultation = ConsultationPassage(tmp_path, date_arrete=DATE_ARRETE)
+    contexte = replace(CONTEXTE_FICTIF, palier=2)
+    slides = _lire(rendre_powerpoint(consultation, GABARIT.read_bytes(), DATE_ARRETE, contexte))
+    brouillons = {slide.titre: slide.zones[1] for slide in slides[3:-3]}
+    assert brouillons == {
+        "ENT-R — Rouge": (
+            "Brouillon de commentaire\nbrouillon IA, à valider : Relancer l'équipe paramétrage."
+        ),
+        "ENT-O — Orange": "Brouillon de commentaire\naucun Brouillon de commentaire",
+    }
 
 
 def test_liens_et_mode_repli(passage: Path, passage_repli: Path) -> None:

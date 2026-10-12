@@ -30,8 +30,9 @@ REPERTOIRE_REPLI = Path("demo/repli/passage")
 Régénération, depuis un clone sans secrets Jira et avec `USINE_MODE_REPLI=1` :
 `usine donnees generer --graine 42 --date-generation 2026-10-12`, puis
 `usine rapport --date-arrete 2026-10-09`, puis copie de
-`sorties/passages/2026-10-09/<passage_id>/` vers `demo/repli/passage/`. `passage_id` actuel :
-`20261012T152755Z-5de91e`, repris par les réponses enregistrées de l'Agent (Story 7.11).
+`sorties/passages/2026-10-09/<passage_id>/` vers `demo/repli/passage/`. Régénérée en Story 5.6
+sur le Journal des contrats 1.2 (A et B rouges, C orange). `passage_id` actuel :
+`20261012T221158Z-96c621`, repris par les réponses enregistrées de l'Agent (Story 7.11).
 """
 
 app = typer.Typer(help="Interface de démo Streamlit.")

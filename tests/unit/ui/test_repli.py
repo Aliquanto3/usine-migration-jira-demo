@@ -6,9 +6,10 @@ from pathlib import Path
 
 from tests.unit.chaine.environnement import RACINE_DEPOT
 from usine.contrats.meteo import Couleur
+from usine.contrats.prevision import StatutPrevision
 from usine.ui.cli import REPERTOIRE_REPLI, consultation_repli
 
-PASSAGE_ID = "20261012T152755Z-5de91e"
+PASSAGE_ID = "20261012T221158Z-96c621"
 """`passage_id` de la copie, repris par les réponses enregistrées de l'Agent (Story 7.11)."""
 
 
@@ -33,11 +34,14 @@ def test_scenarios_au_09_10_2026() -> None:
     assert couleurs["ENT-C"] is Couleur.orange
 
 
-def test_previsions_non_vides() -> None:
+def test_previsions_et_risque_attendus() -> None:
+    """Comme en direct : A sort du rouge dans l'horizon, B non, C porte un Risque."""
     consultation = consultation_repli(RACINE_DEPOT)
     assert consultation is not None
-    assert consultation.previsions()
-    assert consultation.previsions(entite="ENT-A")
+    statuts = {prevision.entite: prevision.statut for prevision in consultation.previsions()}
+    assert statuts["ENT-A"] is StatutPrevision.sortie_projetee
+    assert statuts["ENT-B"] is StatutPrevision.pas_de_sortie_projetee
+    assert consultation.risques(entite="ENT-C")
 
 
 def test_liens_jira_inactifs() -> None:
