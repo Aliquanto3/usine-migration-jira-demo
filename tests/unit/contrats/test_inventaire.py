@@ -100,6 +100,7 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "ResultatGetPrevision",
         "ArgumentsGetRisques",
         "ResultatGetRisques",
+        "AucuneDonnee",
     ),
     "trace": ("TypeTrace", "EntreeTrace"),
     "passage": (
