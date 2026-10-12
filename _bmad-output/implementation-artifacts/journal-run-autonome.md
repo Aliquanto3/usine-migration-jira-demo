@@ -15,6 +15,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 
 | Story | Lane | Statut | Commit sur `main` | Résumé |
 |---|---|---|---|---|
+| 8.1 | L8 (`lane-8-portage`) | done | `824fba1` | Fiche d'une page `docs/fiche-outillage.md` : demandes priorisées, correspondance par brique rattachée à AD-1, AD-19 et NFR-8, points d'attention par cible, avec un test de structure. |
 
 ## File humaine
 
