@@ -1,27 +1,41 @@
-"""Commande `usine donnees generer` (Stories 0.3 et 1.1)."""
+"""Commande `usine donnees generer` (Stories 0.3, 1.1 et 1.2)."""
 
+import ast
 import json
 import shutil
 from collections import Counter
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 import time_machine
 import yaml
+from pydantic import BaseModel
 from typer.testing import CliRunner
 
-from usine import cli
+from usine import cli, composition
 from usine.cli import app
 from usine.contrats.calendrier import FUSEAU, jour_local, semaine_programme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement
+from usine.contrats.llm import (
+    MessageAgent,
+    OutilAgent,
+    ParametresAppel,
+    ReponseAgentBrute,
+    ReponseStructuree,
+)
 from usine.contrats.tickets import Champ, TypeTicket
+from usine.generateur import corpus as corpus_module
+from usine.generateur.corpus import Corpus, charger_corpus
 
 RACINE = Path(__file__).resolve().parents[3]
 CONFIG = Path(__file__).with_name("programme_reduit.yaml")
 """Programme réduit figé : génération rapide."""
 CONFIG_JIRA = RACINE / "config" / "jira.yaml"
+CORPUS = RACINE / "donnees" / "corpus" / "textes.json"
 
 
 def _generer(sortie: Path, *options: str) -> None:
@@ -36,6 +50,8 @@ def _generer(sortie: Path, *options: str) -> None:
             str(CONFIG_JIRA),
             "--sortie",
             str(sortie),
+            "--corpus",
+            str(CORPUS),
             *options,
         ],
     )
@@ -160,6 +176,8 @@ def test_chemins_par_defaut(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     (tmp_path / "config").mkdir()
     shutil.copyfile(CONFIG, tmp_path / "config" / "programme.yaml")
     shutil.copyfile(CONFIG_JIRA, tmp_path / "config" / "jira.yaml")
+    (tmp_path / "donnees" / "corpus").mkdir(parents=True)
+    shutil.copyfile(CORPUS, tmp_path / "donnees" / "corpus" / "textes.json")
     monkeypatch.chdir(tmp_path)
     resultat = CliRunner().invoke(app, ["donnees", "generer", "--date-generation", "2026-10-12"])
     assert resultat.exit_code == 0, resultat.output
@@ -323,3 +341,127 @@ def test_copie_a_six_entites_et_volumetrie_divisee(tmp_path: Path) -> None:
     )
     assert sorted(entrees) == list(range(1, 9))
     assert all(100 <= n <= 250 for n in entrees.values()), entrees
+
+
+# --- Story 1.2 : Corpus de textes ---
+
+
+class FournisseurEnEchec:
+    """Fournisseur LLM qui compte ses appels et échoue à chacun."""
+
+    def __init__(self) -> None:
+        self.appels = 0
+
+    @property
+    def version_modele(self) -> str:
+        return "echec:modele"
+
+    def generer_structure[T: BaseModel](
+        self, prompt: str, schema: type[T], parametres: ParametresAppel
+    ) -> ReponseStructuree[T]:
+        self.appels += 1
+        raise AssertionError("appel LLM pendant la régénération des données")
+
+    def executer_agent(
+        self,
+        messages: Sequence[MessageAgent],
+        outils: Sequence[OutilAgent],
+        parametres: ParametresAppel,
+    ) -> ReponseAgentBrute:
+        self.appels += 1
+        raise AssertionError("appel LLM pendant la régénération des données")
+
+
+def test_corpus_versionne_dans_l_entete(tmp_path: Path) -> None:
+    _generer(tmp_path, "--graine", "42", "--date-generation", "2026-10-12")
+    entete, evenements = _lire_journal(tmp_path)
+    corpus = charger_corpus(CORPUS)
+    assert (entete.version_corpus, entete.modele_corpus) == (
+        corpus.version_corpus,
+        "gabarits-provisoires",
+    )
+    titres = {e.vers for e in evenements if e.champ is Champ.titre}
+    assert titres
+    assert not any("{" in str(t) for t in titres)
+
+
+def test_regeneration_sans_appel_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un fournisseur en échec branché sur `produire_corpus` : le Journal s'écrit sans appel.
+
+    La génération est sans LLM par construction : `cli.py` et `journal.py` n'importent ni le
+    port `FournisseurLLM`, ni `composition`, ni `ia`, ni `produire_corpus` (vérifié par AST).
+    """
+    interdits = {"usine.ports.fournisseur_llm", "usine.composition", "usine.ia"}
+    for source in ("cli.py", "journal.py"):
+        arbre = ast.parse((RACINE / "src" / "usine" / "generateur" / source).read_text("utf-8"))
+        for noeud in ast.walk(arbre):
+            if isinstance(noeud, ast.Import):
+                modules = {alias.name for alias in noeud.names}
+                noms: set[str] = set()
+            elif isinstance(noeud, ast.ImportFrom) and noeud.module:
+                modules = {noeud.module}
+                noms = {alias.name for alias in noeud.names}
+            else:
+                continue
+            for module in modules:
+                assert not any(module == i or module.startswith(f"{i}.") for i in interdits), (
+                    source,
+                    module,
+                )
+            assert "produire_corpus" not in noms, source
+    fournisseur = FournisseurEnEchec()
+    produire = corpus_module.produire_corpus
+
+    def produire_en_echec(*_: object, **options: Any) -> Corpus:
+        return produire(fournisseur, ("credits",), **options)
+
+    monkeypatch.setattr(corpus_module, "produire_corpus", produire_en_echec)
+    monkeypatch.setattr(composition, "produire_corpus", produire_en_echec)
+    _generer(tmp_path, "--graine", "42", "--date-generation", "2026-10-12")
+    assert (tmp_path / "journal.jsonl").is_file()
+    assert fournisseur.appels == 0
+
+
+def test_corpus_autre_chemin(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus.json"
+    contenu = json.loads(CORPUS.read_text(encoding="utf-8"))
+    contenu.update(version_corpus="essai-2", modele_corpus="factice:modele")
+    corpus.write_text(json.dumps(contenu, ensure_ascii=False), encoding="utf-8")
+    sortie = tmp_path / "donnees"
+    _generer(sortie, "--graine", "42", "--date-generation", "2026-10-12", "--corpus", str(corpus))
+    entete, _ = _lire_journal(sortie)
+    assert (entete.version_corpus, entete.modele_corpus) == ("essai-2", "factice:modele")
+
+
+@pytest.mark.parametrize("contenu", ["{pas du json", "", '{"version_corpus": "x"}'])
+def test_corpus_invalide(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    contenu: str,
+) -> None:
+    corpus = tmp_path / "corpus.json"
+    corpus.write_text(contenu, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "usine",
+            "donnees",
+            "generer",
+            "--config",
+            str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
+            "--sortie",
+            str(tmp_path),
+            "--date-generation",
+            "2026-10-12",
+            "--corpus",
+            str(corpus),
+        ],
+    )
+    with pytest.raises(SystemExit) as sortie:
+        cli.main()
+    assert sortie.value.code == 1
+    assert str(corpus) in capsys.readouterr().err
+    assert not (tmp_path / "journal.jsonl").exists()
