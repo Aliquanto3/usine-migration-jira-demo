@@ -1,6 +1,6 @@
 # Ce qu'il faut pour le faire en vrai
 
-Cette fiche dit quel outillage demander au client, dans quel ordre, et comment chaque brique du démonstrateur se porte sur chaque cible.
+Quel outillage demander au client, dans quel ordre, et comment chaque brique se porte sur chaque cible.
 
 ## Demandes, par ordre de priorité
 
@@ -16,7 +16,7 @@ Cette fiche dit quel outillage demander au client, dans quel ordre, et comment c
 | Extraction Jira | ✅ | ✅ recette Python | ✅ connecteur Jira (limité sur le changelog et les volumes) | ✅ | AD-19 : Cloud ou Data Center est la clé `mode` de `config/jira.yaml` (chargeur de `usine.config`), jeton par variable d'environnement (gitleaks) |
 | KPI, météo | ✅ | ✅ recettes et scénarios | ⚠️ possible, peu maintenable | ✅ | AD-1 : domaine sans I/O (`lint-imports`) ; NFR-8 : CI Windows et Linux |
 | Prévision ML | ✅ | ✅ (Visual ML) | ❌ | ✅ | AD-1 : domaine sans I/O ni `random`, graine passée en paramètre (`lint-imports`) ; NFR-8 : CI Windows et Linux |
-| LLM | ✅ endpoint validé | ✅ LLM Mesh | ✅ AI Builder / Copilot Studio | ⚠️ modèle local uniquement | AD-1 : un seul port LLM, fournisseur branché dans `composition.py` (`lint-imports`) ; AD-19 : clé par variable d'environnement (gitleaks), pseudonymisation obligatoire avant tout appel, clé `USINE_CLE_PSEUDO` |
+| LLM | ✅ endpoint validé | ✅ LLM Mesh | ✅ AI Builder / Copilot Studio | ⚠️ modèle local uniquement | AD-1 : un seul port LLM, fournisseur branché dans `composition.py`, pseudonymisation avant tout appel dans la passerelle `usine.ia` (`lint-imports`) ; AD-19 : clés, dont `USINE_CLE_PSEUDO`, par variable d'environnement (gitleaks) |
 | Excel / PPT | ✅ | ✅ | ✅ | ✅ | NFR-8 : fichiers produits sans service propriétaire (CI Windows et Linux) |
 | Agent conversationnel | ✅ | ✅ (agents Dataiku) | ✅ Copilot Studio | ✅ | AD-1 : l'agent passe par le port LLM (`lint-imports`) |
 | Planification | ✅ cron | ✅ scénarios | ✅ Power Automate | ⚠️ poste allumé | AD-19 : une commande, `usine rapport`, paramétrée par `config/*.yaml` (chargeur de `usine.config`) |
@@ -28,14 +28,14 @@ La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déj�
 
 ### VM Python
 
-- Ouvrir le flux vers Jira (proxy, certificats TLS), un miroir PyPI interne pour `uv sync`, vérifier les projets visibles du compte de service, puis poser les secrets en variables d'environnement, jamais dans un fichier versionné (AD-19, gitleaks).
+- Ouvrir le flux vers Jira (proxy, certificats TLS), un miroir PyPI interne pour `uv sync` et l'accès GitHub au modèle spaCy `fr_core_news_md`, vérifier les projets visibles du compte de service, poser les secrets en variables d'environnement (AD-19, gitleaks).
 - Le code livré tourne sans adaptation : la CI le joue sous Linux et Windows (NFR-8).
 - Le lancement planifié se résume à `usine rapport` dans un cron, paramétré par `config/*.yaml` (AD-19, chargeur de `usine.config`).
 
 ### Dataiku
 
-- Chaque étape de la Chaîne devient une recette Python ; seuls `composition.py` et les modules `cli` assemblent les adaptateurs, le domaine n'a aucune I/O à réécrire (AD-1, `lint-imports`). Stockage SQLite et fichiers Excel/PPT deviennent datasets et dossiers gérés, avec une composition par recette.
-- Brancher le LLM Mesh demande un nouvel adaptateur derrière le port LLM existant, pas de changement du domaine (AD-1, `lint-imports`).
+- Chaque étape de la Chaîne devient une recette Python ; seuls `composition.py` et les modules `cli` assemblent les adaptateurs, le domaine n'a aucune I/O à réécrire (AD-1, `lint-imports`). Entrepôt DuckDB, bases SQLite et fichiers Excel/PPT deviennent datasets et dossiers gérés, avec une composition par recette.
+- Brancher le LLM Mesh demande un nouvel adaptateur derrière le port LLM existant, sans toucher au domaine (AD-1, `lint-imports`).
 - Les paramètres restent dans `config/*.yaml`, validés au chargement par le chargeur de `usine.config` (AD-19).
 
 ### Power Platform

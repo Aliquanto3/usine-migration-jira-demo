@@ -1,0 +1,32 @@
+{
+  "expand": "names,schema",
+  "startAt": 0,
+  "maxResults": 2,
+  "total": 3,
+  "issues": [
+    {
+      "id": "10001",
+      "key": "DEMO-1",
+      "self": "https://jira.example.invalid/rest/api/2/issue/10001",
+      "fields": {
+        "summary": "Anomalie fictive 1",
+        "issuetype": {"name": "Anomalie"},
+        "status": {"name": "Nouvelle"},
+        "created": "2026-09-01T09:00:00.000+0000",
+        "updated": "2026-09-02T10:00:00.000+0000"
+      }
+    },
+    {
+      "id": "10002",
+      "key": "DEMO-2",
+      "self": "https://jira.example.invalid/rest/api/2/issue/10002",
+      "fields": {
+        "summary": "Anomalie fictive 2",
+        "issuetype": {"name": "Anomalie"},
+        "status": {"name": "En analyse"},
+        "created": "2026-09-01T09:05:00.000+0000",
+        "updated": "2026-09-03T11:00:00.000+0000"
+      }
+    }
+  ]
+}
