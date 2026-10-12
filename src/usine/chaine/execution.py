@@ -63,6 +63,7 @@ def executer_passage(
     debut = horloge()
     passage_id = former_passage_id(debut, alea())
     ecrivain.commencer(passage_id, date_arrete)
+    journal.info("Passage %s : début, Date d'arrêté %s", passage_id, date_arrete.isoformat())
     etape_courante: Etape | None = None
     try:
         consultation = fabrique_consultation(ecrivain.repertoire)
@@ -86,6 +87,7 @@ def executer_passage(
                 )
             )
             ecrivain.progression(etape, resultat.statut)
+            journal.info("Étape « %s » : %s", etape.value, resultat.statut.value)
         etape_courante = None
         nb_tickets = (
             ctx.consultation.tickets_etats(date_arrete).height
@@ -108,6 +110,7 @@ def executer_passage(
             etapes=tuple(executions),
         )
         ecrivain.publier(manifeste)
+        journal.info("Passage %s publié", passage_id)
     except BaseException as exc:
         quoi = (
             f"étape « {etape_courante.value} »"

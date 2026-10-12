@@ -116,7 +116,7 @@ development_status:
   5-2-consultation-complète: done
   5-3-classeur-excel-en-9-onglets: done
   5-4-présentation-powerpoint-en-7-sections: done
-  5-5-commande-unique-et-rejeu-idempotent: backlog  # prérequis : contrats 1.2
+  5-5-commande-unique-et-rejeu-idempotent: done
   5-6-recette-du-rapport-sur-données-complètes: backlog  # prérequis : 1.8, 2.6, 4.5, 5.5, réinjection de DEMO (contrats 1.2)
   5-7-porte-palier-1-m3: backlog  # PORTE PALIER 1 (M3) — bloque l Epic 6
   epic-5-retrospective: optional

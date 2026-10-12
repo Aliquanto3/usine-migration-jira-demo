@@ -18,7 +18,7 @@ ticket affichée est liée à `consultation.url_ticket(cle)` quand l'URL existe 
 7. Annexe méthode : Grille appliquée et traçabilité (`lignes_tracabilite`).
 
 Rejeu : l'Annexe affiche l'horodatage d'extraction et la version des données, exclus du Rejeu
-au manifeste ; à déclarer sous `EXCLUSIONS_REJEU["rapport_pptx"]` (`Annexe méthode!…`, 5.5).
+au manifeste ; déclarés sous `EXCLUSIONS_REJEU["rapport_pptx"]` (`Annexe méthode!…`, contrats 1.2).
 """
 
 import io

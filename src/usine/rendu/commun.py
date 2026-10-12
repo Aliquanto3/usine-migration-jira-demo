@@ -354,7 +354,7 @@ LIBELLES_TRACABILITE = (
 """Lignes fixes de la traçabilité (onglet Traçabilité de l'Excel, Annexe méthode du PowerPoint).
 
 L'horodatage d'extraction et la version des données affichent des champs exclus du Rejeu au
-manifeste : à déclarer sous `EXCLUSIONS_REJEU["rapport_xlsx"]` et `["rapport_pptx"]` (5.5).
+manifeste : déclarés sous `EXCLUSIONS_REJEU["rapport_xlsx"]` et `["rapport_pptx"]` (contrats 1.2).
 """
 
 SANS_EXTRACTION = "sans extraction Jira"

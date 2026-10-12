@@ -1,5 +1,8 @@
 """Point d'entrée `usine` : enregistre une fois chaque sous-application de lane (AD-21)."""
 
+import logging
+import sys
+
 import typer
 
 from usine.adaptateurs.cli import app as app_extraction
@@ -19,8 +22,33 @@ app.add_typer(app_agent, name="agent")
 app.add_typer(app_ui, name="ui")
 
 
+FORMAT_JOURNAL = "%(asctime)s %(levelname)s %(name)s : %(message)s"
+"""Format sobre des journaux de la CLI (stderr, niveau INFO)."""
+
+
+def configurer_console() -> None:
+    """Sorties standard en UTF-8 (console Windows en cp1252) et journaux sur stderr.
+
+    Journaux de l'usine en INFO ; bibliothèques tierces (httpx…) en WARNING, pour ne pas noyer
+    la progression sous une ligne par requête. Un caractère que le flux ne sait toujours pas
+    écrire est remplacé, jamais une `UnicodeEncodeError`.
+    """
+    for flux in (sys.stdout, sys.stderr):
+        reconfigurer = getattr(flux, "reconfigure", None)
+        if reconfigurer is not None:
+            reconfigurer(encoding="utf-8", errors="replace")
+    logging.basicConfig(
+        level=logging.WARNING,
+        format=FORMAT_JOURNAL,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stderr,
+    )
+    logging.getLogger("usine").setLevel(logging.INFO)
+
+
 def main() -> None:
     """Point d'entrée du script `usine` : une `UsineErreur` devient un message et le code 1."""
+    configurer_console()
     try:
         app()
     except UsineErreur as erreur:
