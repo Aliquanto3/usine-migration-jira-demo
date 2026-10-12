@@ -14,3 +14,10 @@ plafond_cout_passage_eur: 2.00
 tentatives_max: 5
 # Température des appels ; ignorée par les modèles Claude qui ne l'acceptent plus.
 temperature: 0.0
+# Modèle par tâche (classification, explication, narration, agent), du même fournisseur ; une
+# tâche absente utilise `modele`.
+modeles_par_tache:
+  # Classification des Causes racines, un appel par Anomalie : Haiku 5.5, environ 0,30 € pour
+  # tout le stock contre 10 € sur Sonnet 5.5. Changer ce modèle change la clé de cache : le
+  # stock est reclassé, dans la limite de la part du plafond.
+  classification: claude-haiku-5-5

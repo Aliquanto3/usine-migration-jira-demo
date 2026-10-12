@@ -22,6 +22,7 @@ from usine.adaptateurs.llm import (
     cout_estime_eur,
     tarif,
 )
+from usine.adaptateurs.llm.registre import TAUX_USD_EUR
 from usine.contrats.config import ConfigLLM
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
@@ -225,6 +226,13 @@ def test_registre_quotas_et_prix() -> None:
     sonnet = tarif("anthropic:claude-sonnet-5-5")
     attendu = (sonnet.prix_entree_eur_mtok * 1000 + sonnet.prix_sortie_eur_mtok * 500) / 1_000_000
     assert cout_estime_eur("anthropic:claude-sonnet-5-5", 1000, 500) == attendu
+    # Story 6.5 : Haiku 5.5, 0,10 $ et 0,50 $ par million de jetons, 50 requêtes par minute.
+    haiku = tarif("anthropic:claude-haiku-5-5")
+    assert (haiku.prix_entree_eur_mtok, haiku.prix_sortie_eur_mtok) == (
+        Decimal("0.1") * TAUX_USD_EUR,
+        Decimal("0.5") * TAUX_USD_EUR,
+    )
+    assert haiku.requetes_par_minute == 50
 
 
 def test_adaptateur_ferme_sa_boucle() -> None:
@@ -308,10 +316,15 @@ def test_temperature_de_la_configuration_sauf_explicite() -> None:
 
 @pytest.mark.parametrize(
     ("modele", "accepte"),
-    [("claude-sonnet-5-5", False), ("claude-opus-5-5", False), ("claude-haiku-4-5", True)],
+    [
+        ("claude-sonnet-5-5", False),
+        ("claude-opus-5-5", False),
+        ("claude-haiku-5-5", False),
+        ("claude-haiku-4-5", True),
+    ],
 )
 def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
-    """Claude Sonnet et Opus 5.5 refusent la température : elle n'est pas envoyée."""
+    """Claude Haiku, Sonnet et Opus 5.5 refusent la température : elle n'est pas envoyée."""
     assert tarif(f"anthropic:{modele}").temperature is accepte
     transport = TransportScripte([_sortie("anthropic")])
     _avec_temperature("anthropic", modele, transport, 0.2).generer_structure(

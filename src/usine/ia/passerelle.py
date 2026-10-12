@@ -22,7 +22,7 @@ import hashlib
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -175,9 +175,16 @@ class Passerelle:
         horloge: Callable[[], datetime],
         tarif: Tarif = tarif_nul,
         plafond_cout_passage_eur: Decimal | None = None,
+        fournisseurs_par_tache: Mapping[Tache, FournisseurLLM] | None = None,
     ) -> None:
-        """`plafond_cout_passage_eur` : `None` pour aucun plafond."""
+        """`plafond_cout_passage_eur` : `None` pour aucun plafond.
+
+        `fournisseurs_par_tache` : fournisseur dédié à une tâche (clé `modeles_par_tache` de
+        `config/llm.yaml`) ; une tâche absente passe par `fournisseur`. Le cumul de coût et le
+        plafond du Passage restent communs à tous les fournisseurs.
+        """
         self._fournisseur = fournisseur
+        self._fournisseurs_par_tache = dict(fournisseurs_par_tache or {})
         self._pseudonymiseur = pseudonymiseur
         self._cache = cache
         self._horloge = horloge
@@ -213,8 +220,9 @@ class Passerelle:
         (`PlafondCoutAtteint`) dès que le cumul du Passage atteint le plus petit des deux
         plafonds. Le cache reste servi.
         """
+        fournisseur = self._fournisseurs_par_tache.get(parametres.tache, self._fournisseur)
         entree = self._pseudonymiseur.pseudonymiser(prompt)
-        version_modele = self._fournisseur.version_modele
+        version_modele = fournisseur.version_modele
         cle = cle_cache(parametres, contexte, version_modele, entree)
 
         reponse: T | None = None
@@ -260,7 +268,7 @@ class Passerelle:
                     f"part du plafond de coût du Passage atteinte ({cumul} € pour une part de"
                     f" {plafond_eur} € réservée à la tâche « {parametres.tache.value} »)"
                 )
-            appel = self._fournisseur.generer_structure(entree, schema, parametres)
+            appel = fournisseur.generer_structure(entree, schema, parametres)
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)
             self._cache.ecrire(cle, enveloppe.model_dump_json())
             reponse = appel.sortie

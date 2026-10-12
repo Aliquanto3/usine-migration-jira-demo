@@ -137,17 +137,29 @@ def _kpi(table: pl.DataFrame | None) -> str:
 
 
 def _causes(table: pl.DataFrame | None) -> str:
-    """`- cause : nombre`, nombre décroissant puis cause ; « non disponible » sans répartition."""
+    """`- cause : nombre (pp %)`, nombre décroissant puis cause ; « non disponible » sinon.
+
+    La répartition est lue telle quelle (AD-9 : aucun recalcul) ; sans colonne `part`
+    (Passage antérieur aux contrats 1.5), la ligne est `- cause : nombre`.
+    """
     if table is None or table.is_empty():
         return "- non disponible"
-    paires = sorted(
+    avec_part = "part" in table.columns
+    lignes = sorted(
         (
-            (str(ligne["cause_racine"]), int(ligne["nombre"]))
+            (
+                str(ligne["cause_racine"]),
+                int(ligne["nombre"]),
+                float(ligne["part"]) if avec_part else None,
+            )
             for ligne in table.iter_rows(named=True)
         ),
-        key=lambda paire: (-paire[1], paire[0]),
+        key=lambda ligne: (-ligne[1], ligne[0]),
     )
-    return "\n".join(f"- {_donnee(cause)} : {nombre}" for cause, nombre in paires)
+    return "\n".join(
+        f"- {_donnee(cause)} : {nombre}" + ("" if part is None else f" ({part * 100:.0f} %)")
+        for cause, nombre, part in lignes
+    )
 
 
 def _tickets(cles: tuple[str, ...], textes: pl.DataFrame) -> str:

@@ -628,10 +628,17 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     statuts = {e.etape: e.statut for e in manifeste.etapes}
     assert statuts[Etape.explications] is StatutEtape.reussie
     assert statuts[Etape.classification] is StatutEtape.reussie
-    for etape in (Etape.repartition_causes, Etape.narration):
-        assert statuts[etape] is StatutEtape.sautee
+    assert statuts[Etape.repartition_causes] is StatutEtape.reussie
+    assert statuts[Etape.narration] is StatutEtape.sautee
     repertoire = ecrivain.repertoire_publie
     assert repertoire is not None
+    # Story 6.5 : répartition publiée, `nombre` entier, parts de somme 1 par Entité.
+    repartition = ConsultationPassage(repertoire).repartition_causes()
+    assert not repartition.is_empty()
+    assert repartition["nombre"].dtype == pl.Int64()
+    assert set(repartition["cause_racine"].cast(pl.Utf8)) == {CAUSE_SCRIPTEE.value}
+    sommes = repartition.group_by("entite").agg(pl.col("part").sum())["part"]
+    assert all(abs(somme - 1.0) < 1e-9 for somme in sommes)
     assert (repertoire / "llm" / "explications.json").is_file()
     assert (repertoire / "trace" / "llm.jsonl").is_file()
     consultation = ConsultationPassage(repertoire)
@@ -668,12 +675,14 @@ def test_palier_2_brouillon_dans_excel_et_powerpoint(tmp_path: Path) -> None:
     repertoire = ecrivain.repertoire_publie
     assert repertoire is not None
 
-    # Prompt : KPI de l'Entité lus, répartition des Causes racines non disponible (6.5).
+    # Prompt : KPI de l'Entité lus, répartition des Causes racines avec compte et part (6.5).
     for appel in _appels(fournisseur, Tache.explication):
         prompt = str(appel.entree)
         assert "### KPI de l'Entité\n\n- " in prompt
         assert "### KPI de l'Entité\n\n- aucun" not in prompt
-        assert "### Causes racines proposées\n\n- non disponible" in prompt
+        assert f"### Causes racines proposées\n\n- {CAUSE_SCRIPTEE.value} : " in prompt
+        assert "(100 %)" in prompt
+        assert "- non disponible" not in prompt
 
     attendus = {entite: f"brouillon IA, à valider : {b}" for entite, b in brouillons.items()}
     classeur = load_workbook(repertoire / "rapport-2026-10-09.xlsx")
@@ -1115,6 +1124,7 @@ def test_fournisseur_construit_ferme_en_fin_de_passage(
     _passer_en_palier_2(racine)
     construit = _FournisseurFermable(_reponses(a_expliquer) if reussite else None)
     monkeypatch.setattr(composition, "construire_fournisseur", lambda *_: construit)
+    monkeypatch.setattr(composition, "construire_fournisseurs_par_tache", lambda *_: {})
     if reussite:
         lancer_rapport(racine, DATE_ARRETE, horloge_figee())
     else:
@@ -1130,8 +1140,36 @@ def test_fournisseur_construit_ferme_si_la_construction_echoue(
     racine = preparer_racine(tmp_path)
     _passer_en_palier_2(racine)
     construit = _FournisseurFermable()
+    par_tache = _FournisseurFermable()
     monkeypatch.setattr(composition, "construire_fournisseur", lambda *_: construit)
+    monkeypatch.setattr(
+        composition,
+        "construire_fournisseurs_par_tache",
+        lambda *_: {Tache.classification: par_tache},
+    )
     with pytest.raises(UsineErreur, match="USINE_CLE_PSEUDO"):
+        construire_rapport(racine)
+    assert (construit.fermetures, par_tache.fermetures) == (1, 1)
+
+
+def test_fournisseur_construit_ferme_si_un_fournisseur_par_tache_echoue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Story 6.5 : un modèle par tâche hors registre ferme le fournisseur déjà construit."""
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "cle-de-test")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    llm = racine / "config" / "llm.yaml"
+    llm.write_text(
+        llm.read_text(encoding="utf-8").replace(
+            "classification: claude-haiku-5-5", "classification: modele-inconnu"
+        ),
+        encoding="utf-8",
+    )
+    construit = _FournisseurFermable()
+    monkeypatch.setattr(composition, "construire_fournisseur", lambda *_: construit)
+    with pytest.raises(UsineErreur, match="modele-inconnu"):
         construire_rapport(racine)
     assert construit.fermetures == 1
 

@@ -32,7 +32,7 @@ class TarifModele:
     gratuit: bool = False
     """Quota gratuit (offre « Experiment » de Mistral) : coût réel nul, coût estimé conservé."""
     temperature: bool = True
-    """Faux si le modèle refuse le réglage de température (Claude Sonnet et Opus 5.5)."""
+    """Faux si le modèle refuse le réglage de température (Claude Haiku, Sonnet et Opus 5.5)."""
 
     @property
     def espacement_s(self) -> float:
@@ -53,6 +53,9 @@ REGISTRE: dict[str, TarifModele] = {
     "anthropic:claude-sonnet-5-5": TarifModele(*_SONNET, 50, 30_000, temperature=False),
     "anthropic:claude-opus-5-5": TarifModele(*_OPUS, 50, 30_000, temperature=False),
     "anthropic:claude-haiku-4-5": TarifModele(*_HAIKU, 50, 50_000),
+    # Haiku 5.5 : modèle de la classification (Story 6.5) ; refuse une température non par
+    # défaut, comme Sonnet et Opus 5.5.
+    "anthropic:claude-haiku-5-5": TarifModele(*_usd("0.1", "0.5"), 50, 50_000, temperature=False),
     # Mistral, offre gratuite « Experiment » : 1 requête par seconde, 500 000 jetons par minute.
     "mistral:mistral-large-latest": TarifModele(*_usd("2", "6"), 60, 500_000, gratuit=True),
     "mistral:mistral-medium-latest": TarifModele(*_usd("0.4", "2"), 60, 500_000, gratuit=True),

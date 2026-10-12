@@ -215,6 +215,7 @@ def test_prompt_contient_kpi_et_causes_lus_via_la_consultation() -> None:
             "entite": ["ENT-A", "ENT-A", "ENT-A", "ENT-B"],
             "cause_racine": ["reprise_donnees", "parametrage", "environnement", "donnee_test"],
             "nombre": [2, 5, 2, 7],
+            "part": [2 / 9, 5 / 9, 2 / 9, 1.0],
         },
         schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
     )
@@ -232,7 +233,10 @@ def test_prompt_contient_kpi_et_causes_lus_via_la_consultation() -> None:
     assert "- KPI-STOCK : 12\n- KPI-TAUX : 3/8\n" in prompt
     assert "1/2" not in prompt  # KPI ventilé exclu
     assert "KPI-AUTRE" not in prompt  # autre Entité
-    assert "- parametrage : 5\n- environnement : 2\n- reprise_donnees : 2\n" in prompt
+    assert (
+        "- parametrage : 5 (56 %)\n- environnement : 2 (22 %)\n- reprise_donnees : 2 (22 %)\n"
+        in prompt
+    )
     assert "donnee_test" not in prompt
 
 

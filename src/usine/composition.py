@@ -5,16 +5,20 @@ Elle lit `config/*.yaml` et les secrets (Mode repli), calcule `version_grille` e
 `donnees/injection/manifeste_injection.json` s'il existe, pour lire le Journal aux clés Jira ;
 sinon aux clés générées), charge le gabarit PowerPoint et construit le
 registre des étapes de la Chaîne selon le Palier. En Palier 2, elle câble la passerelle LLM
-(fournisseur injecté, cache `donnees/cache_llm.sqlite`) dans l'étape `explications` ; les
-autres étapes LLM restent sautées. Sans pseudonymiseur injecté, elle construit le moteur de
+(fournisseur injecté, cache `donnees/cache_llm.sqlite`) dans les étapes `classification` et
+`explications`, et l'étape `repartition_causes` sur `domaine.causes.repartition` ; la
+narration reste sautée. Un fournisseur construit depuis `config/llm.yaml` s'accompagne d'un
+fournisseur par entrée de `modeles_par_tache` (modèle différent de `modele`) ; un fournisseur
+injecté sert toutes les tâches. Sans pseudonymiseur injecté, elle construit le moteur de
 la clé `moteur` de `config/pseudonymisation.yaml` (AD-15) sur la clé `USINE_CLE_PSEUDO` et la
 table `donnees/pseudonymes.sqlite` : `PseudonymiseurPresidio` (`presidio`, défaut) ou
 `PseudonymiseurHmac` sur les motifs des reconnaisseurs (`regex`) ; sans ce fichier,
 `PseudonymiseurHmac` sur `MOTIFS_PAR_DEFAUT`. La passerelle reçoit le plafond de coût de
 `config/llm.yaml` (s'il existe) et le tarif du registre des prix (0 € pour un modèle absent du
 registre, comme une doublure). Un fournisseur construit ici depuis `config/llm.yaml` est fermé
-par `Rapport.fermer`, ou dès l'échec de `construire_rapport`. Les secrets passent par
-`charger_secrets` (erreur nommant la variable) ; l'URL Jira se résout dans `url_jira` seulement.
+(avec ses fournisseurs par tâche) par `Rapport.fermer`, ou dès l'échec de
+`construire_rapport`. Les secrets passent par `charger_secrets` (erreur nommant la variable) ;
+l'URL Jira se résout dans `url_jira` seulement.
 
 L'étape `extraction` verse Jira dans `donnees/entrepot.duckdb` (`EtapeExtraction`) quand
 `config/jira.yaml` existe, hors Mode repli, et que le secret de lecture de sa plateforme est
@@ -46,7 +50,7 @@ Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 """
 
 import secrets
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -97,6 +101,7 @@ from usine.contrats.config import (
     GrilleMeteo,
 )
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import Tache
 from usine.contrats.passage import (
     CHEMIN_CACHE_LLM,
     CHEMIN_JOURNAL,
@@ -109,6 +114,7 @@ from usine.contrats.passage import (
     ManifestePassage,
 )
 from usine.contrats.versions import version_donnees, version_grille
+from usine.domaine.causes.repartition import repartition
 from usine.domaine.meteo import verifier_grille
 from usine.domaine.prevision.baseline import ParametresBaseline
 from usine.domaine.prevision.risque import ParametresRisque
@@ -123,6 +129,7 @@ from usine.generateur.textes import corpus_provisoire
 from usine.ia.classification import PART_PLAFOND_CLASSIFICATION, EtapeClassification
 from usine.ia.etape import EtapeExplications
 from usine.ia.passerelle import Passerelle
+from usine.ia.repartition import EtapeRepartitionCauses
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 from usine.ports.fournisseur_llm import FournisseurLLM
@@ -152,10 +159,10 @@ class Rapport:
     horodatage_extraction: datetime | None = None
     """Instant d'extraction figé à la composition (source `composite`) ; sinon `None`."""
     fermeture: Callable[[], None] | None = None
-    """Fermeture du fournisseur LLM construit par la composition ; `None` s'il est injecté."""
+    """Fermeture des fournisseurs LLM construits par la composition ; `None` si injecté."""
 
     def fermer(self) -> None:
-        """Ferme le fournisseur LLM construit par la composition (aucun effet sinon)."""
+        """Ferme les fournisseurs LLM construits par la composition (aucun effet sinon)."""
         if self.fermeture is not None:
             self.fermeture()
 
@@ -295,6 +302,46 @@ def construire_fournisseur(racine: Path, secrets_usine: Secrets | None = None) -
     return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
 
 
+def construire_fournisseurs_par_tache(
+    racine: Path, secrets_usine: Secrets | None = None
+) -> dict[Tache, FournisseurLLM]:
+    """Un `FournisseurLLM` par entrée de `modeles_par_tache` de `config/llm.yaml`.
+
+    Même fournisseur et même clé que `construire_fournisseur` ; une tâche dont le modèle est
+    celui de `modele` n'a pas de fournisseur dédié. Un modèle hors du registre des quotas et des
+    prix lève une `UsineErreur` dès la construction, sans appel réseau.
+    """
+    from usine.adaptateurs.llm import construire_fournisseur_llm
+
+    config = _config_llm(racine)
+    if config is None or not config.modeles_par_tache:
+        return {}
+    secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
+    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
+    cle = cles.get(config.fournisseur)
+    construits: dict[Tache, FournisseurLLM] = {}
+    try:
+        for tache, modele in config.modeles_par_tache.items():
+            if modele == config.modele:
+                continue
+            construits[tache] = construire_fournisseur_llm(
+                config.model_copy(update={"modele": modele}),
+                cle.get_secret_value() if cle is not None else "",
+            )
+    except BaseException:
+        _fermer_tous(construits.values())
+        raise
+    return construits
+
+
+def _fermer_tous(fournisseurs: Iterable[FournisseurLLM]) -> None:
+    """Ferme chaque fournisseur qui expose `fermer` (les doublures n'en ont pas toujours)."""
+    for fournisseur in fournisseurs:
+        fermer = getattr(fournisseur, "fermer", None)
+        if fermer is not None:
+            fermer()
+
+
 def _config_llm(racine: Path) -> ConfigLLM | None:
     """`config/llm.yaml` validé, ou `None` s'il n'existe pas."""
     chemin = racine / "config" / "llm.yaml"
@@ -405,9 +452,17 @@ def construire_rapport(
     secrets_usine = charger_secrets(racine)
     config_llm = _config_llm(racine)
     fermeture: Callable[[], None] | None = None
+    par_tache: dict[Tache, FournisseurLLM] = {}
     if chaine.palier == 2 and fournisseur is None and config_llm is not None:
         fournisseur = construire_fournisseur(racine, secrets_usine)
-        fermeture = getattr(fournisseur, "fermer", None)
+        construits: list[FournisseurLLM] = [fournisseur]
+        fermeture = partial(_fermer_tous, construits)
+        try:
+            par_tache = construire_fournisseurs_par_tache(racine, secrets_usine)
+        except BaseException:
+            fermeture()
+            raise
+        construits.extend(par_tache.values())
     try:
         return _assembler_rapport(
             racine,
@@ -418,6 +473,7 @@ def construire_rapport(
             pseudonymiseur,
             horloge,
             fermeture,
+            par_tache,
         )
     except BaseException:
         if fermeture is not None:
@@ -434,6 +490,7 @@ def _assembler_rapport(
     pseudonymiseur: Pseudonymiseur | None,
     horloge: Callable[[], datetime],
     fermeture: Callable[[], None] | None,
+    fournisseurs_par_tache: Mapping[Tache, FournisseurLLM],
 ) -> Rapport:
     """Suite de `construire_rapport`, une fois le fournisseur LLM connu."""
     repertoire_config = racine / "config"
@@ -513,6 +570,7 @@ def _assembler_rapport(
             plafond_cout_passage_eur=(
                 None if config_llm is None else config_llm.plafond_cout_passage_eur
             ),
+            fournisseurs_par_tache=fournisseurs_par_tache,
         )
         plafond = None if config_llm is None else config_llm.plafond_cout_passage_eur
         registre[Etape.classification] = EtapeClassification(
@@ -521,6 +579,7 @@ def _assembler_rapport(
             empreinte_grille,
             plafond_eur=None if plafond is None else plafond * PART_PLAFOND_CLASSIFICATION,
         )
+        registre[Etape.repartition_causes] = EtapeRepartitionCauses(repartition)
         registre[Etape.explications] = EtapeExplications(passerelle, empreinte_donnees)
     # En dernier : le client Jira n'est ouvert qu'une fois tout le reste validé.
     if jira_actif is not None:

@@ -339,6 +339,7 @@ def test_kpi_et_causes_dans_le_bloc_de_donnees() -> None:
             "entite": ["ENT-A"] * 2,
             "cause_racine": ["environnement", "parametrage"],
             "nombre": [1, 4],
+            "part": [0.2, 0.8],
         },
         schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
     )
@@ -349,8 +350,26 @@ def test_kpi_et_causes_dans_le_bloc_de_donnees() -> None:
     bloc = _bloc_de_donnees(prompt)
     assert "- KPI ''' piégé : 4/10\n- KPI-STOCK : 12\n- KPI-VIDE : sans objet\n" in bloc
     assert "1/3" not in prompt  # KPI ventilé exclu
-    assert "- parametrage : 4\n- environnement : 1" in bloc
+    assert "- parametrage : 4 (80 %)\n- environnement : 1 (20 %)" in bloc
     assert "{{" not in prompt
+
+
+def test_causes_sans_colonne_part() -> None:
+    """Répartition antérieure aux contrats 1.5 (sans `part`) : `- cause : nombre`."""
+    repartition = pl.DataFrame(
+        {
+            "date": [DATE_ARRETE] * 2,
+            "entite": ["ENT-A"] * 2,
+            "cause_racine": ["environnement", "parametrage"],
+            "nombre": [1, 4],
+        }
+    )
+    factice = FournisseurFactice([ReponseExplication(texte="DEMO-3 bloque.")])
+    passerelle = Passerelle(factice, pseudonymiseur(), CacheMemoire(), horloge_espion([]))
+    expliquer(passerelle, meteo_rouge(), TEXTES, _contexte(), repartition=repartition)
+    bloc = _bloc_de_donnees(str(factice.appels[0].entree))
+    assert "- parametrage : 4\n- environnement : 1" in bloc
+    assert "%" not in bloc.split("### Causes racines proposées")[1]
 
 
 def test_phrases_retirees_journalisees(caplog: pytest.LogCaptureFixture) -> None:

@@ -154,6 +154,34 @@ def test_cache() -> None:
     assert controleur.recus  # contrôle refait sur la réponse en cache
 
 
+def test_fournisseur_par_tache() -> None:
+    """Story 6.5 : la tâche routée passe par son fournisseur (clé de cache, trace, appel) ;
+    les autres tâches restent au fournisseur par défaut."""
+    defaut = FournisseurFactice([_reponse()], version_modele="anthropic:claude-sonnet-5-5")
+    dedie = FournisseurFactice([_reponse()], version_modele="anthropic:claude-haiku-5-5")
+    cache = CacheMemoire()
+    passerelle = Passerelle(
+        defaut,
+        pseudonymiseur(),
+        cache,
+        horloge_espion([]),
+        fournisseurs_par_tache={Tache.classification: dedie},
+    )
+    classification = PARAMETRES.model_copy(update={"tache": Tache.classification})
+    routee = passerelle.executer_structure(
+        PROMPT, ReponseExplication, classification, CONTEXTE, Controleur([])
+    )
+    assert (len(dedie.appels), len(defaut.appels)) == (1, 0)
+    assert routee.trace.version_modele == "anthropic:claude-haiku-5-5"
+    entree = pseudonymiseur().apercu(PROMPT)
+    assert cle_cache(classification, CONTEXTE, "anthropic:claude-haiku-5-5", entree) in (
+        cache.valeurs
+    )
+    explication, _ = _appeler(passerelle, [])
+    assert (len(dedie.appels), len(defaut.appels)) == (1, 1)
+    assert explication.trace.version_modele == "anthropic:claude-sonnet-5-5"
+
+
 def test_cache_illisible_rappelle_le_fournisseur() -> None:
     factice = FournisseurFactice([_reponse()])
     cache = CacheMemoire()
