@@ -12,17 +12,25 @@ from tests.unit.ia.espions import (
     CacheMemoire,
     horloge_espion,
     meteo_rouge,
+    prevision_rouge,
     pseudonymiseur,
+    risque_entree_rouge,
     textes,
 )
 from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.config import ConfigChaine, ConfigUsine
-from usine.contrats.llm import SCHEMA_REPARTITION_CAUSES, ReponseExplication, StatutControle
-from usine.contrats.meteo import Couleur, MeteoEntite
+from usine.contrats.llm import (
+    SCHEMA_REPARTITION_CAUSES,
+    ReponseExplication,
+    ReponseNarration,
+    StatutControle,
+)
+from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite
 from usine.contrats.passage import ContextePassage, StatutEtape
+from usine.contrats.prevision import Prevision, RisqueEntreeRouge
 from usine.contrats.trace import TypeTrace
 from usine.contrats.versions import version_prompt
-from usine.ia.etape import EtapeExplications
+from usine.ia.etape import EtapeExplications, EtapeNarration
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -251,3 +259,70 @@ def test_prompt_sans_kpi_ni_repartition() -> None:
     prompt = str(factice.appels[0].entree)
     assert "### KPI de l'Entité\n\n- aucun\n" in prompt
     assert "### Causes racines proposées\n\n- non disponible\n" in prompt
+
+
+class ConsultationPrevisions:
+    """Consultation réduite aux lectures de l'étape `narration`."""
+
+    def __init__(
+        self, previsions: tuple[Prevision, ...] = (), risques: tuple[RisqueEntreeRouge, ...] = ()
+    ) -> None:
+        self._previsions = previsions
+        self._risques = risques
+        self.dates: list[date | None] = []
+
+    def previsions(
+        self, date_arrete: date | None = None, entite: str | None = None
+    ) -> tuple[Prevision, ...]:
+        self.dates.append(date_arrete)
+        return self._previsions
+
+    def risques(
+        self, date_arrete: date | None = None, entite: str | None = None
+    ) -> tuple[RisqueEntreeRouge, ...]:
+        self.dates.append(date_arrete)
+        return self._risques
+
+
+def test_narration_par_entite_triee() -> None:
+    risques = (
+        risque_entree_rouge().model_copy(update={"entite": "ENT-C"}),
+        risque_entree_rouge(CodeIndicateur.ind_3).model_copy(update={"entite": "ENT-C"}),
+        risque_entree_rouge().model_copy(update={"entite": "ENT-B"}),
+    )
+    consultation = ConsultationPrevisions((prevision_rouge(),), risques)
+    factice = FournisseurFactice(
+        [
+            ReponseNarration(texte="ENT-A sortirait du rouge le 15/10/2026."),
+            ReponseNarration(texte="ENT-B risque le rouge sous 12 jours."),
+            ReponseNarration(texte="ENT-C risque le rouge sur IND-1 et IND-3."),
+        ]
+    )
+    etape = EtapeNarration(
+        Passerelle(factice, pseudonymiseur(), CacheMemoire(), horloge_espion([])), "d" * 64
+    )
+    assert isinstance(etape, PortEtape)
+    resultat = etape.executer(_ctx(cast(ConsultationMinimale, consultation)))
+    assert resultat.statut is StatutEtape.reussie
+    narrations = resultat.sorties["narrations"]
+    assert isinstance(narrations, tuple)
+    assert [n.entite for n in narrations] == ["ENT-A", "ENT-B", "ENT-C"]
+    assert [n.statut_controle for n in narrations] == [
+        StatutControle.conforme,
+        StatutControle.rejete,
+        StatutControle.conforme,
+    ]
+    assert consultation.dates == [DATE_ARRETE, DATE_ARRETE]
+    assert len(resultat.traces) == 3
+    assert "IND-3" in str(factice.appels[2].entree)
+
+
+def test_narration_sans_prevision_nirisque_entree_rouge() -> None:
+    factice = FournisseurFactice()
+    etape = EtapeNarration(
+        Passerelle(factice, pseudonymiseur(), CacheMemoire(), horloge_espion([])), "d"
+    )
+    resultat = etape.executer(_ctx(cast(ConsultationMinimale, ConsultationPrevisions())))
+    assert resultat.sorties["narrations"] == ()
+    assert resultat.traces == ()
+    assert factice.appels == []

@@ -1,6 +1,16 @@
 """`controler_citations` : retrait des phrases sans Citation ou à Citation fautive (FR-32)."""
 
-from usine.ia.controles import controler_citations, decouper_phrases, retirer_citations_hors
+from datetime import date
+from fractions import Fraction
+
+import pytest
+
+from usine.ia.controles import (
+    controler_citations,
+    controler_nombres,
+    decouper_phrases,
+    retirer_citations_hors,
+)
 
 
 def test_exemple_de_la_spec() -> None:
@@ -92,3 +102,93 @@ def test_utf_8_n_est_pas_une_citation() -> None:
 def test_retirer_citations_hors() -> None:
     texte = "Relancer DEMO-3. Voir aussi DEMO-9. Merci à l'équipe."
     assert retirer_citations_hors(texte, {"DEMO-3"}) == "Relancer DEMO-3. Merci à l'équipe."
+
+
+# --- `controler_nombres` (AD-14, Story 6.7) ---
+
+VALEURS = (Fraction(3, 5), 10, date(2026, 10, 15), date(2026, 10, 1), 1234, -3)
+
+
+@pytest.mark.parametrize(
+    "texte",
+    [
+        "Sortie estimée le 15/10/2026 avec 60 % de probabilité.",
+        "Probabilité de 60\u00a0% sur 10 jours ouvrés.",
+        "Probabilité 0,6, soit 3/5.",
+        "Le stock atteint 1 234 tickets.",
+        "Le stock atteint 1\u00a0234 tickets.",
+        "Le stock atteint 1\u202f234 tickets.",
+        "Sortie le 2026-10-15.",
+        "Sortie le 15 octobre 2026.",
+        "Sortie vers le 15 octobre.",
+        "Point de départ le 1er octobre.",
+        "Le stock baisse de 3 tickets.",
+        "DEMO-12 et IND-1 pèsent sur ENT-A, à J-5 ; voir COMPTE_1a2b3c.",
+        "La Prévision reste incertaine.",
+    ],
+)
+def test_nombres_conformes(texte: str) -> None:
+    controle = controler_nombres(texte, VALEURS)
+    assert controle.conforme, controle.refuses
+
+
+@pytest.mark.parametrize(
+    ("texte", "refuses"),
+    [
+        ("Sortie dans 12 jours.", ("12",)),
+        ("Sortie le 20/10/2026.", ("20/10/2026",)),
+        ("Sortie le 2026-10-20.", ("2026-10-20",)),
+        ("Sortie le 20 octobre 2026.", ("20 octobre 2026",)),
+        ("Probabilité de 70 %.", ("70 %",)),
+        ("Probabilité 0,7 ; ratio 4/5.", ("0,7", "4/5")),
+        ("Stock 1 235 ; horizon 10 ; date 31/02/2026.", ("1 235", "31/02/2026")),
+    ],
+)
+def test_nombres_refuses(texte: str, refuses: tuple[str, ...]) -> None:
+    controle = controler_nombres(texte, VALEURS)
+    assert not controle.conforme
+    assert controle.refuses == refuses
+
+
+def test_arrondi_au_nombre_de_decimales_ecrit() -> None:
+    tiers = (Fraction(1, 3),)
+    assert controler_nombres("Soit 33 % ou 33,3 % ou 0,33.", tiers).conforme
+    assert not controler_nombres("Soit 33,4 %.", tiers).conforme
+
+
+def test_entier_n_est_pas_l_arrondi_d_une_fraction() -> None:
+    """« 1 » n'est pas 3/5 arrondi ; « 60 % » l'est (forme pourcentage)."""
+    assert controler_nombres("Une chance sur 1.", (Fraction(3, 5),)).refuses == ("1",)
+    assert controler_nombres("Soit 60 %.", (Fraction(3, 5),)).conforme
+
+
+@pytest.mark.parametrize(("texte", "refuse"), [("Sortie en 12j.", "12"), ("Au 4e jour.", "4")])
+def test_nombre_colle_a_des_lettres_est_controle(texte: str, refuse: str) -> None:
+    assert controler_nombres(texte, VALEURS).refuses == (refuse,)
+
+
+def test_nombre_a_trop_de_decimales_refuse_sans_erreur() -> None:
+    texte = "Probabilité 0," + "6" * 40 + "."
+    assert not controler_nombres(texte, VALEURS).conforme
+
+
+@pytest.mark.parametrize(
+    ("texte", "refuses"),
+    [
+        ("Sortie dans 99, puis rien.", ("99",)),
+        ("Probabilité 10 %, donc faible.", ("10 %",)),
+        ("Sortie le 15/12.", ("15/12",)),
+        ("Sortie le 20/10/26.", ("20/10/26",)),
+        ("Taux 2.15 ou 15.10.2026.", ("2.15", "15.10.2026")),
+        ("Sortie le 20 oct. 2026.", ("20 oct. 2026",)),
+    ],
+)
+def test_revue_de_suivi_formes_refusees(texte: str, refuses: tuple[str, ...]) -> None:
+    assert controler_nombres(texte, (*VALEURS, 15, 12)).refuses == refuses
+
+
+@pytest.mark.parametrize(
+    "texte", ["Sortie le 15/10, horizon 10, fin.", "Sortie le 15/10/26.", "Le 15 oct. 2026."]
+)
+def test_revue_de_suivi_formes_acceptees(texte: str) -> None:
+    assert controler_nombres(texte, VALEURS).conforme

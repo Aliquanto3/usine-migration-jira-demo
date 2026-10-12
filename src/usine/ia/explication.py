@@ -64,14 +64,19 @@ def lire_prompt() -> bytes:
     return (resources.files("usine.ia") / "prompts" / "explication.md").read_bytes()
 
 
-def rendre_prompt(gabarit: str, variables: Mapping[str, str]) -> str:
-    """Remplace chaque `{{nom}}` ; une variable inconnue ou inutilisée lève une `UsineErreur`."""
+def rendre_prompt(
+    gabarit: str, variables: Mapping[str, str], tache: Tache = Tache.explication
+) -> str:
+    """Remplace chaque `{{nom}}` ; une variable inconnue ou inutilisée lève une `UsineErreur`.
+
+    `tache` nomme le prompt dans le message d'erreur.
+    """
     attendues = set(_VARIABLE.findall(gabarit))
     manquantes = sorted(attendues - set(variables))
     en_trop = sorted(set(variables) - attendues)
     if manquantes or en_trop:
         raise UsineErreur(
-            f"prompt « explication » : variables manquantes {manquantes}, en trop {en_trop}"
+            f"prompt « {tache.value} » : variables manquantes {manquantes}, en trop {en_trop}"
         )
     return _VARIABLE.sub(lambda m: variables[m.group(1)], gabarit)
 

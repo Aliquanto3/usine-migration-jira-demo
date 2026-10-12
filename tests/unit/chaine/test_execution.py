@@ -44,6 +44,7 @@ from usine.contrats.llm import (
     ParametresAppel,
     ReponseClassification,
     ReponseExplication,
+    ReponseNarration,
     ReponseStructuree,
     StatutControle,
     Tache,
@@ -74,6 +75,7 @@ from usine.domaine.prevision.risque import risques_entree_rouge
 from usine.domaine.prevision.serie import series_stock
 from usine.ia.etape import EtapeExplications
 from usine.ia.explication import TEXTE_PLAFOND, lire_prompt
+from usine.ia.narration import lire_prompt as lire_prompt_narration
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
@@ -629,7 +631,7 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     assert statuts[Etape.explications] is StatutEtape.reussie
     assert statuts[Etape.classification] is StatutEtape.reussie
     assert statuts[Etape.repartition_causes] is StatutEtape.reussie
-    assert statuts[Etape.narration] is StatutEtape.sautee
+    assert statuts[Etape.narration] is StatutEtape.reussie
     repertoire = ecrivain.repertoire_publie
     assert repertoire is not None
     # Story 6.5 : répartition publiée, `nombre` entier, parts de somme 1 par Entité.
@@ -648,6 +650,12 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     traces = [t for t in consultation.traces() if t.tache is Tache.explication]
     assert len(traces) == len(a_expliquer) == len(_appels(fournisseur, Tache.explication))
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
+    # Story 6.7 : une narration par Entité ayant une Prévision ou des Risques.
+    assert (repertoire / "llm" / "narrations.json").is_file()
+    narrations = consultation.narrations()
+    assert [n.entite for n in narrations] == list(a_expliquer.a_narrer)
+    assert all(n.statut_controle is StatutControle.conforme for n in narrations)
+    assert len(_appels(fournisseur, Tache.narration)) == len(a_expliquer.a_narrer)
     assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
     assert (racine / "donnees" / "cache_llm.sqlite").is_file()
 
@@ -664,7 +672,7 @@ def test_palier_2_brouillon_dans_excel_et_powerpoint(tmp_path: Path) -> None:
             brouillon_commentaire=brouillons[m.entite],
         )
         for m in a_expliquer
-    ]
+    ] + _reponses_narration(a_expliquer)
     racine = preparer_racine(tmp_path / "p2")
     _passer_en_palier_2(racine)
     fournisseur = FournisseurPalier2(reponses)
@@ -748,16 +756,29 @@ NUMERO_COMPTE = "FR76 3000 6000 0112 3456 7890 189"
 """Numéro de compte fictif (IBAN de démonstration)."""
 
 
-def _meteos_a_expliquer(racine: Path) -> list[MeteoEntite]:
+class _Reference(list[MeteoEntite]):
+    """Météos rouges ou orange d'un Passage de référence, et Entités dont la Prévision est
+    narrée (Story 6.7), dans l'ordre des appels au fournisseur."""
+
+    a_narrer: tuple[str, ...] = ()
+
+
+def _meteos_a_expliquer(racine: Path) -> _Reference:
     """Météos rouges ou orange d'un Passage Palier 1 sur le Journal de `racine`."""
     reference, _ = _executer(construire_rapport(racine))
     repertoire = racine / "sorties" / "passages" / "2026-10-09" / reference.passage_id
-    a_expliquer = [
-        m
-        for m in ConsultationPassage(repertoire).meteo(DATE_ARRETE)
-        if m.couleur in (Couleur.rouge, Couleur.orange)
-    ]
+    consultation = ConsultationPassage(repertoire)
+    a_expliquer = _Reference(
+        m for m in consultation.meteo(DATE_ARRETE) if m.couleur in (Couleur.rouge, Couleur.orange)
+    )
     assert a_expliquer, "le jeu de graine 42 doit avoir une Entité rouge ou orange"
+    a_expliquer.a_narrer = tuple(
+        sorted(
+            {p.entite for p in consultation.previsions(DATE_ARRETE)}
+            | {r.entite for r in consultation.risques(DATE_ARRETE)}
+        )
+    )
+    assert a_expliquer.a_narrer, "le jeu de graine 42 doit avoir une Prévision ou un Risque"
     return a_expliquer
 
 
@@ -778,11 +799,17 @@ def _ajouter_compte_a_la_description(
     chemin.write_text("\n".join(lignes) + "\n", encoding="utf-8")
 
 
-def _reponses(a_expliquer: list[MeteoEntite]) -> list[ReponseExplication]:
-    return [
+def _reponses_narration(reference: _Reference) -> list[BaseModel]:
+    """Une narration sans chiffre (conforme) par Entité à narrer, après les explications."""
+    return [ReponseNarration(texte="La Prévision suit sa tendance.") for _ in reference.a_narrer]
+
+
+def _reponses(a_expliquer: _Reference) -> list[BaseModel]:
+    explications: list[BaseModel] = [
         ReponseExplication(texte=f"{m.regles[0].tickets_en_cause[0]} est en cause.")
         for m in a_expliquer
     ]
+    return explications + _reponses_narration(a_expliquer)
 
 
 CAUSE_SCRIPTEE = CauseRacine.parametrage
@@ -866,7 +893,10 @@ def test_deux_passages_palier_2_cache_et_pseudonymisation(
     assert any(re.search(r"\bCOMPTE_[0-9a-f]{6}\b", prompt) for prompt in prompts)
     assert all(NUMERO_COMPTE not in prompt for prompt in prompts)
 
-    gabarit = version_prompt(lire_prompt())
+    gabarits = {
+        Tache.explication: version_prompt(lire_prompt()),
+        Tache.narration: version_prompt(lire_prompt_narration()),
+    }
     for lance, depuis_cache in ((premier, False), (second, True)):
         lignes = (lance.repertoire / "trace" / "llm.jsonl").read_text(encoding="utf-8")
         toutes = [EntreeTrace.model_validate_json(ligne) for ligne in lignes.splitlines()]
@@ -878,7 +908,8 @@ def test_deux_passages_palier_2_cache_et_pseudonymisation(
         for trace in traces:
             assert trace.entite is not None
             assert trace.version_grille == meteos[trace.entite].version_grille
-            assert trace.version_prompt == gabarit
+            assert trace.tache is not None
+            assert trace.version_prompt == gabarits[trace.tache]
         for fichier in lance.repertoire.rglob("*"):
             if not fichier.is_file():
                 continue
@@ -1085,8 +1116,14 @@ def test_palier_2_plafond_nul_explications_degradees(
     assert explications
     assert {e.texte for e in explications} == {TEXTE_PLAFOND}
     assert {e.statut_controle for e in explications} == {StatutControle.rejete}
+    # Story 6.7 : la Prévision brute est publiée, sans échec du Passage.
+    narrations = ConsultationPassage(lance.repertoire).narrations()
+    assert narrations
+    assert all(n.texte.startswith("Prévision brute.") for n in narrations)
+    assert {n.statut_controle for n in narrations} == {StatutControle.rejete}
     statuts = {e.etape: e.statut for e in lance.manifeste.etapes}
     assert statuts[Etape.explications] is StatutEtape.reussie
+    assert statuts[Etape.narration] is StatutEtape.reussie
     assert lance.manifeste.cout_llm_eur == 0
 
 
@@ -1106,7 +1143,7 @@ def test_palier_2_fournisseur_en_echec_nomme_l_etape(
 class _FournisseurFermable(FournisseurPalier2):
     """Fournisseur factice qui compte ses fermetures (adaptateur construit par la composition)."""
 
-    def __init__(self, reponses: list[ReponseExplication] | None = None) -> None:
+    def __init__(self, reponses: list[BaseModel] | None = None) -> None:
         super().__init__(reponses or ())
         self.fermetures = 0
 

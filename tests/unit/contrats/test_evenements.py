@@ -137,7 +137,7 @@ def test_entete_journal() -> None:
         version_corpus="1",
         modele_corpus="mistral:petit",
     )
-    assert entete.contrats_version == "1.5.0"
+    assert entete.contrats_version == "1.6.0"
     with pytest.raises(ValidationError, match="lundi"):
         EnteteJournal.model_validate(entete.model_dump() | {"ancrage_semaines": date(2026, 8, 18)})
 
