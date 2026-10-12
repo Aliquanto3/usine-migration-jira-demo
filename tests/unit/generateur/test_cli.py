@@ -1,4 +1,4 @@
-"""Commande `usine donnees generer` (Stories 0.3, 1.1 et 1.2)."""
+"""Commande `usine donnees generer` (Stories 0.3, 1.1, 1.2 et 1.4)."""
 
 import ast
 import json
@@ -71,12 +71,51 @@ def test_generation(tmp_path: Path) -> None:
     assert json.loads((sortie / "verite_terrain.json").read_text(encoding="utf-8"))
 
 
+def test_generation_ecrit_les_identifiants_injectes(tmp_path: Path) -> None:
+    """Story 1.4 : la liste est écrite à côté du Journal et annoncée par la commande."""
+    sortie = tmp_path / "donnees"
+    resultat = CliRunner().invoke(
+        app,
+        [
+            "donnees",
+            "generer",
+            "--config",
+            str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
+            "--sortie",
+            str(sortie),
+            "--corpus",
+            str(CORPUS),
+            "--graine",
+            "42",
+            "--date-generation",
+            "2026-10-12",
+        ],
+    )
+    assert resultat.exit_code == 0, resultat.output
+    liste = json.loads((sortie / "identifiants_injectes.json").read_text(encoding="utf-8"))
+    assert liste
+    assert {tuple(sorted(i)) for i in liste} == {("cle_ticket", "type", "valeur")}
+    journal = (sortie / "journal.jsonl").read_text(encoding="utf-8")
+    assert all(i["valeur"] in journal for i in liste)
+    assert str(sortie / "identifiants_injectes.json") in resultat.output
+    assert f"{len(liste)} identifiants fictifs" in resultat.output
+
+
+def test_identifiants_injectes_ignores_par_git() -> None:
+    """Le fichier par défaut, `donnees/identifiants_injectes.json`, est hors git."""
+    lignes = (RACINE / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "donnees/*" in lignes
+    assert not any(ligne.startswith("!donnees/identifiants") for ligne in lignes)
+
+
 def test_reproductible_et_graine_differente(tmp_path: Path) -> None:
     options = ("--date-generation", "2026-10-12")
     _generer(tmp_path / "a", "--graine", "42", *options)
     _generer(tmp_path / "b", "--graine", "42", *options)
     _generer(tmp_path / "c", "--graine", "43", *options)
-    for nom in ("journal.jsonl", "verite_terrain.json"):
+    for nom in ("journal.jsonl", "verite_terrain.json", "identifiants_injectes.json"):
         assert (tmp_path / "a" / nom).read_bytes() == (tmp_path / "b" / nom).read_bytes()
     journal = (tmp_path / "a" / "journal.jsonl").read_bytes()
     assert (tmp_path / "c" / "journal.jsonl").read_bytes() != journal
@@ -183,6 +222,7 @@ def test_chemins_par_defaut(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert resultat.exit_code == 0, resultat.output
     assert (tmp_path / "donnees" / "journal.jsonl").is_file()
     assert (tmp_path / "donnees" / "verite_terrain.json").is_file()
+    assert (tmp_path / "donnees" / "identifiants_injectes.json").is_file()
 
 
 def test_sortie_non_inscriptible(
