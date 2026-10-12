@@ -1,8 +1,8 @@
-"""`SourceJiraCloud` : requêtes émises, changelog tronqué, `depuis` et lecture seule (Story 2.2)."""
+"""`SourceJiraCloud` : requêtes émises, changelog tronqué, `depuis` et lecture seule (2.2, 2.3)."""
 
 import copy
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -20,6 +20,7 @@ from usine.adaptateurs.jira_cloud import (
     SourceJiraCloud,
     champs_demandes,
     changelog_tronque,
+    minutes_depuis,
     requete_jql,
 )
 from usine.adaptateurs.jira_http import RequeteJiraInterdite, construire_client_lecture
@@ -155,6 +156,67 @@ def test_jql_echappe_les_guillemets() -> None:
     assert requete_jql(config) == (
         'project = "DEMO" AND issuetype in ("Bug \\"X\\"") ORDER BY key ASC'
     )
+
+
+def test_jql_incrementale() -> None:
+    assert requete_jql(config_jira("cloud"), 25) == (
+        'project = "DEMO" AND issuetype in ("Anomalie", "Cas de test", "Certification")'
+        ' AND updated >= "-25m" ORDER BY key ASC'
+    )
+
+
+def test_jql_incrementale_refuse_moins_d_une_minute() -> None:
+    with pytest.raises(UsineErreur, match="1 minute"):
+        requete_jql(config_jira("cloud"), 0)
+
+
+MAINTENANT = datetime(2026, 10, 12, 6, 30, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("ecart", "minutes"),
+    [
+        (timedelta(minutes=10), 10),
+        (timedelta(minutes=10, microseconds=1), 11),
+        (timedelta(minutes=9, seconds=59), 10),
+        (timedelta(days=2), 2880),
+        (timedelta(seconds=1), 1),
+        (timedelta(0), 1),
+        (-timedelta(minutes=5), 1),
+    ],
+)
+def test_minutes_depuis_arrondi_a_la_minute_superieure(ecart: timedelta, minutes: int) -> None:
+    assert minutes_depuis(MAINTENANT - ecart, MAINTENANT) == minutes
+
+
+def test_minutes_depuis_entre_fuseaux() -> None:
+    paris = timezone(timedelta(hours=2))
+    depuis = datetime(2026, 10, 12, 8, 0, tzinfo=paris)
+    assert minutes_depuis(depuis, MAINTENANT) == 30
+
+
+def test_depuis_restreint_la_recherche_et_filtre_cote_client() -> None:
+    serveur = ServeurFixtures()
+    depuis = datetime(2026, 9, 4, 8, 0, tzinfo=UTC)
+    maintenant = depuis + timedelta(hours=2, seconds=1)
+    source = SourceJiraCloud(serveur.client(), config_jira("cloud"), lambda: maintenant)
+    rendus = list(source.evenements(depuis))
+    jql = [json.loads(r.content)["jql"] for r in serveur.requetes if r.url.path == CHEMIN_RECHERCHE]
+    assert len(jql) == 2
+    assert all(j.endswith(' AND updated >= "-121m" ORDER BY key ASC') for j in jql)
+    assert rendus == [e for e in evenements_attendus() if e.horodatage >= depuis]
+
+
+def test_sans_depuis_ni_restriction_ni_horloge() -> None:
+    serveur = ServeurFixtures()
+
+    def horloge() -> datetime:
+        raise AssertionError("horloge lue sans « depuis »")
+
+    list(SourceJiraCloud(serveur.client(), config_jira("cloud"), horloge).evenements())
+    jql = [json.loads(r.content)["jql"] for r in serveur.requetes if r.url.path == CHEMIN_RECHERCHE]
+    assert len(jql) == 2
+    assert all("updated" not in j for j in jql)
 
 
 def test_champs_demandes_sans_doublon() -> None:

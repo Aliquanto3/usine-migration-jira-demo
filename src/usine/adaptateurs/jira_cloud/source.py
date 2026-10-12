@@ -7,12 +7,18 @@ Lecture seule, par `ClientJiraLecture` (liste blanche) :
    `changelog`/`total` absent) : `GET /rest/api/3/issue/{cle}/changelog`, paginé par position,
    fusionné avec le changelog en ligne et dédoublonné par id d'historique.
 
-Le filtre `depuis` est appliqué côté client ; la restriction JQL incrémentale relève de
-l'extraction (Story 2.3).
+Avec `depuis`, la recherche est restreinte par `updated >= "-<n>m"` : une durée relative,
+indépendante du fuseau du profil du compte Jira (inconnu), arrondie à la minute supérieure à
+partir de l'instant `horloge()` (FR-6). Le filtre `horodatage >= depuis` reste appliqué côté
+client aux événements des tickets retenus.
+
+Jira évalue cette fenêtre relative sur sa propre horloge, et de nouveau à chaque page : elle ne
+couvre `depuis` que si le décalage d'horloge client/serveur plus la durée de la pagination
+restent inférieurs à la marge d'extraction (`marge_extraction_minutes`).
 """
 
-from collections.abc import Iterator, Mapping
-from datetime import datetime
+from collections.abc import Callable, Iterator, Mapping
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from usine.adaptateurs.jira_cloud.conversion import convertir_ticket, trier_evenements
@@ -38,10 +44,27 @@ def _chaine_jql(valeur: str) -> str:
     return f'"{echappee}"'
 
 
-def requete_jql(config: ConfigJira) -> str:
-    """JQL des tickets du Programme : projet et types Jira de la table, par clé croissante."""
+def minutes_depuis(depuis: datetime, maintenant: datetime) -> int:
+    """Minutes écoulées de `depuis` à `maintenant`, arrondies au-dessus, au moins 1."""
+    return max(1, -((depuis - maintenant) // timedelta(minutes=1)))
+
+
+def requete_jql(config: ConfigJira, minutes: int | None = None) -> str:
+    """JQL des tickets du Programme : projet et types Jira de la table, par clé croissante.
+
+    Avec `minutes`, seuls les tickets modifiés depuis `minutes` minutes (`updated >= "-<n>m"`).
+    """
     types = ", ".join(_chaine_jql(nom) for nom in config.types_tickets)
-    return f"project = {_chaine_jql(config.cle_projet)} AND issuetype in ({types}) ORDER BY key ASC"
+    filtre = f"project = {_chaine_jql(config.cle_projet)} AND issuetype in ({types})"
+    if minutes is not None:
+        if minutes < 1:
+            raise UsineErreur(f"Jira : restriction « updated » d'au moins 1 minute, pas {minutes}")
+        filtre += f' AND updated >= "-{minutes}m"'
+    return f"{filtre} ORDER BY key ASC"
+
+
+def _maintenant() -> datetime:
+    return datetime.now(UTC)
 
 
 def champs_demandes(config: ConfigJira) -> list[str]:
@@ -67,25 +90,35 @@ class SourceJiraCloud:
 
     source = SourceEvenement.jira_cloud
 
-    def __init__(self, client: ClientJiraLecture, config: ConfigJira) -> None:
+    def __init__(
+        self,
+        client: ClientJiraLecture,
+        config: ConfigJira,
+        horloge: Callable[[], datetime] = _maintenant,
+    ) -> None:
         self._client = client
         self._config = config
+        self._horloge = horloge
 
     def evenements(self, depuis: datetime | None = None) -> Iterator[Evenement]:
-        """Événements d'horodatage ≥ `depuis` (tous si `None`), par horodatage croissant."""
+        """Événements d'horodatage ≥ `depuis` (tous si `None`), par horodatage croissant.
+
+        Avec `depuis`, seuls les tickets modifiés depuis cet instant sont recherchés.
+        """
         if depuis is not None and (depuis.tzinfo is None or depuis.utcoffset() is None):
             raise UsineErreur(f"Jira Cloud : « depuis » sans fuseau : {depuis!r}")
+        minutes = None if depuis is None else minutes_depuis(depuis, self._horloge())
         par_ticket = [
             convertir_ticket(ticket, self._historiques(ticket), self._config, self.source)
-            for ticket in self._tickets()
+            for ticket in self._tickets(minutes)
         ]
         for evenement in trier_evenements(par_ticket):
             if depuis is None or evenement.horodatage >= depuis:
                 yield evenement
 
-    def _tickets(self) -> Iterator[Mapping[str, Any]]:
+    def _tickets(self, minutes: int | None) -> Iterator[Mapping[str, Any]]:
         corps = {
-            "jql": requete_jql(self._config),
+            "jql": requete_jql(self._config, minutes),
             "fields": champs_demandes(self._config),
             "expand": "changelog",
             "maxResults": TAILLE_PAGE_RECHERCHE,

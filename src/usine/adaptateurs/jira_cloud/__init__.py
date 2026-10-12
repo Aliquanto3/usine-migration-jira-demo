@@ -21,6 +21,7 @@ from usine.adaptateurs.jira_cloud.source import (
     champs_demandes,
     changelog_tronque,
     chemin_changelog,
+    minutes_depuis,
     requete_jql,
 )
 
@@ -31,6 +32,7 @@ __all__ = [
     "chemin_changelog",
     "convertir_ticket",
     "lire_horodatage",
+    "minutes_depuis",
     "ordonner_historiques",
     "requete_jql",
     "texte_adf",

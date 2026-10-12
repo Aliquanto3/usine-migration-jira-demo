@@ -83,7 +83,7 @@ development_status:
   epic-2: in-progress  # lane L2 Extraction
   2-1-transport-jira-commun-et-client-de-lecture-à-liste-blanche: done
   2-2-adaptateur-jira-cloud-v3-et-vocabulaire-canonique: done
-  2-3-entrepôt-duckdb-et-extraction-incrémentale: backlog
+  2-3-entrepôt-duckdb-et-extraction-incrémentale: done
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: backlog
   2-5-source-journal-à-l-échelle-et-correspondance-des-clés: backlog
   2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
@@ -95,7 +95,7 @@ development_status:
   3-2-kpi-quotidiens: done
   3-3-tendances-hebdomadaires: done
   3-4-grille-de-météo-complète-et-validation: done
-  3-5-indicateurs-de-météo-ind-1-à-ind-8: backlog
+  3-5-indicateurs-de-météo-ind-1-à-ind-8: done
   3-6-météo-et-règles-déclenchantes: backlog
   3-7-évolution-de-la-météo-à-j-1-et-j-5: backlog
   3-8-rapport-de-référence-et-réconciliation-à-100: backlog

@@ -12,6 +12,10 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from tests.doublures import SourceEnMemoire
+from tests.unit.adaptateurs.jira_cloud.outils import (
+    evenements_attendus as evenements_attendus_cloud,
+)
+from tests.unit.adaptateurs.jira_cloud.outils import source_fixtures
 from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
@@ -120,8 +124,14 @@ def fabrique_journal() -> CasSourceTickets:
     return CasSourceTickets(SourceJournal(chemin), generation.evenements)
 
 
+def fabrique_jira_cloud() -> CasSourceTickets:
+    """`SourceJiraCloud` sur les fixtures `tests/fixtures/jira_cloud/source_*`, sans réseau."""
+    return CasSourceTickets(source_fixtures(), evenements_attendus_cloud())
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("source_en_memoire", fabrique_source_en_memoire),
     ("journal_genere", fabrique_journal_genere),
     ("journal", fabrique_journal),
+    ("jira_cloud", fabrique_jira_cloud),
 ]
