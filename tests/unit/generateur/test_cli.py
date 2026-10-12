@@ -1,28 +1,43 @@
-"""Commande `usine donnees generer` (Story 0.3)."""
+"""Commande `usine donnees generer` (Stories 0.3 et 1.1)."""
 
 import json
 import shutil
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 import time_machine
+import yaml
 from typer.testing import CliRunner
 
 from usine import cli
 from usine.cli import app
-from usine.contrats.calendrier import FUSEAU
+from usine.contrats.calendrier import FUSEAU, jour_local, semaine_programme
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.evenements import EnteteJournal, Evenement
+from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement
+from usine.contrats.tickets import Champ, TypeTicket
 
 RACINE = Path(__file__).resolve().parents[3]
-CONFIG = RACINE / "config" / "programme.yaml"
+CONFIG = Path(__file__).with_name("programme_reduit.yaml")
+"""Programme réduit figé : génération rapide."""
+CONFIG_JIRA = RACINE / "config" / "jira.yaml"
 
 
 def _generer(sortie: Path, *options: str) -> None:
     resultat = CliRunner().invoke(
         app,
-        ["donnees", "generer", "--config", str(CONFIG), "--sortie", str(sortie), *options],
+        [
+            "donnees",
+            "generer",
+            "--config",
+            str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
+            "--sortie",
+            str(sortie),
+            *options,
+        ],
     )
     assert resultat.exit_code == 0, resultat.output
     assert resultat.exception is None
@@ -126,6 +141,8 @@ def test_graine_negative(tmp_path: Path) -> None:
             "generer",
             "--config",
             str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
             "--sortie",
             str(tmp_path),
             "--date-generation",
@@ -142,6 +159,7 @@ def test_graine_negative(tmp_path: Path) -> None:
 def test_chemins_par_defaut(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "config").mkdir()
     shutil.copyfile(CONFIG, tmp_path / "config" / "programme.yaml")
+    shutil.copyfile(CONFIG_JIRA, tmp_path / "config" / "jira.yaml")
     monkeypatch.chdir(tmp_path)
     resultat = CliRunner().invoke(app, ["donnees", "generer", "--date-generation", "2026-10-12"])
     assert resultat.exit_code == 0, resultat.output
@@ -162,6 +180,8 @@ def test_sortie_non_inscriptible(
             "generer",
             "--config",
             str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
             "--sortie",
             str(fichier),
             "--date-generation",
@@ -194,3 +214,112 @@ def test_config_fautive(
     assert "Vague inconnue" in erreur
     assert "V9" in erreur
     assert not (tmp_path / "journal.jsonl").exists()
+
+
+def _lire_journal(sortie: Path) -> tuple[EnteteJournal, list[Evenement]]:
+    lignes = (sortie / "journal.jsonl").read_bytes().decode("utf-8").splitlines()
+    entete = EnteteJournal.model_validate_json(lignes[0])
+    return entete, [Evenement.model_validate_json(ligne) for ligne in lignes[1:]]
+
+
+def test_cle_projet_de_la_config_jira(tmp_path: Path) -> None:
+    jira = tmp_path / "jira.yaml"
+    jira.write_text(
+        CONFIG_JIRA.read_text(encoding="utf-8").replace("cle_projet: DEMO", "cle_projet: PILOTE"),
+        encoding="utf-8",
+    )
+    sortie = tmp_path / "donnees"
+    _generer(
+        sortie, "--graine", "42", "--date-generation", "2026-10-12", "--config-jira", str(jira)
+    )
+    _, evenements = _lire_journal(sortie)
+    assert evenements
+    assert all(e.cle_ticket.startswith("PILOTE-") for e in evenements)
+    verite = json.loads((sortie / "verite_terrain.json").read_text(encoding="utf-8"))
+    assert verite
+    assert all(cle.startswith("PILOTE-") for cle in verite)
+
+
+def test_cle_projet_par_defaut_demo(tmp_path: Path) -> None:
+    _generer(tmp_path, "--graine", "42", "--date-generation", "2026-10-12")
+    _, evenements = _lire_journal(tmp_path)
+    assert all(e.cle_ticket.startswith("DEMO-") for e in evenements)
+
+
+def test_config_jira_fautive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    jira = tmp_path / "jira.yaml"
+    jira.write_text(
+        CONFIG_JIRA.read_text(encoding="utf-8").replace("cle_projet: DEMO", "cle_projet: demo"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "usine",
+            "donnees",
+            "generer",
+            "--config",
+            str(CONFIG),
+            "--config-jira",
+            str(jira),
+            "--sortie",
+            str(tmp_path),
+            "--date-generation",
+            "2026-10-12",
+        ],
+    )
+    with pytest.raises(SystemExit) as sortie:
+        cli.main()
+    assert sortie.value.code == 1
+    erreur = capsys.readouterr().err
+    assert str(jira) in erreur
+    assert "cle_projet" in erreur
+    assert "demo" in erreur
+    assert not (tmp_path / "journal.jsonl").exists()
+
+
+def test_copie_a_six_entites_et_volumetrie_divisee(tmp_path: Path) -> None:
+    """Changer le nombre d'Entités ou la volumétrie ne demande aucun code."""
+    donnees = yaml.safe_load((RACINE / "config" / "programme.yaml").read_text(encoding="utf-8"))
+    donnees["entites"] = donnees["entites"][:6]
+    donnees["volumetrie"] = {cle: n // 2 for cle, n in donnees["volumetrie"].items()}
+    copie = tmp_path / "programme.yaml"
+    copie.write_text(yaml.safe_dump(donnees, allow_unicode=True), encoding="utf-8")
+    sortie = tmp_path / "donnees"
+    resultat = CliRunner().invoke(
+        app,
+        [
+            "donnees",
+            "generer",
+            "--config",
+            str(copie),
+            "--config-jira",
+            str(CONFIG_JIRA),
+            "--sortie",
+            str(sortie),
+            "--date-generation",
+            "2026-10-12",
+        ],
+    )
+    assert resultat.exit_code == 0, resultat.output
+    entete, evenements = _lire_journal(sortie)
+    entites = {e.vers for e in evenements if e.champ is Champ.entite}
+    assert entites == {f"ENT-{c}" for c in "ABCDEF"}
+    creations = [
+        e
+        for e in evenements
+        if e.nature is NatureEvenement.creation and e.type_ticket is TypeTicket.anomalie
+    ]
+    # Bornes divisées par deux ∩ 8 semaines × [100, 250] Entrées par semaine = [1 500, 2 000].
+    assert 1500 <= len(creations) <= 2000
+    reouvertures = [
+        e for e in evenements if e.nature is NatureEvenement.transition and e.de == "fermee"
+    ]
+    entrees = Counter(
+        semaine_programme(jour_local(e.horodatage), entete.ancrage_semaines)
+        for e in creations + reouvertures
+    )
+    assert sorted(entrees) == list(range(1, 9))
+    assert all(100 <= n <= 250 for n in entrees.values()), entrees

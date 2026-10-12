@@ -1,15 +1,24 @@
-"""Mini-générateur déterministe du Journal (Story 0.3)."""
+"""Générateur déterministe du Journal (Stories 0.3 et 1.1)."""
 
 import json
 import re
 from collections import Counter
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
-from usine.config import charger_yaml
-from usine.contrats.calendrier import FUSEAU, jour_ouvre_de, jours_ouvres
+from usine.config import charger_yaml, cles_sans_commentaire
+from usine.contrats.calendrier import (
+    FUSEAU,
+    jour_local,
+    jour_ouvre_de,
+    jours_ouvres,
+    semaine_programme,
+)
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
@@ -24,6 +33,9 @@ from usine.generateur.journal import (
 )
 
 RACINE = Path(__file__).resolve().parents[3]
+PROGRAMME_LIVRE = RACINE / "config" / "programme.yaml"
+PROGRAMME_REDUIT = Path(__file__).with_name("programme_reduit.yaml")
+"""Configuration réduite figée (2 Entités, 25 à 35 Anomalies) des tests paramétrés."""
 DATE_GENERATION = date(2026, 10, 12)
 GRAINES = (42, 86, 153, 162, 234)
 
@@ -41,7 +53,7 @@ TRANSITIONS_PERMISES = {
 
 @pytest.fixture(scope="module")
 def config() -> ConfigProgramme:
-    return charger_yaml(RACINE / "config" / "programme.yaml", ConfigProgramme)
+    return charger_yaml(PROGRAMME_REDUIT, ConfigProgramme)
 
 
 @pytest.fixture(scope="module", params=GRAINES, ids=lambda g: f"graine-{g}")
@@ -246,3 +258,308 @@ def test_ecrire_journal_impossible(config: ConfigProgramme, tmp_path: Path) -> N
     fichier.write_text("x", encoding="utf-8")
     with pytest.raises(UsineErreur, match="écriture impossible"):
         ecrire_journal(generer(config, 42, DATE_GENERATION), fichier / "donnees")
+
+
+# --- Story 1.1 : configuration complète et fidélité du générateur ---
+
+
+def _variante(
+    modifier: Callable[[dict[str, Any]], None], chemin: Path = PROGRAMME_REDUIT
+) -> ConfigProgramme:
+    """Configuration `chemin` modifiée par `modifier`, validée par `ConfigProgramme`."""
+    donnees = yaml.safe_load(chemin.read_text(encoding="utf-8"))
+    modifier(donnees)
+    return ConfigProgramme.model_validate(donnees)
+
+
+def _volumetrie(anomalies: tuple[int, int], entrees: tuple[int, int]) -> Callable[..., None]:
+    def modifier(donnees: dict[str, Any]) -> None:
+        donnees["volumetrie"] = {
+            "anomalies_min": anomalies[0],
+            "anomalies_max": anomalies[1],
+            "entrees_semaine_min": entrees[0],
+            "entrees_semaine_max": entrees[1],
+        }
+
+    return modifier
+
+
+def _attributs(generation: Generation) -> dict[str, dict[Champ, str]]:
+    """Attributs initiaux de chaque ticket, par clé."""
+    attributs: dict[str, dict[Champ, str]] = {}
+    for e in generation.evenements:
+        if e.nature is NatureEvenement.modification_champ and e.de is None and e.champ:
+            attributs.setdefault(e.cle_ticket, {})[e.champ] = str(e.vers)
+    return attributs
+
+
+def _entrees_par_semaine(generation: Generation) -> Counter[int]:
+    """Entrées d'Anomalies (créations et réouvertures) par semaine du Programme."""
+    ancrage = generation.entete.ancrage_semaines
+    return Counter(
+        semaine_programme(jour_local(e.horodatage), ancrage)
+        for e in generation.evenements
+        if e.type_ticket is TypeTicket.anomalie
+        and (
+            e.nature is NatureEvenement.creation
+            or (e.nature is NatureEvenement.transition and e.de == "fermee")
+        )
+    )
+
+
+def _nb_anomalies(generation: Generation) -> int:
+    return sum(
+        1
+        for e in generation.evenements
+        if e.nature is NatureEvenement.creation and e.type_ticket is TypeTicket.anomalie
+    )
+
+
+def _phase_attendue(config: ConfigProgramme, vague: str, semaine: int) -> str:
+    """Oracle : dernière Phase en cours, sinon dernière commencée, sinon la première.
+
+    « Dernière » : début le plus tardif, puis rang le plus élevé.
+    """
+    (periodes,) = [v.phases for v in config.vagues if v.code == vague]
+    en_cours = [p for p in periodes if p.semaine_debut <= semaine <= p.semaine_fin]
+    commencees = en_cours or [p for p in periodes if p.semaine_debut <= semaine]
+    if not commencees:
+        return periodes[0].phase.value
+    debut = max(p.semaine_debut for p in commencees)
+    return [p for p in commencees if p.semaine_debut == debut][-1].phase.value
+
+
+def _verifier_phases(config: ConfigProgramme, generation: Generation) -> None:
+    ancrage = generation.entete.ancrage_semaines
+    creations = {
+        e.cle_ticket: e.horodatage
+        for e in generation.evenements
+        if e.nature is NatureEvenement.creation
+    }
+    vagues = {e.code: e.vague for e in config.entites}
+    verifies = 0
+    for cle, valeurs in _attributs(generation).items():
+        if Champ.phase not in valeurs:
+            continue
+        semaine = semaine_programme(jour_local(creations[cle]), ancrage)
+        assert valeurs[Champ.vague] == vagues[valeurs[Champ.entite]]
+        assert valeurs[Champ.phase] == _phase_attendue(config, valeurs[Champ.vague], semaine), cle
+        verifies += 1
+    assert verifies
+
+
+@pytest.fixture(scope="module")
+def config_livree() -> ConfigProgramme:
+    return charger_yaml(PROGRAMME_LIVRE, ConfigProgramme)
+
+
+@pytest.fixture(scope="module")
+def generation_livree(config_livree: ConfigProgramme) -> Generation:
+    return generer(config_livree, 42, DATE_GENERATION)
+
+
+def test_config_livree(config_livree: ConfigProgramme) -> None:
+    assert config_livree.nom == "Banque Exemple — migration SI cœur"
+    assert (config_livree.graine, config_livree.nb_semaines) == (42, 8)
+    assert [e.code for e in config_livree.entites] == [f"ENT-{c}" for c in "ABCDEFGHIJ"]
+    assert {e.code: e.vague for e in config_livree.entites} == {
+        **{f"ENT-{c}": "V1" for c in "ABCD"},
+        **{f"ENT-{c}": "V2" for c in "EFG"},
+        **{f"ENT-{c}": "V3" for c in "HIJ"},
+    }
+    calendriers = {
+        v.code: [(p.phase.value, p.semaine_debut, p.semaine_fin) for p in v.phases]
+        for v in config_livree.vagues
+    }
+    assert calendriers == {
+        "V1": [("migration_a_blanc", 1, 2), ("recette", 3, 5), ("tnr", 6, 8)],
+        "V2": [("migration_a_blanc", 1, 3), ("recette", 4, 6), ("tnr", 7, 8)],
+        "V3": [("migration_a_blanc", 1, 4), ("recette", 5, 7), ("tnr", 8, 8)],
+    }
+    assert config_livree.domaines == (
+        "credits",
+        "depots",
+        "paiements",
+        "referentiel_clients",
+        "comptabilite",
+        "epargne",
+    )
+    volumetrie = config_livree.volumetrie
+    assert (volumetrie.anomalies_min, volumetrie.anomalies_max) == (3000, 5000)
+    assert (volumetrie.entrees_semaine_min, volumetrie.entrees_semaine_max) == (200, 500)
+
+
+@pytest.mark.parametrize("chemin", [PROGRAMME_LIVRE, PROGRAMME_REDUIT], ids=lambda c: c.name)
+def test_chaque_cle_commentee(chemin: Path) -> None:
+    assert cles_sans_commentaire(chemin.read_text(encoding="utf-8")) == []
+
+
+def test_generation_config_livree(
+    config_livree: ConfigProgramme, generation_livree: Generation
+) -> None:
+    entites = {v[Champ.entite] for v in _attributs(generation_livree).values()}
+    assert entites == {e.code for e in config_livree.entites}
+    # Bornes livrées ∩ 8 semaines × [200, 500] Entrées par semaine = [3 000, 4 000].
+    assert 3000 <= _nb_anomalies(generation_livree) <= 4000
+    entrees = _entrees_par_semaine(generation_livree)
+    assert sorted(entrees) == list(range(1, 9))
+    assert all(200 <= n <= 500 for n in entrees.values()), entrees
+    assert all(cle.startswith("DEMO-") for cle in generation_livree.verite_terrain)
+
+
+def test_phases_du_calendrier_livre(
+    config_livree: ConfigProgramme, generation_livree: Generation
+) -> None:
+    _verifier_phases(config_livree, generation_livree)
+    phases = {v[Champ.phase] for v in _attributs(generation_livree).values() if Champ.phase in v}
+    assert phases == {"migration_a_blanc", "recette", "tnr"}
+
+
+def test_phases_du_calendrier_reduit(config: ConfigProgramme, generation: Generation) -> None:
+    _verifier_phases(config, generation)
+
+
+def test_entrees_par_semaine_reduit(config: ConfigProgramme, generation: Generation) -> None:
+    volumetrie = config.volumetrie
+    entrees = _entrees_par_semaine(generation)
+    assert sorted(entrees) == list(range(1, config.nb_semaines + 1))
+    assert all(
+        volumetrie.entrees_semaine_min <= n <= volumetrie.entrees_semaine_max
+        for n in entrees.values()
+    )
+
+
+def test_phase_avant_toute_phase_commencee() -> None:
+    """Semaine antérieure à la première Phase : la première Phase de la Vague."""
+
+    def decaler(donnees: dict[str, Any]) -> None:
+        donnees["vagues"][0]["phases"] = [
+            {"phase": "recette", "semaine_debut": 3, "semaine_fin": 5},
+            {"phase": "tnr", "semaine_debut": 6, "semaine_fin": 8},
+        ]
+
+    config = _variante(decaler)
+    generation = generer(config, 42, DATE_GENERATION)
+    _verifier_phases(config, generation)
+    phases = {v.get(Champ.phase) for v in _attributs(generation).values()}
+    assert "migration_a_blanc" not in phases
+    assert "recette" in phases
+
+
+def _phases_par_semaine(generation: Generation) -> dict[int, set[str]]:
+    """Phases des tickets créés chaque semaine du Programme."""
+    ancrage = generation.entete.ancrage_semaines
+    creations = {
+        e.cle_ticket: e.horodatage
+        for e in generation.evenements
+        if e.nature is NatureEvenement.creation
+    }
+    phases: dict[int, set[str]] = {}
+    for cle, valeurs in _attributs(generation).items():
+        if Champ.phase in valeurs:
+            semaine = semaine_programme(jour_local(creations[cle]), ancrage)
+            phases.setdefault(semaine, set()).add(valeurs[Champ.phase])
+    return phases
+
+
+def _calendrier_v1(periodes: list[tuple[str, int, int]]) -> ConfigProgramme:
+    def remplacer(donnees: dict[str, Any]) -> None:
+        donnees["vagues"][0]["phases"] = [
+            {"phase": phase, "semaine_debut": debut, "semaine_fin": fin}
+            for phase, debut, fin in periodes
+        ]
+
+    return _variante(remplacer)
+
+
+def test_phase_meme_debut_rang_le_plus_eleve() -> None:
+    """Deux Phases commencent la même semaine : la Phase de rang le plus élevé l'emporte."""
+    config = _calendrier_v1([("migration_a_blanc", 1, 2), ("recette", 3, 5), ("tnr", 3, 8)])
+    generation = generer(config, 42, DATE_GENERATION)
+    _verifier_phases(config, generation)
+    phases = _phases_par_semaine(generation)
+    assert phases[1] == phases[2] == {"migration_a_blanc"}
+    for semaine in range(3, 9):
+        assert phases[semaine] == {"tnr"}, semaine
+
+
+def test_phase_terminee_et_trou_du_calendrier() -> None:
+    """Une Phase terminée cède la place à une Phase en cours ; dans un trou, la dernière
+    Phase commencée s'applique."""
+    config = _calendrier_v1([("migration_a_blanc", 1, 5), ("recette", 2, 3), ("tnr", 7, 8)])
+    generation = generer(config, 42, DATE_GENERATION)
+    _verifier_phases(config, generation)
+    phases = _phases_par_semaine(generation)
+    attendues = {
+        1: "migration_a_blanc",
+        2: "recette",
+        3: "recette",
+        4: "migration_a_blanc",  # recette terminée, migration à blanc encore en cours
+        5: "migration_a_blanc",
+        6: "recette",  # trou : dernière Phase commencée (début 2)
+        7: "tnr",
+        8: "tnr",
+    }
+    assert phases == {semaine: {phase} for semaine, phase in attendues.items()}
+
+
+def test_reouvertures_bornees_par_le_maximum_d_entrees() -> None:
+    """Semaines pleines dès les créations : aucune réouverture n'est gardée."""
+    config = _variante(_volumetrie((160, 160), (1, 20)))
+    for graine in GRAINES:
+        generation = generer(config, graine, DATE_GENERATION)
+        assert _nb_anomalies(generation) == 160
+        assert set(_entrees_par_semaine(generation).values()) == {20}
+
+
+def test_reouvertures_gardees_sous_le_maximum() -> None:
+    generation = generer(_variante(_volumetrie((2000, 2000), (1, 1000))), 42, DATE_GENERATION)
+    assert sum(_entrees_par_semaine(generation).values()) > 2000
+
+
+def test_volumetrie_infaisable() -> None:
+    config = _variante(_volumetrie((10, 20), (5, 10)))
+    with pytest.raises(UsineErreur) as erreur:
+        generer(config, 42, DATE_GENERATION)
+    message = str(erreur.value)
+    assert "volumétrie infaisable" in message
+    assert "[10, 20]" in message
+    assert "[40, 80]" in message
+    assert "[5, 10]" in message
+
+
+def test_vague_sans_phase() -> None:
+    def vider(donnees: dict[str, Any]) -> None:
+        donnees["vagues"][0]["phases"] = []
+
+    with pytest.raises(UsineErreur, match="Vague V1"):
+        generer(_variante(vider), 42, DATE_GENERATION)
+
+
+def test_vague_inconnue_refusee_au_chargement(tmp_path: Path) -> None:
+    fautive = tmp_path / "programme.yaml"
+    fautive.write_text(
+        PROGRAMME_LIVRE.read_text(encoding="utf-8").replace("vague: V2", "vague: V9", 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(UsineErreur) as erreur:
+        charger_yaml(fautive, ConfigProgramme)
+    message = str(erreur.value)
+    assert str(fautive) in message
+    assert "ENT-E" in message
+    assert "Vague" in message
+    assert "V9" in message
+
+
+def test_cle_projet(config: ConfigProgramme) -> None:
+    generation = generer(config, 42, DATE_GENERATION, cle_projet="PILOTE")
+    assert all(e.cle_ticket.startswith("PILOTE-") for e in generation.evenements)
+    assert all(cle.startswith("PILOTE-") for cle in generation.verite_terrain)
+    reference = serialiser_journal(generer(config, 42, DATE_GENERATION))
+    assert serialiser_journal(generation).replace(b'"PILOTE-', b'"DEMO-') == reference
+
+
+@pytest.mark.parametrize("cle", ["", "D", "demo", "1DEMO", "DE-MO", "DEMO\n"])
+def test_cle_projet_invalide(config: ConfigProgramme, cle: str) -> None:
+    with pytest.raises(UsineErreur, match="clé de projet invalide"):
+        generer(config, 42, DATE_GENERATION, cle_projet=cle)

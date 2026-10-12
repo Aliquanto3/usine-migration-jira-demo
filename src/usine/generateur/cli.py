@@ -8,7 +8,7 @@ import typer
 
 from usine.config import charger_yaml
 from usine.contrats.calendrier import analyser_date_iso, jour_local
-from usine.contrats.config import ConfigProgramme
+from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import CHEMIN_JOURNAL
 from usine.generateur.journal import ecrire_journal
@@ -48,14 +48,29 @@ def generer(
     config: Annotated[Path, typer.Option(help="Configuration du Programme.")] = Path(
         "config/programme.yaml"
     ),
+    config_jira: Annotated[
+        Path,
+        typer.Option(
+            "--config-jira", help="Configuration Jira, dont la clé de projet des tickets."
+        ),
+    ] = Path("config/jira.yaml"),
     sortie: Annotated[
         Path, typer.Option(help="Répertoire où écrire le Journal et la vérité terrain.")
     ] = CHEMIN_JOURNAL.parent,
 ) -> None:
-    """Génère le Journal d'événements du Programme fictif réduit et sa vérité terrain."""
+    """Génère le Journal d'événements du Programme fictif et sa vérité terrain.
+
+    Les clés de tickets sont `<cle_projet>-<n>`, avec la clé de projet de `--config-jira`.
+    """
     jour = jour_local(datetime.now(UTC)) if date_generation is None else _date(date_generation)
     programme = charger_yaml(config, ConfigProgramme)
-    generation = generer_journal(programme, programme.graine if graine is None else graine, jour)
+    jira = charger_yaml(config_jira, ConfigJira)
+    generation = generer_journal(
+        programme,
+        programme.graine if graine is None else graine,
+        jour,
+        cle_projet=jira.cle_projet,
+    )
     journal = ecrire_journal(generation, sortie)
     typer.echo(
         f"Journal écrit : {journal} ({len(generation.evenements)} événements,"

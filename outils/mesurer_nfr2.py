@@ -40,7 +40,15 @@ def programme_cible(graine: int) -> ConfigProgramme:
             for n in range(1, NB_ENTITES + 1)
         ],
     )
-    donnees["volumetrie"].update(anomalies_min=NB_ANOMALIES, anomalies_max=NB_ANOMALIES)
+    # Le générateur tire dans [anomalies] ∩ NB_SEMAINES × [Entrées par semaine] : on élargit
+    # le maximum d'Entrées hebdomadaires pour que 5 000 Anomalies restent atteignables, avec
+    # une marge (double du strict nécessaire) pour que les réouvertures ne soient pas refusées.
+    entrees_max = max(
+        donnees["volumetrie"]["entrees_semaine_max"], 2 * -(-NB_ANOMALIES // NB_SEMAINES)
+    )
+    donnees["volumetrie"].update(
+        anomalies_min=NB_ANOMALIES, anomalies_max=NB_ANOMALIES, entrees_semaine_max=entrees_max
+    )
     return ConfigProgramme.model_validate(donnees)
 
 

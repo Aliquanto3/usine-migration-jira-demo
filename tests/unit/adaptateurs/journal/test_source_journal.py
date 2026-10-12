@@ -21,7 +21,7 @@ RACINE = Path(__file__).resolve().parents[4]
 
 @pytest.fixture(scope="module")
 def generation() -> Generation:
-    config = charger_yaml(RACINE / "config" / "programme.yaml", ConfigProgramme)
+    config = charger_yaml(RACINE / "tests/unit/generateur/programme_reduit.yaml", ConfigProgramme)
     return generer(config, 42, date(2026, 10, 12))
 
 

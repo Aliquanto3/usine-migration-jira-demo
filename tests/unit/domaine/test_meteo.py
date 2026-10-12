@@ -224,7 +224,7 @@ def _bloquantes_ouvertes(evenements: Iterable[Evenement], d: date) -> dict[str, 
 
 
 def test_journal_genere(tmp_path: Path) -> None:
-    config = charger_yaml(RACINE / "config" / "programme.yaml", ConfigProgramme)
+    config = charger_yaml(RACINE / "tests/unit/generateur/programme_reduit.yaml", ConfigProgramme)
     chemin = tmp_path / "journal.jsonl"
     chemin.write_bytes(serialiser_journal(generer(config, 42, date(2026, 10, 12))))
     source = SourceJournal(chemin)

@@ -1,0 +1,73 @@
+# Fixture d'essai : copie figée de la configuration réduite du walking skeleton (Story 0.3).
+# Les tests des autres lanes génèrent leur Journal sur cette copie pour garder leur durée
+# et leurs attendus (ENT-A, ENT-B, quelques centaines d'événements). Ne pas l'aligner sur
+# config/programme.yaml, qui décrit le Programme complet (Story 1.1).
+#
+# Programme fictif, version réduite du walking skeleton (Story 0.3), lu par `usine donnees`.
+# Tout est fictif : aucun nom réel d'entreprise ni de personne.
+
+# Nom du Programme de migration.
+nom: Programme fictif de démonstration
+# Graine du tirage par défaut : même graine et même date de génération, même Journal.
+graine: 42
+# Nombre de semaines du Programme, jusqu'à la semaine de la Date d'injection comprise.
+nb_semaines: 8
+
+# Entités pilotées ; chacune appartient à une seule Vague.
+entites:
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-A
+    # Libellé affiché de l'Entité.
+    libelle: Entité Alpha
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-B
+    # Libellé affiché de l'Entité.
+    libelle: Entité Bêta
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+
+# Vagues de migration et calendrier de leurs Phases, en semaines du Programme.
+vagues:
+  # Code de la Vague.
+  - code: V1
+    # Libellé affiché de la Vague.
+    libelle: Vague 1
+    # Phases de test de la Vague, dans l'ordre.
+    phases:
+      # Phase de test : migration à blanc.
+      - phase: migration_a_blanc
+        # Première semaine de la Phase (1 = semaine de l'ancrage).
+        semaine_debut: 1
+        # Dernière semaine de la Phase.
+        semaine_fin: 3
+      # Phase de test : recette.
+      - phase: recette
+        # Première semaine de la Phase.
+        semaine_debut: 3
+        # Dernière semaine de la Phase.
+        semaine_fin: 6
+      # Phase de test : tests de non-régression.
+      - phase: tnr
+        # Première semaine de la Phase.
+        semaine_debut: 6
+        # Dernière semaine de la Phase.
+        semaine_fin: 8
+
+# Domaines fonctionnels des tickets.
+domaines:
+  - comptabilite
+  - achats
+  - paie
+
+# Volumétrie du générateur (réduite pour le walking skeleton).
+volumetrie:
+  # Nombre minimal d'Anomalies générées, toutes Entités confondues.
+  anomalies_min: 25
+  # Nombre maximal d'Anomalies générées, toutes Entités confondues.
+  anomalies_max: 35
+  # Nombre minimal d'Entrées d'Anomalies par semaine, appliqué par le générateur.
+  entrees_semaine_min: 1
+  # Nombre maximal d'Entrées d'Anomalies par semaine, appliqué par le générateur.
+  entrees_semaine_max: 10

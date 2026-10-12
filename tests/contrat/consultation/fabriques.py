@@ -47,6 +47,11 @@ def _passage_publie() -> tuple[Path, Path]:
     atexit.register(shutil.rmtree, racine, ignore_errors=True)
     for repertoire in ("config", "gabarits"):
         shutil.copytree(RACINE_DEPOT / repertoire, racine / repertoire)
+    # Programme réduit figé (2 Entités) : garde la durée et les attendus de l'essai.
+    shutil.copyfile(
+        RACINE_DEPOT / "tests/unit/generateur/programme_reduit.yaml",
+        racine / "config" / "programme.yaml",
+    )
     programme = charger_yaml(racine / "config" / "programme.yaml", ConfigProgramme)
     generer_journal(programme, 42, date(2026, 10, 12), racine)
     lance = lancer_rapport(

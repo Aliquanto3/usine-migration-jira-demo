@@ -164,7 +164,7 @@ def test_instantane_compte_par_attributs() -> None:
 
 @pytest.fixture(scope="module")
 def generation() -> Generation:
-    config = charger_yaml(RACINE / "config" / "programme.yaml", ConfigProgramme)
+    config = charger_yaml(RACINE / "tests/unit/generateur/programme_reduit.yaml", ConfigProgramme)
     return generer(config, 42, date(2026, 10, 12))
 
 
