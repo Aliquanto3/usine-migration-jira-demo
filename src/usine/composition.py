@@ -229,7 +229,7 @@ def construire_rapport(
         Etape.extraction: EtapeBouchon(),
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
         Etape.kpi: EtapeBouchon(),
-        Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour),
+        Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
         Etape.prevision: EtapeBouchon(),
         Etape.rendu: EtapeRendu(gabarit),
     }
