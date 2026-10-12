@@ -1,212 +1,216 @@
 {
-  "version_corpus": "provisoire-1",
-  "modele_corpus": "gabarits-provisoires",
+  "version_corpus": "llm-1",
+  "modele_corpus": "mistral:mistral-medium-latest",
   "domaines": {
     "credits": {
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les échéanciers de prêt",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (crédits)."
+            "titre": "Montant du crédit incorrect pour le client {entite}",
+            "description": "Le montant affiché pour le crédit du client {entite} ne correspond pas à la valeur attendue dans le nouveau SI. Une vérification manuelle est nécessaire pour identifier l'écart."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur les dossiers de crédit immobilier",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (crédits)."
+            "titre": "Date d'échéance manquante pour le crédit {entite}",
+            "description": "La date d'échéance du crédit {entite} n'est pas renseignée dans le système, empêchant le calcul des intérêts et des pénalités."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les garanties des prêts",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (crédits)."
+            "titre": "Statut du crédit {entite} incohérent",
+            "description": "Le statut du crédit {entite} est marqué comme 'actif' alors que le client a remboursé intégralement son emprunt. Une correction est requise."
           },
           {
-            "titre": "Historique incomplet sur les taux des prêts à la consommation",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (crédits)."
+            "titre": "Taux d'intérêt erroné pour le crédit {entite}",
+            "description": "Le taux d'intérêt appliqué au crédit {entite} est différent de celui convenu dans le contrat initial, entraînant un calcul incorrect des mensualités."
           },
           {
-            "titre": "Anciens codes non convertis sur les échéanciers de prêt",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (crédits)."
+            "titre": "Historique des remboursements incomplet pour {entite}",
+            "description": "L'historique des remboursements du crédit {entite} ne contient pas toutes les transactions effectuées, ce qui fausse le solde restant dû."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur les dossiers de crédit immobilier",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (crédits)."
+            "titre": "Client {entite} associé à un crédit inexistant",
+            "description": "Le client {entite} apparaît comme titulaire d'un crédit qui n'existe pas dans le référentiel du nouveau SI, nécessitant une suppression ou une correction."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les échéanciers de prêt",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (crédits)."
+            "titre": "Écart sur le calcul des intérêts pour les crédits à taux variable",
+            "description": "Les intérêts calculés pour les crédits à taux variable de l'entité {entite} présentent un écart de 0,2% par rapport aux valeurs attendues."
           },
           {
-            "titre": "Conversion de devise erronée sur les dossiers de crédit immobilier",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (crédits)."
+            "titre": "Montant total incorrect pour les crédits renégociés",
+            "description": "Le montant total des crédits renégociés pour l'entité {entite} est systématiquement inférieur de 5% aux valeurs de référence."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les garanties des prêts",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (crédits)."
+            "titre": "Erreur de conversion des devises pour les crédits internationaux",
+            "description": "Les montants des crédits libellés en devises étrangères pour l'entité {entite} sont convertis avec un taux incorrect, entraînant des écarts significatifs."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les taux des prêts à la consommation",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (crédits)."
+            "titre": "Incohérence dans le calcul des pénalités de remboursement anticipé",
+            "description": "Les pénalités de remboursement anticipé pour les crédits de l'entité {entite} sont calculées avec un coefficient erroné, entraînant des montants non conformes."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les échéanciers de prêt",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (crédits)."
+            "titre": "Problème de calcul des échéances pour les crédits amortissables",
+            "description": "Les échéances des crédits amortissables de l'entité {entite} sont calculées avec une période de référence incorrecte, provoquant des désalignements."
           },
           {
-            "titre": "Signe inversé sur les dossiers de crédit immobilier",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (crédits)."
+            "titre": "Valeurs aberrantes pour les crédits indexés sur un indice spécifique",
+            "description": "Les crédits indexés sur l'indice X pour l'entité {entite} présentent des valeurs aberrantes, non conformes aux règles de calcul définies."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les échéanciers de prêt",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (crédits)."
+            "titre": "Erreur de calcul des intérêts pour les crédits à taux variable",
+            "description": "Les intérêts des crédits à taux variable de l'entité {entite} sont calculés avec un taux incorrect dans le nouveau SI, entraînant des écarts de 0,2% par rapport aux valeurs attendues."
           },
           {
-            "titre": "Table de codes incomplète pour les dossiers de crédit immobilier",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (crédits)."
+            "titre": "Échec de la génération des échéanciers pour les prêts immobiliers",
+            "description": "Le nouveau SI ne parvient pas à générer les échéanciers pour les prêts immobiliers de l'entité {entite}, retournant une erreur de type 'Date invalide'."
           },
           {
-            "titre": "Option désactivée dans l'écran de suivi des prêts",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (crédits)."
+            "titre": "Affichage incorrect du solde restant dû pour les crédits renouvelables",
+            "description": "Le solde restant dû des crédits renouvelables de l'entité {entite} est affiché avec une décimale supplémentaire dans le nouveau SI, faussant les rapports clients."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les taux des prêts à la consommation",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (crédits)."
+            "titre": "Absence de notification pour les remboursements anticipés",
+            "description": "Les clients de l'entité {entite} ne reçoivent aucune notification lors d'un remboursement anticipé de leur crédit, alors que cette fonctionnalité était active dans l'ancien SI."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de suivi des prêts",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (crédits)."
+            "titre": "Incohérence dans le classement des crédits par risque",
+            "description": "Les crédits de l'entité {entite} sont classés dans une catégorie de risque inférieure à celle attendue dans le nouveau SI, sans justification visible."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur les dossiers de crédit immobilier",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (crédits)."
+            "titre": "Impossibilité de modifier le taux d'un crédit en cours",
+            "description": "Les conseillers de l'entité {entite} ne peuvent plus modifier le taux d'un crédit en cours via le nouveau SI, la fonctionnalité retournant une erreur 'Accès refusé'."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux d'octroi de crédit",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (crédits)."
+            "titre": "Échec de synchronisation des données de crédit pour {entite}",
+            "description": "Les informations de solde et d'historique des crédits ne sont pas mises à jour dans le système cible pour l'Entité {entite}. Les logs indiquent une interruption lors du transfert des données."
           },
           {
-            "titre": "Retard constaté sur le flux d'octroi de crédit",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (crédits)."
+            "titre": "Absence de réception des flux de remboursement pour {entite}",
+            "description": "Aucun flux de remboursement n'est enregistré pour les crédits de l'Entité {entite} depuis 24 heures. Les fichiers attendus ne sont pas présents dans le répertoire de destination."
           },
           {
-            "titre": "Messages perdus dans le flux d'octroi de crédit",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (crédits)."
+            "titre": "Incohérence des montants de crédit pour {entite}",
+            "description": "Les montants des crédits affichés dans l'application source diffèrent de ceux de l'application cible pour l'Entité {entite}. Les écarts concernent principalement les intérêts calculés."
           },
           {
-            "titre": "Doublon de messages dans le flux d'octroi de crédit",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (crédits)."
+            "titre": "Flux de validation de crédit bloqué pour {entite}",
+            "description": "Les demandes de validation de crédit pour l'Entité {entite} ne sont pas transmises à l'application de validation. Aucune erreur n'est remontée dans les logs."
           },
           {
-            "titre": "Accusé de réception absent pour le flux d'octroi de crédit",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (crédits)."
+            "titre": "Retard dans la propagation des mises à jour de crédit pour {entite}",
+            "description": "Les mises à jour des contrats de crédit pour l'Entité {entite} mettent plus de 6 heures à être répercutées dans le système secondaire, contre 30 minutes habituellement."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux d'octroi de crédit",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (crédits)."
+            "titre": "Perte de données lors du transfert des crédits pour {entite}",
+            "description": "Certains enregistrements de crédits pour l'Entité {entite} sont manquants dans le système cible après le transfert. Les identifiants concernés sont listés en pièce jointe."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les échéanciers de prêt",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (crédits)."
+            "titre": "Échec de validation des flux de crédits sur {entite}",
+            "description": "Les tests automatisés de validation des flux de crédits échouent systématiquement avec un timeout après 30 secondes. Aucun résultat n'est retourné."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de suivi des prêts",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (crédits)."
+            "titre": "Impossibilité d'accéder à l'interface de gestion des crédits pour {entite}",
+            "description": "L'interface de gestion des crédits affiche une erreur 503 lors de toute tentative de connexion, empêchant toute opération."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les garanties des prêts",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (crédits)."
+            "titre": "Données de crédits corrompues pour {entite}",
+            "description": "Les données de crédits récupérées via l'API présentent des valeurs nulles ou incohérentes, rendant les tests inutilisables."
           },
           {
-            "titre": "Certificat expiré sur le flux d'octroi de crédit",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (crédits)."
+            "titre": "Lenteur anormale des requêtes de crédits sur {entite}",
+            "description": "Les requêtes de crédits mettent plus de 2 minutes à s'exécuter, alors que le seuil acceptable est de 10 secondes."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les échéanciers de prêt",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (crédits)."
+            "titre": "Erreur de synchronisation des soldes de crédits pour {entite}",
+            "description": "Les soldes de crédits ne sont pas synchronisés entre les bases de données primaire et secondaire, entraînant des écarts."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur les dossiers de crédit immobilier",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (crédits)."
+            "titre": "Indisponibilité du service de simulation de crédits pour {entite}",
+            "description": "Le service de simulation de crédits ne répond pas aux requêtes, empêchant la validation des scénarios de test."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les échéanciers de prêt",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (crédits)."
+            "titre": "Échec du calcul des intérêts pour le contrat {entite}",
+            "description": "Le montant des intérêts calculé pour le contrat {entite} est incohérent avec les paramètres de taux appliqués. Le log indique une valeur nulle pour le capital de référence."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur les dossiers de crédit immobilier",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (crédits)."
+            "titre": "Rejet systématique des demandes de crédit {entite}",
+            "description": "Toutes les demandes de crédit soumises pour l'entité {entite} sont rejetées avec le code d'erreur ERR_DONNEE_INVALIDE, sans justification fonctionnelle."
           },
           {
-            "titre": "Données de test périmées sur les garanties des prêts",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (crédits)."
+            "titre": "Affichage incorrect du solde disponible pour {entite}",
+            "description": "Le solde disponible affiché pour le client {entite} est négatif alors que le compte ne présente aucune opération débiteur."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les taux des prêts à la consommation",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (crédits)."
+            "titre": "Erreur de validation des garanties pour {entite}",
+            "description": "La validation des garanties pour le dossier {entite} échoue avec une erreur de type 'valeur manquante' pour le champ 'montant_garanti'."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les échéanciers de prêt",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (crédits)."
+            "titre": "Incohérences dans l'historique des remboursements {entite}",
+            "description": "L'historique des remboursements pour le crédit {entite} affiche des dates de paiement antérieures à la date de création du contrat."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur les dossiers de crédit immobilier",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (crédits)."
+            "titre": "Impossibilité de générer un échéancier pour {entite}",
+            "description": "La génération de l'échéancier pour le contrat {entite} produit une erreur 'liste vide' alors que les données de base sont présentes."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de suivi des prêts",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (crédits)."
+            "titre": "Erreur de calcul des intérêts sur les crédits à taux variable",
+            "description": "Les intérêts des crédits à taux variable pour l'entité {entite} ne sont pas recalculés correctement après la migration, entraînant des écarts de quelques centimes sur les échéanciers."
           },
           {
-            "titre": "Nouveau rapport souhaité sur les dossiers de crédit immobilier",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (crédits)."
+            "titre": "Incohérence dans l'affichage des soldes des crédits en cours",
+            "description": "Les soldes des crédits en cours pour l'entité {entite} affichent des valeurs erronées dans l'interface utilisateur, sans impact sur les données stockées."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les garanties des prêts",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (crédits)."
+            "titre": "Absence de traçabilité des opérations de remboursement anticipé",
+            "description": "Les opérations de remboursement anticipé pour les crédits de l'entité {entite} ne sont pas traçables dans les logs post-migration."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de suivi des prêts",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (crédits)."
+            "titre": "Problème d'export des historiques de crédits",
+            "description": "L'export des historiques de crédits pour l'entité {entite} génère un fichier corrompu, empêchant toute exploitation des données."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les échéanciers de prêt",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (crédits)."
+            "titre": "Décalage des dates d'échéance dans les notifications",
+            "description": "Les notifications envoyées aux clients de l'entité {entite} indiquent des dates d'échéance décalées d'un jour par rapport aux données réelles."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de suivi des prêts",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (crédits)."
+            "titre": "Affichage incorrect des taux d'intérêt dans les relevés",
+            "description": "Les relevés de crédits pour l'entité {entite} affichent des taux d'intérêt erronés, bien que les calculs en base soient corrects."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les échéanciers de prêt",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (crédits)."
+          "titre": "Vérification du calcul des intérêts pour un prêt standard",
+          "description": "Exécuter le calcul des intérêts pour un prêt standard avec un taux fixe de 3,5 % sur 5 ans et vérifier que le montant total des intérêts correspond à la valeur attendue pour l'entité {entite}."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de suivi des prêts",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (crédits)."
+          "titre": "Validation de l'annulation d'un crédit en cours",
+          "description": "Simuler l'annulation d'un crédit en cours pour un client de l'entité {entite} et confirmer que le solde est bien remboursé sans pénalité."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux d'octroi de crédit",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (crédits)."
+          "titre": "Test de la génération de relevés de crédit",
+          "description": "Générer un relevé de crédit pour un client de l'entité {entite} et vérifier que toutes les informations (montant, durée, taux) sont correctement affichées."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les taux des prêts à la consommation",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (crédits)."
+          "titre": "Contrôle de la mise à jour des conditions de crédit",
+          "description": "Modifier les conditions d'un crédit existant pour l'entité {entite} et s'assurer que les nouvelles conditions sont bien appliquées et visibles dans le système."
         },
         {
-          "titre": "Non-régression sur l'écran de suivi des prêts",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (crédits)."
+          "titre": "Vérification de l'éligibilité d'un client à un crédit",
+          "description": "Tester l'éligibilité d'un client de l'entité {entite} à un crédit en fonction de ses revenus et de son historique, et confirmer que le résultat est cohérent avec les règles métiers."
+        },
+        {
+          "titre": "Test de la clôture automatique d'un crédit arrivant à échéance",
+          "description": "Simuler l'arrivée à échéance d'un crédit pour l'entité {entite} et vérifier que le système clôture automatiquement le dossier sans intervention manuelle."
         }
       ]
     },
@@ -214,207 +218,211 @@
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les comptes courants",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (dépôts)."
+            "titre": "Solde des comptes dépôts incorrect après migration",
+            "description": "Les soldes affichés pour les comptes dépôts de l'entité {entite} ne correspondent pas aux relevés de fin de journée générés par l'ancien SI. Une vérification manuelle est nécessaire pour identifier les écarts."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur les autorisations de découvert",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (dépôts)."
+            "titre": "Historique des opérations de dépôt manquant",
+            "description": "L'historique des opérations de dépôt pour les clients de l'entité {entite} n'est pas disponible dans le nouveau SI. Les données semblent avoir été partiellement omises lors de la migration."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les relevés de compte",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (dépôts)."
+            "titre": "Incohérence des dates de valeur sur les dépôts",
+            "description": "Les dates de valeur associées aux dépôts pour l'entité {entite} ne sont pas alignées avec les dates attendues, ce qui impacte le calcul des intérêts."
           },
           {
-            "titre": "Historique incomplet sur les agios trimestriels",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (dépôts)."
+            "titre": "Comptes dépôts non accessibles pour certains clients",
+            "description": "Les clients de l'entité {entite} signalent ne pas pouvoir accéder à leurs comptes dépôts dans le nouveau SI, bien que ceux-ci soient visibles dans l'ancien système."
           },
           {
-            "titre": "Anciens codes non convertis sur les comptes courants",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (dépôts)."
+            "titre": "Montants des dépôts doublonnés",
+            "description": "Certains montants de dépôts pour l'entité {entite} apparaissent en double dans le nouveau SI, entraînant des soldes erronés et des incohérences comptables."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur les autorisations de découvert",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (dépôts)."
+            "titre": "Erreur d'affichage des types de comptes dépôts",
+            "description": "Les types de comptes dépôts (ex : livret A, compte à terme) pour l'entité {entite} sont incorrectement affichés dans le nouveau SI, ce qui perturbe les opérations clients."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les comptes courants",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (dépôts)."
+            "titre": "Montant du dépôt non conforme après migration",
+            "description": "Le montant affiché pour le dépôt {entite} dans le nouveau SI diffère de celui du SI source, sans justification fonctionnelle."
           },
           {
-            "titre": "Conversion de devise erronée sur les autorisations de découvert",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (dépôts)."
+            "titre": "Date de valeur du dépôt incorrecte",
+            "description": "La date de valeur du dépôt {entite} est décalée d'un jour par rapport à la date attendue après migration."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les relevés de compte",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (dépôts)."
+            "titre": "Devise du dépôt mal convertie",
+            "description": "La devise du dépôt {entite} est affichée en EUR dans le nouveau SI alors qu'elle était en USD dans le SI source."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les agios trimestriels",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (dépôts)."
+            "titre": "Solde du compte dépôt erroné",
+            "description": "Le solde du compte associé au dépôt {entite} est incorrect après migration, sans mouvement justificatif."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les comptes courants",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (dépôts)."
+            "titre": "Type de dépôt non respecté",
+            "description": "Le type de dépôt {entite} (ex : à terme) est incorrectement classé comme un dépôt à vue dans le nouveau SI."
           },
           {
-            "titre": "Signe inversé sur les autorisations de découvert",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (dépôts)."
+            "titre": "Intérêts du dépôt mal calculés",
+            "description": "Les intérêts générés par le dépôt {entite} ne correspondent pas aux valeurs attendues après migration."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les comptes courants",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (dépôts)."
+            "titre": "Échec de création de dépôt pour le client {entite}",
+            "description": "Le nouveau SI rejette systématiquement les demandes de création de dépôt pour l'entité {entite} avec une erreur de validation des paramètres."
           },
           {
-            "titre": "Table de codes incomplète pour les autorisations de découvert",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (dépôts)."
+            "titre": "Montant du dépôt non pris en compte pour {entite}",
+            "description": "Les montants saisis pour les dépôts de l'entité {entite} ne sont pas enregistrés correctement dans le nouveau SI."
           },
           {
-            "titre": "Option désactivée dans l'écran de consultation des comptes",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (dépôts)."
+            "titre": "Dépôt dupliqué pour le client {entite}",
+            "description": "Le système génère automatiquement un dépôt en double pour chaque opération initiée par l'entité {entite}."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les agios trimestriels",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (dépôts)."
+            "titre": "Date de valeur incorrecte pour les dépôts {entite}",
+            "description": "La date de valeur des dépôts effectués par l'entité {entite} est systématiquement décalée de 24 heures dans le nouveau SI."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de consultation des comptes",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (dépôts)."
+            "titre": "Statut des dépôts bloqué pour {entite}",
+            "description": "Les dépôts associés à l'entité {entite} restent indéfiniment en statut 'En attente' sans passer à 'Validé'."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur les autorisations de découvert",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (dépôts)."
+            "titre": "Erreur de devises pour les dépôts {entite}",
+            "description": "Les dépôts en devises étrangères pour l'entité {entite} sont enregistrés dans la mauvaise devise dans le nouveau SI."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux des opérations de guichet",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (dépôts)."
+            "titre": "Échec de synchronisation des comptes {entite} dans le domaine depots",
+            "description": "Les soldes des comptes {entite} ne sont pas mis à jour dans le système cible après la migration. Les logs indiquent une absence de réception des données depuis l'application source."
           },
           {
-            "titre": "Retard constaté sur le flux des opérations de guichet",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (dépôts)."
+            "titre": "Données de dépôts {entite} manquantes après migration",
+            "description": "Les historiques de transactions pour les dépôts {entite} ne sont pas disponibles dans le nouveau SI. Aucune trace des flux attendus n'est détectée dans les journaux."
           },
           {
-            "titre": "Messages perdus dans le flux des opérations de guichet",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (dépôts)."
+            "titre": "Incohérence des montants pour les dépôts {entite}",
+            "description": "Les montants des dépôts {entite} affichent des valeurs erronées dans le SI cible. Les vérifications montrent un désaccord entre les données source et cible."
           },
           {
-            "titre": "Doublon de messages dans le flux des opérations de guichet",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (dépôts)."
+            "titre": "Absence de validation des dépôts {entite} dans le nouveau SI",
+            "description": "Les dépôts {entite} ne sont pas validés automatiquement dans le système migré. Les processus en aval ne reçoivent aucune confirmation de traitement."
           },
           {
-            "titre": "Accusé de réception absent pour le flux des opérations de guichet",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (dépôts)."
+            "titre": "Erreur de réplication des dépôts {entite} vers le SI cible",
+            "description": "Les dépôts {entite} ne sont pas répliqués correctement dans le nouveau système. Les fichiers de log signalent une interruption des échanges entre applications."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux des opérations de guichet",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (dépôts)."
+            "titre": "Dépôts {entite} non accessibles après migration",
+            "description": "Les utilisateurs ne peuvent pas consulter les informations des dépôts {entite} dans le SI migré. Les requêtes vers l'application cible ne retournent aucune donnée."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les comptes courants",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (dépôts)."
+            "titre": "Échec de validation des dépôts à terme pour {entite}",
+            "description": "Les tests automatiques de création de dépôts à terme retournent systématiquement une erreur de type 'Timeout' pour l'Entité {entite}."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de consultation des comptes",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (dépôts)."
+            "titre": "Impossibilité de consulter les soldes des comptes dépôts pour {entite}",
+            "description": "La page de consultation des soldes des comptes dépôts affiche une erreur 503 pour l'Entité {entite}."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les relevés de compte",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (dépôts)."
+            "titre": "Blocage lors de la clôture de dépôts à vue pour {entite}",
+            "description": "La procédure de clôture des dépôts à vue s'interrompt avec un message d'erreur 'Service Unavailable' pour l'Entité {entite}."
           },
           {
-            "titre": "Certificat expiré sur le flux des opérations de guichet",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (dépôts)."
+            "titre": "Erreur lors de la mise à jour des taux des dépôts pour {entite}",
+            "description": "La mise à jour des taux des dépôts échoue avec une exception 'Connection Refused' pour l'Entité {entite}."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les comptes courants",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (dépôts)."
+            "titre": "Problème d'affichage des historiques de dépôts pour {entite}",
+            "description": "Les historiques de transactions des dépôts ne s'affichent pas et génèrent une erreur 'Server Not Reachable' pour l'Entité {entite}."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur les autorisations de découvert",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (dépôts)."
+            "titre": "Échec de génération des relevés de dépôts pour {entite}",
+            "description": "La génération des relevés de dépôts pour l'Entité {entite} retourne une erreur 'Request Timeout'."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les comptes courants",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (dépôts)."
+            "titre": "Échec de validation des soldes pour les comptes {entite}",
+            "description": "La vérification des soldes des comptes d'épargne génère une erreur systématique lors de l'exécution du script de contrôle nocturne."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur les autorisations de découvert",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (dépôts)."
+            "titre": "Incohérence dans l'historique des opérations de dépôt {entite}",
+            "description": "L'historique des dépôts pour certains clients affiche des montants incorrects, sans trace d'erreur dans les logs applicatifs."
           },
           {
-            "titre": "Données de test périmées sur les relevés de compte",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (dépôts)."
+            "titre": "Rejet des demandes de virement depuis les comptes {entite}",
+            "description": "Les virements initiés depuis les comptes de dépôt sont systématiquement rejetés avec un code d'erreur indiquant un solde insuffisant, alors que le solde est valide."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les agios trimestriels",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (dépôts)."
+            "titre": "Absence de données pour les relevés de compte {entite}",
+            "description": "Les relevés générés pour les comptes de dépôt ne contiennent aucune information sur les transactions effectuées au cours du mois écoulé."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les comptes courants",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (dépôts)."
+            "titre": "Erreur de calcul des intérêts pour les comptes {entite}",
+            "description": "Le calcul des intérêts pour les comptes d'épargne produit des résultats aberrants, avec des montants négatifs ou nulles pour des comptes actifs."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur les autorisations de découvert",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (dépôts)."
+            "titre": "Problème d'affichage des informations de dépôt {entite}",
+            "description": "L'interface utilisateur n'affiche pas les informations de dépôt pour certains clients, bien que les données soient présentes en base."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de consultation des comptes",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (dépôts)."
+            "titre": "Erreur de synchronisation des soldes sur les comptes {entite}",
+            "description": "Les soldes des comptes d'épargne affichent des écarts inexpliqués après la mise à jour nocturne. Aucun lien avec les processus de migration du SI cœur."
           },
           {
-            "titre": "Nouveau rapport souhaité sur les autorisations de découvert",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (dépôts)."
+            "titre": "Impossibilité de générer des relevés pour {entite}",
+            "description": "Les relevés de compte ne peuvent pas être générés pour les clients de l'entité {entite}, bien que les données soient disponibles en base."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les relevés de compte",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (dépôts)."
+            "titre": "Échec de validation des dépôts pour {entite}",
+            "description": "Les transactions de dépôt pour l'entité {entite} sont systématiquement rejetées avec une erreur de validation, sans impact sur les autres opérations."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de consultation des comptes",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (dépôts)."
+            "titre": "Affichage incorrect des historiques de transactions pour {entite}",
+            "description": "Les historiques de transactions des comptes de dépôt de l'entité {entite} affichent des données incomplètes ou erronées, sans lien avec la migration."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les comptes courants",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (dépôts)."
+            "titre": "Problème de calcul des intérêts pour {entite}",
+            "description": "Les intérêts calculés pour les comptes de dépôt de l'entité {entite} ne correspondent pas aux taux applicables, sans origine dans les processus migratoires."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de consultation des comptes",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (dépôts)."
+            "titre": "Indisponibilité des fonctionnalités de virement pour {entite}",
+            "description": "Les fonctionnalités de virement depuis les comptes de dépôt de l'entité {entite} sont temporairement indisponibles, sans cause liée à la migration du SI."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les comptes courants",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (dépôts)."
+          "titre": "Vérification du solde après dépôt en espèces",
+          "description": "Exécuter un dépôt en espèces sur le compte {entite} et vérifier que le solde est mis à jour correctement dans le système."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de consultation des comptes",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (dépôts)."
+          "titre": "Validation du dépôt par chèque",
+          "description": "Effectuer un dépôt par chèque pour le compte {entite} et confirmer que le chèque est crédité après validation."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux des opérations de guichet",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (dépôts)."
+          "titre": "Test de dépôt avec montant invalide",
+          "description": "Tenter un dépôt avec un montant négatif ou nul pour le compte {entite} et vérifier que le système rejette la transaction."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les agios trimestriels",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (dépôts)."
+          "titre": "Vérification de l'historique des dépôts",
+          "description": "Consulter l'historique des dépôts pour le compte {entite} et s'assurer que toutes les transactions sont enregistrées et accessibles."
         },
         {
-          "titre": "Non-régression sur l'écran de consultation des comptes",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (dépôts)."
+          "titre": "Test de dépôt en devise étrangère",
+          "description": "Effectuer un dépôt en devise étrangère pour le compte {entite} et vérifier que la conversion et le crédit sont correctement appliqués."
+        },
+        {
+          "titre": "Validation du dépôt en ligne via application mobile",
+          "description": "Simuler un dépôt via l'application mobile pour le compte {entite} et confirmer que la transaction est enregistrée et visible dans le système."
         }
       ]
     },
@@ -422,207 +430,211 @@
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les virements permanents",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (paiements)."
+            "titre": "Échec de validation des virements récurrents pour {entite}",
+            "description": "Les virements récurrents configurés pour l'entité {entite} échouent systématiquement lors de la validation, avec un message d'erreur indiquant un format de date invalide."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur les prélèvements",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (paiements)."
+            "titre": "Montants incorrects sur les prélèvements SEPA pour {entite}",
+            "description": "Les montants des prélèvements SEPA générés pour l'entité {entite} ne correspondent pas aux valeurs attendues, entraînant des écarts de plusieurs euros."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les opérations par carte",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (paiements)."
+            "titre": "Doublons de transactions pour les paiements par carte {entite}",
+            "description": "Des transactions par carte sont enregistrées en double pour l'entité {entite}, provoquant des soldes incorrects sur les comptes clients."
           },
           {
-            "titre": "Historique incomplet sur les mandats de prélèvement",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (paiements)."
+            "titre": "Absence de bénéficiaires dans les ordres de virement pour {entite}",
+            "description": "Les ordres de virement émis pour l'entité {entite} ne contiennent aucune information sur les bénéficiaires, empêchant leur exécution."
           },
           {
-            "titre": "Anciens codes non convertis sur les virements permanents",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (paiements)."
+            "titre": "Statut incorrect des paiements en attente pour {entite}",
+            "description": "Les paiements en attente de validation pour l'entité {entite} affichent un statut 'traité' alors qu'ils n'ont pas encore été exécutés."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur les prélèvements",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (paiements)."
+            "titre": "Erreur de devise sur les paiements internationaux pour {entite}",
+            "description": "Les paiements internationaux émis par l'entité {entite} sont enregistrés dans une devise incorrecte, causant des incohérences comptables."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les virements permanents",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (paiements)."
+            "titre": "Montant incorrect pour les virements en devise {entite}",
+            "description": "Les virements internationaux émis depuis le système source affichent un montant converti erroné dans le système cible, entraînant un écart de 0,5 % par rapport à la valeur attendue."
           },
           {
-            "titre": "Conversion de devise erronée sur les prélèvements",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (paiements)."
+            "titre": "Calcul erroné des frais de paiement pour {entite}",
+            "description": "Les frais appliqués aux transactions de type « urgent » sont calculés avec un taux incorrect, provoquant une surfacturation systématique de 2 %."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les opérations par carte",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (paiements)."
+            "titre": "Écart de conversion pour les prélèvements SEPA {entite}",
+            "description": "Les prélèvements SEPA en euros sont convertis en devise locale avec un taux obsolète, générant une différence de 0,01 unités par transaction."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les mandats de prélèvement",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (paiements)."
+            "titre": "Montant total incorrect dans les relevés {entite}",
+            "description": "Le total des paiements par lot dans les relevés clients ne correspond pas à la somme des transactions individuelles, avec un écart récurrent de 0,05 %."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les virements permanents",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (paiements)."
+            "titre": "Erreur de calcul des intérêts pour les retards {entite}",
+            "description": "Les pénalités de retard sur les paiements différés sont calculées avec un taux journalier erroné, entraînant un montant majoré de 1,2 %."
           },
           {
-            "titre": "Signe inversé sur les prélèvements",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (paiements)."
+            "titre": "Valeur incorrecte pour les paiements par carte {entite}",
+            "description": "Les transactions par carte de crédit affichent un montant final incorrect après application des taxes, avec un écart moyen de 0,8 %."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les virements permanents",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (paiements)."
+            "titre": "Échec de validation des virements SEPA pour {entite}",
+            "description": "Les virements SEPA émis par l'entité {entite} sont systématiquement rejetés avec le code erreur VAL-403, sans motif fonctionnel identifiable."
           },
           {
-            "titre": "Table de codes incomplète pour les prélèvements",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (paiements)."
+            "titre": "Doublons de transactions cartes dans les relevés {entite}",
+            "description": "Les relevés de compte de l'entité {entite} affichent des transactions par carte bancaire en double, sans mouvement réel correspondant."
           },
           {
-            "titre": "Option désactivée dans l'écran de saisie des virements",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (paiements)."
+            "titre": "Paiements par prélèvement non imputés pour {entite}",
+            "description": "Les prélèvements automatiques émis vers l'entité {entite} n'apparaissent pas dans les comptes des clients, bien que les fichiers aient été acceptés."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les mandats de prélèvement",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (paiements)."
+            "titre": "Erreur de conversion devises pour les paiements entrants {entite}",
+            "description": "Les montants des paiements entrants en devise étrangère pour {entite} sont convertis avec un taux erroné, entraînant des écarts de solde."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de saisie des virements",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (paiements)."
+            "titre": "Rejets systématiques des paiements par chèque pour {entite}",
+            "description": "Tous les paiements par chèque destinés à l'entité {entite} sont rejetés avec le message 'Format invalide', sans modification récente des règles."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur les prélèvements",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (paiements)."
+            "titre": "Délais de traitement anormaux pour les virements urgents {entite}",
+            "description": "Les virements urgents émis par {entite} mettent plus de 24h à être crédités, alors que le SLA prévoient un traitement en temps réel."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux de compensation",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (paiements)."
+            "titre": "Échec de validation des virements sortants pour {entite}",
+            "description": "Les virements émis vers des banques tierces pour l'entité {entite} ne sont pas validés par le système. Les fichiers générés ne sont pas transmis au module de traitement."
           },
           {
-            "titre": "Retard constaté sur le flux de compensation",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (paiements)."
+            "titre": "Rejet systématique des prélèvements SEPA pour {entite}",
+            "description": "Tous les prélèvements SEPA initiés par l'entité {entite} sont rejetés avec un code d'erreur indiquant une absence de réponse du service destinataire."
           },
           {
-            "titre": "Messages perdus dans le flux de compensation",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (paiements)."
+            "titre": "Absence de confirmation pour les paiements urgents {entite}",
+            "description": "Les paiements marqués comme urgents pour l'entité {entite} ne reçoivent aucune confirmation de traitement, bien que les montants soient débités."
           },
           {
-            "titre": "Doublon de messages dans le flux de compensation",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (paiements)."
+            "titre": "Doublons dans les fichiers de paiements pour {entite}",
+            "description": "Les fichiers de paiements générés pour l'entité {entite} contiennent des transactions en double, entraînant des rejets lors de l'import."
           },
           {
-            "titre": "Accusé de réception absent pour le flux de compensation",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (paiements)."
+            "titre": "Erreur de format dans les messages SWIFT pour {entite}",
+            "description": "Les messages SWIFT émis par l'entité {entite} présentent des erreurs de format, empêchant leur traitement par les systèmes destinataires."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux de compensation",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (paiements)."
+            "titre": "Paiements transfrontaliers bloqués pour {entite}",
+            "description": "Les paiements transfrontaliers initiés par l'entité {entite} restent en attente indéfiniment, sans retour d'erreur ou de confirmation."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les virements permanents",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (paiements)."
+            "titre": "Échec de validation des virements sortants sur {entite}",
+            "description": "Les tests automatisés de validation des virements sortants échouent systématiquement avec une erreur de type 'Timeout' lors de la connexion à la plateforme cible."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de saisie des virements",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (paiements)."
+            "titre": "Impossibilité d'exécuter les scénarios de paiements récurrents sur {entite}",
+            "description": "Les scénarios de test pour les paiements récurrents ne peuvent pas être lancés, car le service de planification retourne une erreur 'Service Unavailable'."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les opérations par carte",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (paiements)."
+            "titre": "Erreur de synchronisation des prélèvements SEPA sur {entite}",
+            "description": "Les tests de synchronisation des prélèvements SEPA génèrent une erreur 'Connection Refused' lors de l'appel au service de validation."
           },
           {
-            "titre": "Certificat expiré sur le flux de compensation",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (paiements)."
+            "titre": "Blocage des tests de paiements transfrontaliers sur {entite}",
+            "description": "Les tests de paiements transfrontaliers s'interrompent avec une erreur 'Server Not Reachable' lors de la phase de validation des devises."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les virements permanents",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (paiements)."
+            "titre": "Échec des tests de notification de paiements sur {entite}",
+            "description": "Les notifications de confirmation de paiement ne sont pas générées, car le service de messagerie retourne une erreur 'Destination Unreachable'."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur les prélèvements",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (paiements)."
+            "titre": "Problème de validation des paiements par carte sur {entite}",
+            "description": "Les tests de paiement par carte échouent avec une erreur 'Resource Unavailable' lors de la vérification des autorisations."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les virements permanents",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (paiements)."
+            "titre": "Échec de validation des virements sortants pour {entite}",
+            "description": "Les virements sortants vers des comptes externes sont systématiquement rejetés avec l'erreur 'Bénéficiaire non valide', alors que les données saisies sont conformes aux règles métiers."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur les prélèvements",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (paiements)."
+            "titre": "Montants des prélèvements automatiques incorrects pour {entite}",
+            "description": "Les montants des prélèvements automatiques affichés dans les relevés clients ne correspondent pas aux valeurs attendues, entraînant des écarts de solde."
           },
           {
-            "titre": "Données de test périmées sur les opérations par carte",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (paiements)."
+            "titre": "Absence de notification pour les paiements urgents {entite}",
+            "description": "Aucune notification n'est générée pour les paiements marqués comme urgents, alors que ces alertes sont requises par la réglementation interne."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les mandats de prélèvement",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (paiements)."
+            "titre": "Doublons de transactions dans l'historique de {entite}",
+            "description": "Certaines transactions apparaissent en double dans l'historique des comptes clients, sans que ces doublons n'aient été initiés par une action utilisateur."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les virements permanents",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (paiements)."
+            "titre": "Rejet des paiements récurrents pour {entite}",
+            "description": "Les paiements récurrents configurés pour des clients de {entite} sont rejetés avec le message 'Compte inactif', alors que les comptes sont bien actifs."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur les prélèvements",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (paiements)."
+            "titre": "Incohérences dans les soldes après paiement pour {entite}",
+            "description": "Les soldes des comptes clients ne sont pas mis à jour correctement après l'exécution de certains paiements, entraînant des écarts inexpliqués."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de saisie des virements",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (paiements)."
+            "titre": "Rejet de virement interne pour le client {entite}",
+            "description": "Le virement entre comptes internes du client {entite} est rejeté avec le code erreur PAY-404, alors que les soldes sont suffisants et les règles de validation respectées."
           },
           {
-            "titre": "Nouveau rapport souhaité sur les prélèvements",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (paiements)."
+            "titre": "Échec de génération du relevé de paiements pour {entite}",
+            "description": "Le processus de génération du relevé mensuel des paiements pour l'entité {entite} échoue systématiquement avec une erreur de type 'Source introuvable'."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les opérations par carte",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (paiements)."
+            "titre": "Paiement transfrontière bloqué pour {entite}",
+            "description": "Un paiement transfrontière initié par l'entité {entite} reste en statut 'En attente' depuis 48 heures sans justification claire dans les logs."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de saisie des virements",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (paiements)."
+            "titre": "Doublon de transaction pour le client {entite}",
+            "description": "Une transaction de paiement pour le client {entite} apparaît en double dans le système, alors qu'aucune duplication n'a été initiée par l'utilisateur."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les virements permanents",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (paiements)."
+            "titre": "Erreur de conversion de devise pour {entite}",
+            "description": "Le montant d'un paiement international pour l'entité {entite} est incorrect après conversion de devise, avec un écart de 5% par rapport au taux attendu."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de saisie des virements",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (paiements)."
+            "titre": "Notification de paiement non envoyée pour {entite}",
+            "description": "Les notifications de confirmation de paiement pour les transactions de l'entité {entite} ne sont pas envoyées aux destinataires, malgré un statut 'Validé' dans le système."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les virements permanents",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (paiements)."
+          "titre": "Vérification du traitement des virements SEPA en euros",
+          "description": "Exécuter un virement SEPA en euros depuis le compte {entite}001 vers le compte {entite}002 et vérifier que le montant est correctement déduit et crédité."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de saisie des virements",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (paiements)."
+          "titre": "Validation des rejets pour solde insuffisant",
+          "description": "Tenter un paiement de 1000 euros depuis le compte {entite}003 avec un solde de 500 euros et confirmer que la transaction est rejetée avec le message d'erreur approprié."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux de compensation",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (paiements)."
+          "titre": "Test de rappel automatique des prélèvements",
+          "description": "Simuler un prélèvement automatique récurrente sur le compte {entite}004 et vérifier que le montant est prélevé à la date prévue."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les mandats de prélèvement",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (paiements)."
+          "titre": "Contrôle des notifications de paiement",
+          "description": "Effectuer un paiement depuis le compte {entite}005 et vérifier que le client reçoit une notification par email et SMS confirmant la transaction."
         },
         {
-          "titre": "Non-régression sur l'écran de saisie des virements",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (paiements)."
+          "titre": "Validation des paiements transfrontaliers en devises",
+          "description": "Effectuer un paiement en dollars depuis le compte {entite}006 vers un compte à l'étranger et vérifier que le montant est converti et traité correctement."
+        },
+        {
+          "titre": "Test de blocage des paiements suspects",
+          "description": "Simuler une transaction suspecte depuis le compte {entite}007 et vérifier que le système bloque la transaction et alerte l'équipe de sécurité."
         }
       ]
     },
@@ -630,207 +642,211 @@
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les fiches clients",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (référentiel clients)."
+            "titre": "Doublons dans la table CLIENTS pour {entite}",
+            "description": "La table CLIENTS contient des doublons pour l'Entité {entite}, identifiés par des identifiants uniques distincts mais des données identiques (nom, adresse, etc.)."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur les adresses postales",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (référentiel clients)."
+            "titre": "Champs NOM et PRENOM vides pour certains clients de {entite}",
+            "description": "Pour l'Entité {entite}, certains enregistrements dans la table CLIENTS ont les champs NOM et PRENOM vide, rendant impossible leur identification."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les liens entre titulaires",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (référentiel clients)."
+            "titre": "Incohérence des dates de naissance dans {entite}",
+            "description": "Les dates de naissance de certains clients de l'Entité {entite} sont incohérentes (ex. : date postérieure à la date actuelle ou antérieure à 1900)."
           },
           {
-            "titre": "Historique incomplet sur les segments de clientèle",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (référentiel clients)."
+            "titre": "Adresses clients tronquées pour {entite}",
+            "description": "Les adresses de certains clients de l'Entité {entite} sont incomplètes ou tronquées, ce qui empêche leur utilisation pour des envois postaux."
           },
           {
-            "titre": "Anciens codes non convertis sur les fiches clients",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (référentiel clients)."
+            "titre": "Statut client incorrect pour {entite}",
+            "description": "Le statut de certains clients de l'Entité {entite} est marqué comme 'ACTIF' alors qu'ils devraient être 'INACTIF' ou inversement, selon les règles métier."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur les adresses postales",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (référentiel clients)."
+            "titre": "Numéros de téléphone invalides pour {entite}",
+            "description": "Les numéros de téléphone de certains clients de l'Entité {entite} ne respectent pas le format attendu (ex. : présence de caractères alphabétiques ou longueur incorrecte)."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les fiches clients",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (référentiel clients)."
+            "titre": "[{entite}] - Écart de calcul sur le solde des comptes clients",
+            "description": "Les soldes des comptes clients affichés dans le nouveau SI diffèrent de ceux du SI ancien après migration. Les écarts concernent spécifiquement les comptes avec des opérations en devises étrangères."
           },
           {
-            "titre": "Conversion de devise erronée sur les adresses postales",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (référentiel clients)."
+            "titre": "[{entite}] - Incohérence dans les dates de naissance des clients",
+            "description": "Les dates de naissance de certains clients ont été décalées d'un jour dans le nouveau SI, entraînant des incohérences avec les données historiques."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les liens entre titulaires",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (référentiel clients)."
+            "titre": "[{entite}] - Erreur sur le format des numéros de téléphone",
+            "description": "Les numéros de téléphone des clients ont été troncés ou mal formatés lors de la migration, rendant certains contacts injoignables."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les segments de clientèle",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (référentiel clients)."
+            "titre": "[{entite}] - Problème de conversion des adresses postales",
+            "description": "Les adresses postales de certains clients ont été partiellement ou totalement corrompues, avec des caractères spéciaux mal interprétés."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les fiches clients",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (référentiel clients)."
+            "titre": "[{entite}] - Anomalie sur les codes postaux des clients",
+            "description": "Les codes postaux de certains clients ont été modifiés de manière inattendue, entraînant des erreurs dans les envois postaux."
           },
           {
-            "titre": "Signe inversé sur les adresses postales",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (référentiel clients)."
+            "titre": "[{entite}] - Erreur sur les statuts des clients",
+            "description": "Les statuts des clients (actif, inactif, etc.) ont été incorrectement recalculés lors de la migration, impactant les processus métiers."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les fiches clients",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (référentiel clients)."
+            "titre": "Erreur de synchronisation des données clients dans {entite}",
+            "description": "Les informations des clients ne sont pas correctement synchronisées entre l'ancien et le nouveau SI, entraînant des incohérences dans les profils affichés."
           },
           {
-            "titre": "Table de codes incomplète pour les adresses postales",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (référentiel clients)."
+            "titre": "Doublons de clients dans {entite}",
+            "description": "Plusieurs entrées pour un même client apparaissent dans le référentiel, ce qui perturbe les processus de gestion."
           },
           {
-            "titre": "Option désactivée dans l'écran de fiche client",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (référentiel clients)."
+            "titre": "Champs manquants dans les fiches clients de {entite}",
+            "description": "Certaines données obligatoires (ex : adresse ou numéro de téléphone) sont absentes dans les fiches clients du nouveau SI."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les segments de clientèle",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (référentiel clients)."
+            "titre": "Erreur de formatage des identifiants clients dans {entite}",
+            "description": "Les identifiants clients ne respectent pas le format attendu, empêchant leur utilisation dans les processus aval."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de fiche client",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (référentiel clients)."
+            "titre": "Incohérences dans les statuts clients de {entite}",
+            "description": "Les statuts des clients (actif, inactif, etc.) ne sont pas correctement reflétés dans le nouveau SI, entraînant des erreurs de traitement."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur les adresses postales",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (référentiel clients)."
+            "titre": "Problème de tri des listes clients dans {entite}",
+            "description": "Les listes de clients ne sont pas triées selon les critères définis, rendant difficile leur exploitation par les utilisateurs."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux de synchronisation des tiers",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (référentiel clients)."
+            "titre": "Échec de synchronisation des données clients dans {entite}",
+            "description": "Les informations clients ne sont pas mises à jour dans le système cible après modification dans la source. Aucune erreur n'est remontée dans les logs applicatifs."
           },
           {
-            "titre": "Retard constaté sur le flux de synchronisation des tiers",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (référentiel clients)."
+            "titre": "Doublons de clients détectés dans {entite}",
+            "description": "Des entrées clients en double apparaissent dans le référentiel après chaque exécution du processus de mise à jour nocturne."
           },
           {
-            "titre": "Messages perdus dans le flux de synchronisation des tiers",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (référentiel clients)."
+            "titre": "Champs clients manquants dans {entite}",
+            "description": "Certains attributs obligatoires des clients, comme l'adresse ou le numéro de téléphone, sont absents après la synchronisation."
           },
           {
-            "titre": "Doublon de messages dans le flux de synchronisation des tiers",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (référentiel clients)."
+            "titre": "Incohérences de statuts clients dans {entite}",
+            "description": "Le statut des clients (actif/inactif) diffère entre le référentiel source et la base cible sans explication fonctionnelle."
           },
           {
-            "titre": "Accusé de réception absent pour le flux de synchronisation des tiers",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (référentiel clients)."
+            "titre": "Retards de propagation des mises à jour clients dans {entite}",
+            "description": "Les modifications apportées aux données clients mettent plus de 24 heures à être répercutées dans le système cible."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux de synchronisation des tiers",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (référentiel clients)."
+            "titre": "Erreurs de formatage des données clients dans {entite}",
+            "description": "Les données clients synchronisées contiennent des caractères spéciaux ou des formats incorrects, rendant leur exploitation impossible."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les fiches clients",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (référentiel clients)."
+            "titre": "Échec de la synchronisation des données clients dans {entite}",
+            "description": "La synchronisation des données clients avec le référentiel central échoue systématiquement, empêchant la mise à jour des informations."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de fiche client",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (référentiel clients)."
+            "titre": "Impossibilité d'accéder au référentiel clients pour {entite}",
+            "description": "Les utilisateurs ne parviennent pas à consulter ou modifier les données clients en raison d'une indisponibilité du service."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les liens entre titulaires",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (référentiel clients)."
+            "titre": "Erreur de validation des données clients dans {entite}",
+            "description": "Les validations automatiques des données clients retournent des erreurs, bloquant les processus de mise à jour."
           },
           {
-            "titre": "Certificat expiré sur le flux de synchronisation des tiers",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (référentiel clients)."
+            "titre": "Lenteur anormale des requêtes sur le référentiel clients pour {entite}",
+            "description": "Les requêtes sur le référentiel clients mettent un temps anormalement long à s'exécuter, impactant les performances."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les fiches clients",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (référentiel clients)."
+            "titre": "Incohérence des données clients dans {entite}",
+            "description": "Des incohérences sont observées entre les données clients du référentiel et celles affichées dans les interfaces utilisateurs."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur les adresses postales",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (référentiel clients)."
+            "titre": "Échec de l'export des données clients pour {entite}",
+            "description": "Les tentatives d'export des données clients depuis le référentiel échouent, empêchant leur utilisation dans d'autres systèmes."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les fiches clients",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (référentiel clients)."
+            "titre": "Échec de validation des clients dans {entite}",
+            "description": "Le processus de validation des clients échoue systématiquement pour les enregistrements contenant des adresses postales incomplètes ou des codes pays invalides."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur les adresses postales",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (référentiel clients)."
+            "titre": "Incohérences dans les données clients de {entite}",
+            "description": "Des écarts sont observés entre les informations clients stockées et celles affichées dans l'interface, notamment pour les champs 'statut' et 'date de création'."
           },
           {
-            "titre": "Données de test périmées sur les liens entre titulaires",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (référentiel clients)."
+            "titre": "Absence de résultats pour les recherches clients dans {entite}",
+            "description": "Aucun résultat n'est retourné lors de la recherche de clients par identifiant unique, alors que ces clients devraient exister dans le référentiel."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les segments de clientèle",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (référentiel clients)."
+            "titre": "Erreur de synchronisation des données clients pour {entite}",
+            "description": "Les données clients ne sont pas correctement synchronisées entre le référentiel principal et les systèmes satellites, entraînant des doublons ou des omissions."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les fiches clients",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (référentiel clients)."
+            "titre": "Problème de formatage des numéros de téléphone dans {entite}",
+            "description": "Les numéros de téléphone des clients sont tronqués ou mal formatés, empêchant leur utilisation dans les processus automatisés."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur les adresses postales",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (référentiel clients)."
+            "titre": "Données clients manquantes pour {entite}",
+            "description": "Certains champs obligatoires, comme le nom ou l'adresse e-mail, sont vides pour un sous-ensemble de clients, bloquant les opérations de traitement."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de fiche client",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (référentiel clients)."
+            "titre": "Erreur de synchronisation des données clients dans {entite}",
+            "description": "Les informations clients ne sont pas synchronisées correctement entre le système source et la cible, entraînant des incohérences dans les références."
           },
           {
-            "titre": "Nouveau rapport souhaité sur les adresses postales",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (référentiel clients)."
+            "titre": "Doublons dans la liste des clients pour {entite}",
+            "description": "Des doublons ont été détectés dans le référentiel clients, sans lien avec les opérations de migration."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les liens entre titulaires",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (référentiel clients)."
+            "titre": "Champ 'statut_client' vide pour {entite}",
+            "description": "Le champ 'statut_client' apparaît vide pour plusieurs entrées du référentiel, sans explication liée à la migration."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de fiche client",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (référentiel clients)."
+            "titre": "Incohérences dans les adresses clients pour {entite}",
+            "description": "Les adresses des clients ne correspondent pas aux données attendues, sans impact direct sur les processus de migration."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les fiches clients",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (référentiel clients)."
+            "titre": "Problème de formatage des identifiants clients pour {entite}",
+            "description": "Certains identifiants clients ne respectent pas le format standard, sans que cela soit lié aux activités de migration."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de fiche client",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (référentiel clients)."
+            "titre": "Données clients manquantes dans {entite}",
+            "description": "Des informations clients essentielles sont absentes du référentiel, sans que cela soit attribuable à la migration."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les fiches clients",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (référentiel clients)."
+          "titre": "Vérification de la création d'un client dans {entite}",
+          "description": "S'assurer que la création d'un nouveau client dans le référentiel {entite} se déroule sans erreur et que les données sont correctement enregistrées."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de fiche client",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (référentiel clients)."
+          "titre": "Mise à jour des informations client dans {entite}",
+          "description": "Tester la mise à jour des informations d'un client existant dans le référentiel {entite} et vérifier la persistance des modifications."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux de synchronisation des tiers",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (référentiel clients)."
+          "titre": "Suppression d'un client dans {entite}",
+          "description": "Vérifier que la suppression d'un client dans le référentiel {entite} est effectuée correctement et que les dépendances sont gérées."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les segments de clientèle",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (référentiel clients)."
+          "titre": "Recherche d'un client par identifiant dans {entite}",
+          "description": "Tester la fonctionnalité de recherche d'un client par son identifiant unique dans le référentiel {entite} et valider le résultat."
         },
         {
-          "titre": "Non-régression sur l'écran de fiche client",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (référentiel clients)."
+          "titre": "Validation des règles de gestion des clients dans {entite}",
+          "description": "S'assurer que les règles métiers (ex : format des champs, contraintes) sont respectées lors de la création ou modification d'un client dans {entite}."
+        },
+        {
+          "titre": "Export des données clients depuis {entite}",
+          "description": "Vérifier que l'export des données clients depuis le référentiel {entite} génère un fichier conforme au format attendu et sans corruption."
         }
       ]
     },
@@ -838,207 +854,211 @@
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les écritures comptables",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (comptabilité)."
+            "titre": "Solde client incorrect dans {entite}",
+            "description": "Le solde affiché pour le client dans {entite} ne correspond pas au solde attendu après migration. Une vérification manuelle confirme l'écart."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur le plan de comptes",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (comptabilité)."
+            "titre": "Écriture comptable manquante dans {entite}",
+            "description": "Une écriture comptable attendue pour un mouvement spécifique n'apparaît pas dans le journal de {entite}."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les balances générales",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (comptabilité)."
+            "titre": "Doublon d'opération dans {entite}",
+            "description": "Une opération est dupliquée dans les données de {entite}, entraînant un déséquilibre dans les totaux."
           },
           {
-            "titre": "Historique incomplet sur les comptes de suspens",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (comptabilité)."
+            "titre": "Date d'opération erronée dans {entite}",
+            "description": "La date associée à une opération dans {entite} ne correspond pas à la date réelle de l'opération."
           },
           {
-            "titre": "Anciens codes non convertis sur les écritures comptables",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (comptabilité)."
+            "titre": "Montant négatif anormal dans {entite}",
+            "description": "Un montant normalement positif apparaît comme négatif dans les données de {entite}."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur le plan de comptes",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (comptabilité)."
+            "titre": "Référence d'opération manquante dans {entite}",
+            "description": "La référence associée à une opération est absente dans {entite}, empêchant son identification."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les écritures comptables",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (comptabilité)."
+            "titre": "Écart de solde sur compte client après migration",
+            "description": "Le solde du compte {entite} affiche une différence de 0,50 € entre l'ancien et le nouveau SI après migration. Aucune opération manuelle n'a été enregistrée."
           },
           {
-            "titre": "Conversion de devise erronée sur le plan de comptes",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (comptabilité)."
+            "titre": "Montant incorrect sur écriture de virement",
+            "description": "Le virement {entite} affiche un montant de 1 200,00 € dans le nouveau SI au lieu de 1 250,00 € dans l'ancien SI."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les balances générales",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (comptabilité)."
+            "titre": "Erreur de conversion devises sur opération internationale",
+            "description": "L'opération {entite} en USD a été convertie en EUR avec un taux incorrect, entraînant un écart de 15,00 € par rapport à l'ancien SI."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les comptes de suspens",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (comptabilité)."
+            "titre": "Total des intérêts calculés incorrectement",
+            "description": "Le total des intérêts pour le client {entite} est de 450,00 € dans le nouveau SI, contre 475,00 € dans l'ancien SI."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les écritures comptables",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (comptabilité)."
+            "titre": "Différence sur le calcul des frais de gestion",
+            "description": "Les frais de gestion pour le compte {entite} sont de 20,00 € dans le nouveau SI, alors qu'ils étaient de 22,50 € dans l'ancien SI."
           },
           {
-            "titre": "Signe inversé sur le plan de comptes",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (comptabilité)."
+            "titre": "Anomalie sur le solde de clôture mensuel",
+            "description": "Le solde de clôture mensuel du compte {entite} affiche 15 000,00 € dans le nouveau SI, contre 15 100,00 € dans l'ancien SI."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les écritures comptables",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (comptabilité)."
+            "titre": "Écart de solde sur les comptes clients après migration",
+            "description": "Les soldes des comptes clients de l'entité {entite} présentent des écarts de 0,01 à 0,50 € après la migration. Les écritures de régularisation ne sont pas générées automatiquement."
           },
           {
-            "titre": "Table de codes incomplète pour le plan de comptes",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (comptabilité)."
+            "titre": "Absence de calcul des intérêts créditeurs",
+            "description": "Les intérêts créditeurs pour les comptes d'épargne de l'entité {entite} ne sont pas calculés depuis la bascule vers le nouveau SI. Aucun message d'erreur n'est remonté."
           },
           {
-            "titre": "Option désactivée dans l'écran de consultation des écritures",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (comptabilité)."
+            "titre": "Doublons d'écritures comptables sur les opérations de virement",
+            "description": "Des doublons d'écritures comptables apparaissent systématiquement pour les virements internes traités par l'entité {entite}. Les montants sont identiques mais les numéros de pièce diffèrent."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les comptes de suspens",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (comptabilité)."
+            "titre": "Échec de la clôture mensuelle des comptes",
+            "description": "La clôture mensuelle des comptes de l'entité {entite} échoue avec un message indiquant un déséquilibre entre le total des débats et des crédits. Aucun détail supplémentaire n'est fourni."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de consultation des écritures",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (comptabilité)."
+            "titre": "Mauvaise imputation des frais de tenue de compte",
+            "description": "Les frais de tenue de compte pour les clients de l'entité {entite} sont imputés sur un compte comptable incorrect, entraînant des soldes négatifs non justifiés."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur le plan de comptes",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (comptabilité)."
+            "titre": "Retards dans la génération des relevés de compte",
+            "description": "Les relevés de compte pour les clients de l'entité {entite} ne sont pas générés dans les délais prévus. Aucun blocage technique n'est identifié dans les logs."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux d'alimentation du grand livre",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (comptabilité)."
+            "titre": "Échec de synchronisation des écritures comptables pour {entite}",
+            "description": "Les écritures comptables générées par le module de traitement des opérations ne sont pas transmises vers le système central. Aucune erreur n'est remontée dans les logs applicatifs."
           },
           {
-            "titre": "Retard constaté sur le flux d'alimentation du grand livre",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (comptabilité)."
+            "titre": "Absence de données comptables dans le rapport quotidien {entite}",
+            "description": "Le rapport quotidien de clôture comptable pour l'entité {entite} affiche des valeurs manquantes pour toutes les transactions de la journée."
           },
           {
-            "titre": "Messages perdus dans le flux d'alimentation du grand livre",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (comptabilité)."
+            "titre": "Désynchronisation des soldes clients pour {entite}",
+            "description": "Les soldes clients affichés dans l'interface de consultation ne correspondent pas aux données comptables enregistrées pour l'entité {entite}."
           },
           {
-            "titre": "Doublon de messages dans le flux d'alimentation du grand livre",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (comptabilité)."
+            "titre": "Rejet systématique des fichiers de transaction pour {entite}",
+            "description": "Tous les fichiers de transaction envoyés vers le système comptable pour l'entité {entite} sont rejetés sans justification claire."
           },
           {
-            "titre": "Accusé de réception absent pour le flux d'alimentation du grand livre",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (comptabilité)."
+            "titre": "Incohérence entre les totaux comptables et les opérations pour {entite}",
+            "description": "Les totaux comptables calculés pour l'entité {entite} ne correspondent pas à la somme des opérations enregistrées dans la journée."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux d'alimentation du grand livre",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (comptabilité)."
+            "titre": "Retard de mise à jour des écritures pour {entite}",
+            "description": "Les écritures comptables pour l'entité {entite} ne sont pas mises à jour dans les délais attendus, entraînant un décalage dans les rapports financiers."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les écritures comptables",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (comptabilité)."
+            "titre": "Échec de validation des écritures comptables en environnement de test",
+            "description": "Les tests automatisés du module de validation des écritures comptables pour l'entité {entite} retournent systématiquement des erreurs de type timeout."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de consultation des écritures",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (comptabilité)."
+            "titre": "Impossibilité d'exécuter les scénarios de clôture mensuelle",
+            "description": "Les scénarios de clôture mensuelle pour l'entité {entite} ne peuvent être exécutés : le processus s'interrompt sans journal d'erreur exploitable."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les balances générales",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (comptabilité)."
+            "titre": "Données comptables non accessibles en phase de recette",
+            "description": "Les utilisateurs de recette ne parviennent pas à accéder aux données comptables de l'entité {entite} via l'interface dédiée."
           },
           {
-            "titre": "Certificat expiré sur le flux d'alimentation du grand livre",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (comptabilité)."
+            "titre": "Incohérence des soldes lors des tests de reconciliation",
+            "description": "Les tests de réconciliation bancaire pour l'entité {entite} affichent des écarts inexpliqués entre les soldes attendus et les soldes calculés."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les écritures comptables",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (comptabilité)."
+            "titre": "Échec de génération des rapports comptables",
+            "description": "La génération des rapports comptables standard pour l'entité {entite} échoue avec une erreur de type 'ressource indisponible'."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur le plan de comptes",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (comptabilité)."
+            "titre": "Blocage des tests de simulation fiscale",
+            "description": "Les tests de simulation fiscale pour l'entité {entite} sont bloqués en raison d'une impossibilité de charger les données de référence."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les écritures comptables",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (comptabilité)."
+            "titre": "Écart de solde sur compte client après migration",
+            "description": "Le solde affiché pour le compte {entite} présente un écart de 150,00 € par rapport au solde attendu après la migration des données. Aucune opération manuelle n'a été enregistrée pour justifier cet écart."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur le plan de comptes",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (comptabilité)."
+            "titre": "Transaction manquante dans l'historique comptable",
+            "description": "L'historique des transactions pour l'entité {entite} ne contient pas la transaction de référence TRX-2023-001, pourtant validée en amont de la migration."
           },
           {
-            "titre": "Données de test périmées sur les balances générales",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (comptabilité)."
+            "titre": "Incohérence entre le grand livre et les comptes clients",
+            "description": "Le grand livre de l'entité {entite} affiche un total de 500 000,00 €, tandis que la somme des soldes clients associés est de 498 500,00 €."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les comptes de suspens",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (comptabilité)."
+            "titre": "Erreur de calcul sur les intérêts courus",
+            "description": "Les intérêts courus pour le compte {entite} sont calculés à 0,00 € alors que le taux applicable et la période devraient donner un montant de 25,50 €."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les écritures comptables",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (comptabilité)."
+            "titre": "Doublon de transaction dans le journal comptable",
+            "description": "La transaction ID-TRX-456 apparaît deux fois dans le journal comptable de l'entité {entite}, entraînant un déséquilibre dans les écritures."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur le plan de comptes",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (comptabilité)."
+            "titre": "Montant incorrect pour une opération de virement",
+            "description": "Le virement de 1 000,00 € entre les comptes {entite} et {entite} est enregistré comme 100,00 € dans le système après migration."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de consultation des écritures",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (comptabilité)."
+            "titre": "Écart de solde sur compte client après opération de virement",
+            "description": "Un écart de solde de 0,50 EUR est observé sur le compte {entite} après un virement interne. Aucune opération de migration n'est associée à cette anomalie."
           },
           {
-            "titre": "Nouveau rapport souhaité sur le plan de comptes",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (comptabilité)."
+            "titre": "Journal comptable non synchronisé avec les écritures manuelles",
+            "description": "Le journal comptable de l'entité {entite} ne reflète pas les écritures manuelles saisies hier. Aucune trace de traitement lié à la migration n'est identifiée."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les balances générales",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (comptabilité)."
+            "titre": "Erreur de report de taxe sur une opération de prêt",
+            "description": "Une erreur de calcul de 2,5 % est détectée sur la taxe appliquée à un prêt pour l'entité {entite}. Cette opération n'est pas incluse dans le périmètre de migration."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de consultation des écritures",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (comptabilité)."
+            "titre": "Incohérence entre le grand livre et les relevés clients",
+            "description": "Une incohérence de 150 EUR est constatée entre le grand livre et les relevés clients de l'entité {entite}. Aucune activité de migration n'est enregistrée pour ce compte."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les écritures comptables",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (comptabilité)."
+            "titre": "Opération de clôture mensuelle bloquée pour une entité",
+            "description": "La clôture mensuelle de l'entité {entite} est bloquée en raison d'une écriture non validée. Cette écriture ne fait pas partie des traitements de migration."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de consultation des écritures",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (comptabilité)."
+            "titre": "Doublon de transaction sur un compte d'attente",
+            "description": "Un doublon de transaction de 200 EUR est identifié sur le compte d'attente de l'entité {entite}. Aucune opération de migration n'est à l'origine de ce doublon."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les écritures comptables",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (comptabilité)."
+          "titre": "Vérification du solde comptable après migration des comptes {entite}",
+          "description": "S'assurer que le solde comptable des comptes clients migrés correspond aux données source avant migration."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de consultation des écritures",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (comptabilité)."
+          "titre": "Validation des écritures comptables pour les transactions {entite}",
+          "description": "Contrôler que les écritures comptables générées après migration respectent les règles de comptabilité en vigueur."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux d'alimentation du grand livre",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (comptabilité)."
+          "titre": "Test de cohérence des soldes inter-entités {entite}",
+          "description": "Vérifier que les soldes entre les entités migrées sont cohérents et équilibrés après la migration."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les comptes de suspens",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (comptabilité)."
+          "titre": "Recette des rapports comptables pour {entite}",
+          "description": "Valider que les rapports comptables générés après migration sont conformes aux attentes métiers."
         },
         {
-          "titre": "Non-régression sur l'écran de consultation des écritures",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (comptabilité)."
+          "titre": "Non-régression des règles de provisionnement {entite}",
+          "description": "S'assurer que les règles de provisionnement comptable restent fonctionnelles après la migration du SI."
+        },
+        {
+          "titre": "Test de clôture comptable pour l'entité {entite}",
+          "description": "Valider que la procédure de clôture comptable s'exécute correctement après la migration des données."
         }
       ]
     },
@@ -1046,207 +1066,211 @@
       "anomalies": {
         "reprise_donnees": [
           {
-            "titre": "Écart de volumétrie après reprise sur les livrets d'épargne",
-            "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (épargne)."
+            "titre": "Solde des comptes épargne incohérent après migration",
+            "description": "Les soldes de plusieurs comptes épargne du domaine {entite} affichent des montants incorrects après la migration, sans trace d'erreur dans les logs."
           },
           {
-            "titre": "Valeurs tronquées après chargement sur les intérêts courus",
-            "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (épargne)."
+            "titre": "Historique des opérations épargne incomplet",
+            "description": "Certaines opérations historiques liées aux comptes épargne de l'entité {entite} sont manquantes dans le nouveau SI."
           },
           {
-            "titre": "Doublons créés lors du chargement sur les plans d'épargne",
-            "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (épargne)."
+            "titre": "Taux d'intérêt non appliqués sur les livrets",
+            "description": "Les taux d'intérêt configurés pour les livrets épargne de {entite} ne sont pas correctement appliqués dans le système migré."
           },
           {
-            "titre": "Historique incomplet sur les plafonds de versement",
-            "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (épargne)."
+            "titre": "Comptes épargne dupliqués pour certains clients",
+            "description": "Des doublons de comptes épargne ont été détectés pour des clients de l'entité {entite} dans le nouveau SI."
           },
           {
-            "titre": "Anciens codes non convertis sur les livrets d'épargne",
-            "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (épargne)."
+            "titre": "Échéances des plans épargne non respectées",
+            "description": "Les dates d'échéance des plans épargne de {entite} ne correspondent pas à celles de l'ancien système."
           },
           {
-            "titre": "Soldes d'ouverture différents de l'ancien système sur les intérêts courus",
-            "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (épargne)."
+            "titre": "Statuts des comptes épargne erronés",
+            "description": "Le statut de certains comptes épargne de l'entité {entite} est incorrectement passé à 'clôturé' ou 'inactif' après migration."
           }
         ],
         "regle_transformation": [
           {
-            "titre": "Arrondi différent de l'ancien système sur les livrets d'épargne",
-            "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (épargne)."
+            "titre": "Montant des intérêts calculé incorrectement pour les comptes {entite}",
+            "description": "Les intérêts crédités sur les comptes d'épargne de l'entité {entite} ne correspondent pas aux taux contractuels appliqués. Une vérification manuelle est nécessaire pour identifier les écarts."
           },
           {
-            "titre": "Conversion de devise erronée sur les intérêts courus",
-            "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (épargne)."
+            "titre": "Solde final erroné après virement interne {entite}",
+            "description": "Le solde affiché après un virement entre comptes d'épargne de l'entité {entite} ne reflète pas le montant réel disponible. Les opérations doivent être recalculées."
           },
           {
-            "titre": "Date de valeur décalée d'un jour sur les plans d'épargne",
-            "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (épargne)."
+            "titre": "Conversion des devises incorrecte pour les livrets {entite}",
+            "description": "Les montants en devises étrangères des livrets d'épargne de l'entité {entite} sont convertis avec un taux erroné, entraînant des écarts de valeur."
           },
           {
-            "titre": "Statut mal déduit après transformation sur les plafonds de versement",
-            "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (épargne)."
+            "titre": "Plafond de dépôt dépassé sans alerte pour {entite}",
+            "description": "Certains comptes d'épargne de l'entité {entite} dépassent leur plafond autorisé sans déclencher d'alerte, alors que les règles métiers l'exigent."
           },
           {
-            "titre": "Cumul recalculé incorrect sur les livrets d'épargne",
-            "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (épargne)."
+            "titre": "Date de valeur des opérations décalée pour {entite}",
+            "description": "La date de valeur appliquée aux opérations d'épargne de l'entité {entite} est décalée d'un jour, impactant les calculs d'intérêts."
           },
           {
-            "titre": "Signe inversé sur les intérêts courus",
-            "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (épargne)."
+            "titre": "Arrondi des montants incorrect sur les relevés {entite}",
+            "description": "Les montants affichés sur les relevés des comptes d'épargne de l'entité {entite} présentent des erreurs d'arrondi systématiques."
           }
         ],
         "parametrage": [
           {
-            "titre": "Plafond mal paramétré sur les livrets d'épargne",
-            "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (épargne)."
+            "titre": "Solde des livrets {entite} affiché en négatif après migration",
+            "description": "Les clients de l'entité {entite} voient leur solde de livret d'épargne affiché en négatif dans le nouveau SI, alors qu'il est positif dans l'ancien système."
           },
           {
-            "titre": "Table de codes incomplète pour les intérêts courus",
-            "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (épargne)."
+            "titre": "Intérêts des comptes {entite} non calculés après migration",
+            "description": "Les intérêts des comptes d'épargne de l'entité {entite} ne sont pas générés automatiquement dans le nouveau SI, contrairement à l'ancien système."
           },
           {
-            "titre": "Option désactivée dans l'écran de synthèse de l'épargne",
-            "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (épargne)."
+            "titre": "Plafond de dépôt dépassé pour les PEL {entite}",
+            "description": "Le nouveau SI autorise des dépôts dépassant le plafond légal pour les Plans Épargne Logement (PEL) de l'entité {entite}."
           },
           {
-            "titre": "Calendrier de traitement mal réglé pour les plafonds de versement",
-            "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (épargne)."
+            "titre": "Historique des opérations manquant pour les livrets {entite}",
+            "description": "L'historique des opérations des livrets d'épargne de l'entité {entite} n'est pas visible dans le nouveau SI, alors qu'il était accessible auparavant."
           },
           {
-            "titre": "Habilitations mal attribuées sur l'écran de synthèse de l'épargne",
-            "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (épargne)."
+            "titre": "Taux d'intérêt incorrect pour les comptes {entite}",
+            "description": "Les taux d'intérêt appliqués aux comptes d'épargne de l'entité {entite} dans le nouveau SI ne correspondent pas aux taux contractuels."
           },
           {
-            "titre": "Libellé de paramétrage erroné sur les intérêts courus",
-            "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (épargne)."
+            "titre": "Blocage des virements vers les livrets {entite}",
+            "description": "Les virements vers les livrets d'épargne de l'entité {entite} sont systématiquement rejetés par le nouveau SI, sans justification claire."
           }
         ],
         "interface_flux": [
           {
-            "titre": "Rejet constaté sur le flux de capitalisation des intérêts",
-            "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (épargne)."
+            "titre": "Échec de synchronisation des comptes épargne pour {entite}",
+            "description": "Les soldes des comptes épargne de l'entité {entite} ne sont pas mis à jour dans le système cible après la migration. Les données restent figées à la date de la dernière synchronisation réussie."
           },
           {
-            "titre": "Retard constaté sur le flux de capitalisation des intérêts",
-            "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (épargne)."
+            "titre": "Flux de virement épargne interrompu pour {entite}",
+            "description": "Les virements programmés depuis les comptes épargne de l'entité {entite} ne sont pas exécutés. Aucun message d'erreur n'est remonté dans les logs applicatifs."
           },
           {
-            "titre": "Messages perdus dans le flux de capitalisation des intérêts",
-            "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (épargne)."
+            "titre": "Incohérence des taux d'intérêt pour {entite}",
+            "description": "Les taux d'intérêt appliqués aux comptes épargne de l'entité {entite} dans le nouveau SI ne correspondent pas aux valeurs attendues. Les écarts sont visibles dans les relevés générés."
           },
           {
-            "titre": "Doublon de messages dans le flux de capitalisation des intérêts",
-            "description": "Des messages de l'Entité {entite} sont rejoués deux fois (épargne)."
+            "titre": "Absence de traçabilité des opérations épargne pour {entite}",
+            "description": "Les opérations effectuées sur les comptes épargne de l'entité {entite} ne sont pas enregistrées dans le journal des transactions du système cible."
           },
           {
-            "titre": "Accusé de réception absent pour le flux de capitalisation des intérêts",
-            "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (épargne)."
+            "titre": "Erreur de réplication des contrats épargne pour {entite}",
+            "description": "Les contrats épargne de l'entité {entite} ne sont pas répliqués dans le nouvel environnement. Les clients ne peuvent pas consulter leurs contrats via l'interface utilisateur."
           },
           {
-            "titre": "Encodage des caractères altéré dans le flux de capitalisation des intérêts",
-            "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (épargne)."
+            "titre": "Délai anormal de traitement des demandes épargne pour {entite}",
+            "description": "Les demandes de modification ou de clôture de comptes épargne pour l'entité {entite} restent en attente sans progression dans le workflow du système cible."
           }
         ],
         "environnement": [
           {
-            "titre": "Environnement de recette indisponible pour les livrets d'épargne",
-            "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (épargne)."
+            "titre": "Échec de validation des comptes épargne en recette",
+            "description": "Les tests automatiques de vérification des soldes des comptes épargne échouent systématiquement depuis ce matin. Aucune opération de mise à jour n'est validée pour l'entité {entite}."
           },
           {
-            "titre": "Temps de réponse dégradé sur l'écran de synthèse de l'épargne",
-            "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (épargne)."
+            "titre": "Indisponibilité des simulations de placements",
+            "description": "Les utilisateurs ne parviennent pas à accéder aux outils de simulation de rendement pour les produits d'épargne. Le service retourne une erreur 503 pour l'entité {entite}."
           },
           {
-            "titre": "Espace disque saturé lors du traitement portant sur les plans d'épargne",
-            "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (épargne)."
+            "titre": "Erreur lors de la création de nouveaux comptes épargne",
+            "description": "La création de comptes épargne génère une erreur technique lors de la soumission du formulaire. Aucun nouveau compte n'a pu être créé pour l'entité {entite}."
           },
           {
-            "titre": "Certificat expiré sur le flux de capitalisation des intérêts",
-            "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (épargne)."
+            "titre": "Incohérence des données historiques d'épargne",
+            "description": "Les données historiques des opérations d'épargne affichent des valeurs aberrantes ou manquantes. Les rapports générés pour l'entité {entite} sont incomplets."
           },
           {
-            "titre": "Version applicative différente entre environnements pour les livrets d'épargne",
-            "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (épargne)."
+            "titre": "Impossibilité de clore des comptes épargne",
+            "description": "La procédure de clôture des comptes épargne est bloquée par une erreur technique. Aucune clôture n'a abouti pour l'entité {entite} depuis hier."
           },
           {
-            "titre": "Redémarrage du serveur lors du traitement portant sur les intérêts courus",
-            "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (épargne)."
+            "titre": "Lenteur anormale des requêtes sur les comptes épargne",
+            "description": "Les requêtes liées aux comptes épargne mettent plus de 30 secondes à s'exécuter, rendant l'application inutilisable pour l'entité {entite}."
           }
         ],
         "donnee_test": [
           {
-            "titre": "Jeu d'essai incohérent pour les livrets d'épargne",
-            "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (épargne)."
+            "titre": "Échec du calcul des intérêts pour les comptes {entite}",
+            "description": "Les intérêts des comptes d'épargne de l'entité {entite} ne sont pas calculés correctement, entraînant des écarts dans les relevés clients."
           },
           {
-            "titre": "Résultat attendu erroné dans le cas de test sur les intérêts courus",
-            "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (épargne)."
+            "titre": "Solde incorrect après virement sur livret {entite}",
+            "description": "Le solde des livrets d'épargne de l'entité {entite} n'est pas mis à jour correctement après un virement entrant ou sortant."
           },
           {
-            "titre": "Données de test périmées sur les plans d'épargne",
-            "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (épargne)."
+            "titre": "Absence de traçabilité des opérations sur PEL {entite}",
+            "description": "Les opérations effectuées sur les Plans d'Épargne Logement de l'entité {entite} ne sont pas enregistrées dans l'historique des transactions."
           },
           {
-            "titre": "Jeu d'essai incomplet pour les plafonds de versement",
-            "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (épargne)."
+            "titre": "Erreur de clôture de compte épargne {entite}",
+            "description": "La clôture des comptes d'épargne pour l'entité {entite} génère une erreur système et ne finalise pas la procédure."
           },
           {
-            "titre": "Même dossier de test utilisé par deux scénarios sur les livrets d'épargne",
-            "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (épargne)."
+            "titre": "Incohérence entre solde affiché et solde réel pour LEP {entite}",
+            "description": "Le solde affiché pour les Livrets d'Épargne Populaire de l'entité {entite} ne correspond pas au solde réel en base de données."
           },
           {
-            "titre": "Dates de test incohérentes avec le calendrier sur les intérêts courus",
-            "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (épargne)."
+            "titre": "Échec de la génération des relevés d'épargne {entite}",
+            "description": "Les relevés d'épargne pour les clients de l'entité {entite} ne peuvent pas être générés en raison d'une erreur de traitement."
           }
         ],
         "hors_perimetre": [
           {
-            "titre": "Demande d'évolution sur l'écran de synthèse de l'épargne",
-            "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (épargne)."
+            "titre": "Erreur d'affichage des soldes sur les livrets {entite}",
+            "description": "Les soldes des livrets d'épargne ne s'affichent pas correctement dans l'interface utilisateur après la migration. Aucun impact sur les données sous-jacentes."
           },
           {
-            "titre": "Nouveau rapport souhaité sur les intérêts courus",
-            "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (épargne)."
+            "titre": "Incohérence des taux d'intérêt pour les comptes {entite}",
+            "description": "Les taux d'intérêt appliqués aux comptes d'épargne ne correspondent pas aux valeurs attendues. Les calculs semblent erronés sans lien avec les données migrées."
           },
           {
-            "titre": "Comportement identique à l'ancien système sur les plans d'épargne",
-            "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (épargne)."
+            "titre": "Absence de mise à jour des relevés {entite}",
+            "description": "Les relevés d'épargne ne sont plus générés automatiquement depuis la migration. Les clients ne reçoivent plus leurs documents mensuels."
           },
           {
-            "titre": "Question d'utilisation sur l'écran de synthèse de l'épargne",
-            "description": "L'Entité {entite} demande comment réaliser une opération courante (épargne)."
+            "titre": "Problème de synchronisation des virements {entite}",
+            "description": "Les virements automatiques depuis les comptes d'épargne vers d'autres comptes ne sont pas exécutés. Aucun message d'erreur n'est remonté."
           },
           {
-            "titre": "Anomalie de l'ancien système signalée sur les livrets d'épargne",
-            "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (épargne)."
+            "titre": "Accès impossible aux historiques {entite}",
+            "description": "Les utilisateurs ne peuvent plus consulter l'historique des transactions sur les comptes d'épargne. L'erreur persiste malgré plusieurs tentatives."
           },
           {
-            "titre": "Demande d'ergonomie sur l'écran de synthèse de l'épargne",
-            "description": "L'Entité {entite} propose de réorganiser les zones de saisie (épargne)."
+            "titre": "Désactivation des alertes SMS {entite}",
+            "description": "Les alertes SMS pour les opérations sur les livrets d'épargne ne sont plus envoyées. Aucun paramétrage n'a été modifié avant l'incident."
           }
         ]
       },
       "cas_de_test": [
         {
-          "titre": "Contrôle des totaux après chargement sur les livrets d'épargne",
-          "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (épargne)."
+          "titre": "Vérification du solde initial après migration pour un compte épargne de type {entite}",
+          "description": "S'assurer que le solde initial d'un compte épargne de type {entite} est correctement migré et affiché dans le nouveau SI cœur."
         },
         {
-          "titre": "Parcours de bout en bout via l'écran de synthèse de l'épargne",
-          "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (épargne)."
+          "titre": "Validation du calcul des intérêts pour un compte épargne {entite}",
+          "description": "Vérifier que le calcul des intérêts pour un compte épargne de type {entite} est conforme aux règles métiers après migration."
         },
         {
-          "titre": "Vérification de bonne réception sur le flux de capitalisation des intérêts",
-          "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (épargne)."
+          "titre": "Test de clôture d'un compte épargne {entite} dans le nouveau SI",
+          "description": "Confirmer que la clôture d'un compte épargne de type {entite} est correctement enregistrée et que les soldes sont transférés ou remboursés."
         },
         {
-          "titre": "Rapprochement ancien et nouveau système sur les plafonds de versement",
-          "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (épargne)."
+          "titre": "Validation des mouvements crédits/débits sur un compte épargne {entite}",
+          "description": "Vérifier que les mouvements crédits et débits sur un compte épargne de type {entite} sont correctement migrés et affichés."
         },
         {
-          "titre": "Non-régression sur l'écran de synthèse de l'épargne",
-          "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (épargne)."
+          "titre": "Test de réouverture d'un compte épargne {entite} après migration",
+          "description": "S'assurer qu'un compte épargne de type {entite} peut être réouvert après migration et que son historique est préservé."
+        },
+        {
+          "titre": "Vérification des alertes de seuil pour un compte épargne {entite}",
+          "description": "Confirmer que les alertes de seuil (ex. solde minimum) pour un compte épargne de type {entite} fonctionnent correctement dans le nouveau SI."
         }
       ]
     }
@@ -1255,226 +1279,238 @@
     "anomalies": {
       "reprise_donnees": [
         {
-          "titre": "Écart de volumétrie après reprise sur les données du domaine {domaine}",
-          "description": "Le nombre d'enregistrements chargés pour l'Entité {entite} diffère de l'extraction de l'ancien système (domaine {domaine})."
+          "titre": "Incohérence des soldes clients dans {domaine}",
+          "description": "Les soldes affichés pour les clients de l'entité {entite} ne correspondent pas aux relevés historiques migrés. Les écarts sont systématiques pour les comptes avec des opérations antérieures à la migration."
         },
         {
-          "titre": "Valeurs tronquées après chargement sur les dossiers du domaine {domaine}",
-          "description": "Des zones de texte de l'Entité {entite} sont coupées après chargement (domaine {domaine})."
+          "titre": "Données manquantes pour les contrats {domaine}",
+          "description": "Certains contrats de l'entité {entite} ne contiennent plus les clauses spécifiques ou les dates d'échéance après la migration. Les métadonnées associées sont partiellement absentes."
         },
         {
-          "titre": "Doublons créés lors du chargement sur les écritures du domaine {domaine}",
-          "description": "Une partie des enregistrements de l'Entité {entite} a été chargée deux fois (domaine {domaine})."
+          "titre": "Erreur de formatage des identifiants {domaine}",
+          "description": "Les identifiants uniques des éléments de l'entité {entite} dans {domaine} ne respectent plus le format attendu (ex. : longueur ou caractères spéciaux). Cela bloque les traitements automatiques."
         },
         {
-          "titre": "Historique incomplet sur les référentiels du domaine {domaine}",
-          "description": "Les mouvements antérieurs à la bascule manquent pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Désynchronisation des statuts {domaine}",
+          "description": "Les statuts des dossiers de l'entité {entite} dans {domaine} ne reflètent pas leur état réel. Par exemple, des dossiers marqués comme 'clos' sont toujours actifs dans l'ancien système."
         },
         {
-          "titre": "Anciens codes non convertis sur les données du domaine {domaine}",
-          "description": "Des codes de l'ancien système subsistent dans les données de l'Entité {entite} (domaine {domaine})."
+          "titre": "Valeurs aberrantes dans les champs {domaine}",
+          "description": "Des champs numériques (ex. : montants, quantités) pour l'entité {entite} dans {domaine} contiennent des valeurs négatives ou hors plage autorisée, sans justification fonctionnelle."
         },
         {
-          "titre": "Soldes d'ouverture différents de l'ancien système sur les dossiers du domaine {domaine}",
-          "description": "Le rapprochement des soldes chargés de l'Entité {entite} fait apparaître un écart (domaine {domaine})."
+          "titre": "Liens rompus entre les données {domaine}",
+          "description": "Les relations entre les objets de l'entité {entite} dans {domaine} (ex. : client-contrat, compte-opération) ne sont plus maintenues, entraînant des erreurs de navigation ou de reporting."
         }
       ],
       "regle_transformation": [
         {
-          "titre": "Arrondi différent de l'ancien système sur les données du domaine {domaine}",
-          "description": "Les montants recalculés pour l'Entité {entite} diffèrent d'un centime sur un échantillon fictif (domaine {domaine})."
+          "titre": "Montant calculé incorrect pour les opérations de type {domaine}",
+          "description": "Le montant affiché pour les transactions de type {domaine} ne correspond pas au résultat attendu selon les règles métiers. Les écarts sont systématiques et concernent toutes les entités."
         },
         {
-          "titre": "Conversion de devise erronée sur les dossiers du domaine {domaine}",
-          "description": "Le taux appliqué à la conversion ne correspond pas à la règle attendue pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Date de valeur erronée dans les flux {domaine}",
+          "description": "La date de valeur générée pour les opérations du domaine {domaine} est décalée de 24 heures par rapport à la date attendue."
         },
         {
-          "titre": "Date de valeur décalée d'un jour sur les écritures du domaine {domaine}",
-          "description": "La règle de calcul des dates produit un décalage pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Écart de conversion devises pour les opérations {domaine}",
+          "description": "Les montants convertis dans le domaine {domaine} présentent un écart constant de 0,5 % par rapport aux taux de référence appliqués."
         },
         {
-          "titre": "Statut mal déduit après transformation sur les référentiels du domaine {domaine}",
-          "description": "La correspondance des statuts entre ancien et nouveau système est fausse pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Statut incorrect pour les opérations {domaine} après traitement",
+          "description": "Les opérations du domaine {domaine} pour l'entité {entite} obtiennent systématiquement un statut 'En erreur' alors qu'elles devraient être validées."
         },
         {
-          "titre": "Cumul recalculé incorrect sur les données du domaine {domaine}",
-          "description": "Le total obtenu après transformation ne correspond pas à la somme des détails pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Champ 'Total' non mis à jour dans les rapports {domaine}",
+          "description": "Le champ 'Total' des rapports générés pour le domaine {domaine} reste à zéro alors que des données sont présentes dans les détails."
         },
         {
-          "titre": "Signe inversé sur les dossiers du domaine {domaine}",
-          "description": "Des débits apparaissent en crédits après transformation pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Valeur du champ 'Taux' incohérente dans {domaine}",
+          "description": "Le champ 'Taux' des opérations du domaine {domaine} affiche une valeur inversée (ex : 1,25 au lieu de 0,80) pour toutes les entités concernées."
         }
       ],
       "parametrage": [
         {
-          "titre": "Plafond mal paramétré sur les données du domaine {domaine}",
-          "description": "Le plafond appliqué à l'Entité {entite} ne correspond pas à la fiche de paramétrage (domaine {domaine})."
+          "titre": "Échec de validation des transactions pour {entite} dans {domaine}",
+          "description": "Les transactions soumises par l'entité {entite} sont systématiquement rejetées par le nouveau SI avec une erreur de type 'Règle de validation non respectée'."
         },
         {
-          "titre": "Table de codes incomplète pour les dossiers du domaine {domaine}",
-          "description": "Un code attendu par l'Entité {entite} est absent de la table de paramètres (domaine {domaine})."
+          "titre": "Absence de données historiques pour {entite} dans {domaine}",
+          "description": "Les données historiques de l'entité {entite} ne sont pas accessibles dans le nouveau SI, alors qu'elles étaient disponibles dans l'ancien système."
         },
         {
-          "titre": "Option désactivée dans l'écran de consultation du domaine {domaine}",
-          "description": "Une option utilisée par l'Entité {entite} n'est pas activée dans le nouveau système (domaine {domaine})."
+          "titre": "Incohérence des soldes pour {entite} dans {domaine}",
+          "description": "Les soldes affichés pour l'entité {entite} dans le nouveau SI ne correspondent pas aux valeurs attendues, avec des écarts systématiques."
         },
         {
-          "titre": "Calendrier de traitement mal réglé pour les référentiels du domaine {domaine}",
-          "description": "Le traitement de l'Entité {entite} se déclenche au mauvais jour (domaine {domaine})."
+          "titre": "Erreur de formatage des rapports pour {entite} dans {domaine}",
+          "description": "Les rapports générés pour l'entité {entite} dans le nouveau SI présentent des champs mal formatés ou des valeurs manquantes."
         },
         {
-          "titre": "Habilitations mal attribuées sur l'écran de consultation du domaine {domaine}",
-          "description": "Des profils de l'Entité {entite} n'accèdent pas aux fonctions prévues (domaine {domaine})."
+          "titre": "Impossibilité de créer des utilisateurs pour {entite} dans {domaine}",
+          "description": "La création de nouveaux utilisateurs pour l'entité {entite} échoue avec un message d'erreur indiquant un problème de configuration."
         },
         {
-          "titre": "Libellé de paramétrage erroné sur les dossiers du domaine {domaine}",
-          "description": "Le libellé affiché à l'Entité {entite} ne correspond pas au référentiel (domaine {domaine})."
+          "titre": "Délais anormaux pour les traitements batch de {entite} dans {domaine}",
+          "description": "Les traitements batch pour l'entité {entite} dans le nouveau SI mettent un temps anormalement long à s'exécuter, sans erreur apparente."
         }
       ],
       "interface_flux": [
         {
-          "titre": "Rejet constaté sur le flux du domaine {domaine}",
-          "description": "Le fichier de la nuit est rejeté pour l'Entité {entite} : format non reconnu (domaine {domaine})."
+          "titre": "Échec de synchronisation des données pour {entite}",
+          "description": "Les données de {domaine} ne sont pas synchronisées entre les applications source et cible, entraînant des incohérences dans les rapports."
         },
         {
-          "titre": "Retard constaté sur le flux du domaine {domaine}",
-          "description": "Les données de l'Entité {entite} arrivent après l'heure de clôture (domaine {domaine})."
+          "titre": "Flux interrompu pour les opérations {domaine}",
+          "description": "Les opérations liées à {domaine} ne sont plus transmises vers l'application cible, bloquant le traitement en aval."
         },
         {
-          "titre": "Messages perdus dans le flux du domaine {domaine}",
-          "description": "Une partie des messages émis pour l'Entité {entite} n'est pas reçue par l'application cible (domaine {domaine})."
+          "titre": "Erreur de transmission des informations {domaine}",
+          "description": "Les informations de {domaine} ne parviennent pas à l'application destinataire, provoquant des absences de mises à jour."
         },
         {
-          "titre": "Doublon de messages dans le flux du domaine {domaine}",
-          "description": "Des messages de l'Entité {entite} sont rejoués deux fois (domaine {domaine})."
+          "titre": "Incohérences des données {domaine} entre systèmes",
+          "description": "Les données de {domaine} affichent des valeurs divergentes entre les systèmes, empêchant une vision consolidée."
         },
         {
-          "titre": "Accusé de réception absent pour le flux du domaine {domaine}",
-          "description": "L'application émettrice de l'Entité {entite} n'obtient pas de confirmation (domaine {domaine})."
+          "titre": "Absence de réception des événements {domaine}",
+          "description": "Les événements liés à {domaine} ne sont pas reçus par l'application cible, entraînant des retards dans les traitements."
         },
         {
-          "titre": "Encodage des caractères altéré dans le flux du domaine {domaine}",
-          "description": "Les accents des données de l'Entité {entite} sont remplacés par des caractères illisibles (domaine {domaine})."
+          "titre": "Problème de propagation des modifications {domaine}",
+          "description": "Les modifications apportées à {domaine} ne sont pas répercutées vers les systèmes dépendants, causant des désynchronisations."
         }
       ],
       "environnement": [
         {
-          "titre": "Environnement de recette indisponible pour les données du domaine {domaine}",
-          "description": "L'Entité {entite} ne peut pas exécuter ses tests : la plateforme ne répond plus (domaine {domaine})."
+          "titre": "Échec des tests automatisés pour {entite} dans {domaine}",
+          "description": "Les suites de tests automatisés pour l'entité {entite} du domaine {domaine} échouent systématiquement depuis ce matin, sans modification récente du code."
         },
         {
-          "titre": "Temps de réponse dégradé sur l'écran de consultation du domaine {domaine}",
-          "description": "Les écrans de l'Entité {entite} mettent plus d'une minute à s'afficher (domaine {domaine})."
+          "titre": "Impossibilité de déployer les artefacts {entite} dans {domaine}",
+          "description": "Le déploiement des artefacts liés à l'entité {entite} du domaine {domaine} est bloqué, avec une erreur de connexion à la plateforme cible."
         },
         {
-          "titre": "Espace disque saturé lors du traitement portant sur les écritures du domaine {domaine}",
-          "description": "Le traitement de l'Entité {entite} s'arrête faute de place sur le serveur (domaine {domaine})."
+          "titre": "Latence anormale sur les requêtes {entite} dans {domaine}",
+          "description": "Les requêtes associées à l'entité {entite} du domaine {domaine} présentent une latence supérieure à 10 secondes, rendant les opérations inutilisables."
         },
         {
-          "titre": "Certificat expiré sur le flux du domaine {domaine}",
-          "description": "La connexion sécurisée de l'Entité {entite} échoue sur l'environnement de test (domaine {domaine})."
+          "titre": "Incohérence des données pour {entite} dans {domaine}",
+          "description": "Les données de l'entité {entite} du domaine {domaine} affichent des valeurs incohérentes entre les environnements, sans explication fonctionnelle."
         },
         {
-          "titre": "Version applicative différente entre environnements pour les données du domaine {domaine}",
-          "description": "L'environnement de recette de l'Entité {entite} n'a pas reçu la dernière livraison (domaine {domaine})."
+          "titre": "Timeout systématique sur les appels {entite} dans {domaine}",
+          "description": "Tous les appels liés à l'entité {entite} du domaine {domaine} aboutissent à un timeout après 30 secondes, sans log d'erreur exploitable."
         },
         {
-          "titre": "Redémarrage du serveur lors du traitement portant sur les dossiers du domaine {domaine}",
-          "description": "Le traitement de l'Entité {entite} est interrompu sans message d'erreur (domaine {domaine})."
+          "titre": "Indisponibilité des services {entite} dans {domaine}",
+          "description": "Les services associés à l'entité {entite} du domaine {domaine} sont inaccessible, avec un message d'erreur générique de type 'Service Unavailable'."
         }
       ],
       "donnee_test": [
         {
-          "titre": "Jeu d'essai incohérent pour les données du domaine {domaine}",
-          "description": "Les données préparées pour l'Entité {entite} ne respectent pas les règles métier (domaine {domaine})."
+          "titre": "Échec de validation des comptes clients dans {domaine}",
+          "description": "La synchronisation des soldes pour l'Entité {entite} génère des écarts systématiques de 0,01 € sur 15 % des comptes. Les logs indiquent des valeurs aberrantes pour les transactions de test."
         },
         {
-          "titre": "Résultat attendu erroné dans le cas de test sur les dossiers du domaine {domaine}",
-          "description": "L'attendu du scénario de l'Entité {entite} ne tient pas compte de la règle en vigueur (domaine {domaine})."
+          "titre": "Rejet systématique des virements sortants dans {domaine}",
+          "description": "Tous les virements émis par l'Entité {entite} sont rejetés avec le code ERRT-404. Le montant total des opérations concernées est nul, ce qui est incohérent avec les règles métiers."
         },
         {
-          "titre": "Données de test périmées sur les écritures du domaine {domaine}",
-          "description": "Le jeu d'essai de l'Entité {entite} date d'avant la dernière bascule (domaine {domaine})."
+          "titre": "Incohérences dans les rapports de clôture mensuelle pour {domaine}",
+          "description": "Les rapports de l'Entité {entite} affichent des totaux de transactions négatifs pour des périodes sans activité réelle. Les données sources semblent corrompues."
         },
         {
-          "titre": "Jeu d'essai incomplet pour les référentiels du domaine {domaine}",
-          "description": "Des dossiers nécessaires au scénario manquent pour l'Entité {entite} (domaine {domaine})."
+          "titre": "Impossibilité de générer les relevés clients dans {domaine}",
+          "description": "La génération des relevés pour l'Entité {entite} échoue avec une erreur de type 'valeur manquante' pour le champ 'date de valeur'. Aucun relevé n'a pu être produit."
         },
         {
-          "titre": "Même dossier de test utilisé par deux scénarios sur les données du domaine {domaine}",
-          "description": "Les tests de l'Entité {entite} se perturbent l'un l'autre (domaine {domaine})."
+          "titre": "Erreurs de calcul des intérêts dans {domaine}",
+          "description": "Les intérêts calculés pour les comptes de l'Entité {entite} sont systématiquement nuls, alors que les taux appliqués sont non nuls et que des mouvements existent."
         },
         {
-          "titre": "Dates de test incohérentes avec le calendrier sur les dossiers du domaine {domaine}",
-          "description": "Les dates du jeu d'essai de l'Entité {entite} tombent hors de la période testée (domaine {domaine})."
+          "titre": "Échec de l'import des fichiers de référence dans {domaine}",
+          "description": "L'import des fichiers de référence pour l'Entité {entite} échoue avec une erreur de type 'format invalide'. Les fichiers semblent vides ou mal structurés."
         }
       ],
       "hors_perimetre": [
         {
-          "titre": "Demande d'évolution sur l'écran de consultation du domaine {domaine}",
-          "description": "L'Entité {entite} souhaite un affichage supplémentaire, absent de l'ancien système (domaine {domaine})."
+          "titre": "Erreur de synchronisation des données pour {entite} dans {domaine}",
+          "description": "Les données de l'entité {entite} ne sont pas synchronisées avec les autres composants de {domaine}, entraînant des incohérences dans les rapports."
         },
         {
-          "titre": "Nouveau rapport souhaité sur les dossiers du domaine {domaine}",
-          "description": "L'Entité {entite} demande un état qui n'existait pas avant la migration (domaine {domaine})."
+          "titre": "Échec de validation des règles métier pour {entite} dans {domaine}",
+          "description": "Les règles métier appliquées à {entite} dans {domaine} génèrent des erreurs systématiques lors des tests de validation."
         },
         {
-          "titre": "Comportement identique à l'ancien système sur les écritures du domaine {domaine}",
-          "description": "Le fonctionnement signalé par l'Entité {entite} est conforme à l'existant (domaine {domaine})."
+          "titre": "Problème d'affichage des informations pour {entite} dans {domaine}",
+          "description": "Les informations liées à {entite} dans {domaine} ne s'affichent pas correctement dans l'interface utilisateur, rendant l'analyse impossible."
         },
         {
-          "titre": "Question d'utilisation sur l'écran de consultation du domaine {domaine}",
-          "description": "L'Entité {entite} demande comment réaliser une opération courante (domaine {domaine})."
+          "titre": "Incohérences dans les logs pour {entite} dans {domaine}",
+          "description": "Les logs générés pour {entite} dans {domaine} contiennent des informations contradictoires ou manquantes."
         },
         {
-          "titre": "Anomalie de l'ancien système signalée sur les données du domaine {domaine}",
-          "description": "L'écart signalé par l'Entité {entite} existait déjà avant la migration (domaine {domaine})."
+          "titre": "Impossibilité de générer des exports pour {entite} dans {domaine}",
+          "description": "Les exports de données pour {entite} dans {domaine} échouent systématiquement sans message d'erreur clair."
         },
         {
-          "titre": "Demande d'ergonomie sur l'écran de consultation du domaine {domaine}",
-          "description": "L'Entité {entite} propose de réorganiser les zones de saisie (domaine {domaine})."
+          "titre": "Latence anormale pour les opérations sur {entite} dans {domaine}",
+          "description": "Les opérations liées à {entite} dans {domaine} présentent une latence anormalement élevée, impactant les performances globales."
         }
       ]
     },
     "cas_de_test": [
       {
-        "titre": "Contrôle des totaux après chargement sur les données du domaine {domaine}",
-        "description": "Comparer les totaux de l'Entité {entite} entre ancien et nouveau système (domaine {domaine})."
+        "titre": "Vérification de la migration des données clients dans {domaine}",
+        "description": "S'assurer que les données clients de l'entité {entite} sont correctement migrées vers le nouveau SI cœur sans perte ni corruption."
       },
       {
-        "titre": "Parcours de bout en bout via l'écran de consultation du domaine {domaine}",
-        "description": "Dérouler le parcours complet de l'Entité {entite} et comparer aux attendus (domaine {domaine})."
+        "titre": "Test de non-régression des transactions dans {domaine}",
+        "description": "Valider que les transactions traitées par {entite} dans l'ancien SI sont identiquement reproduites dans le nouveau SI pour {domaine}."
       },
       {
-        "titre": "Vérification de bonne réception sur le flux du domaine {domaine}",
-        "description": "Envoyer un fichier fictif de l'Entité {entite} et vérifier sa bonne réception (domaine {domaine})."
+        "titre": "Recette des interfaces utilisateurs pour {domaine}",
+        "description": "Vérifier que les interfaces utilisateurs de {entite} dans {domaine} sont fonctionnelles et conformes aux spécifications après migration."
       },
       {
-        "titre": "Rapprochement ancien et nouveau système sur les référentiels du domaine {domaine}",
-        "description": "Rapprocher un échantillon fictif de l'Entité {entite} ligne à ligne (domaine {domaine})."
+        "titre": "Validation des règles métiers dans {domaine}",
+        "description": "Confirmer que les règles métiers applicables à {entite} dans {domaine} sont correctement implémentées et produisent les résultats attendus."
       },
       {
-        "titre": "Non-régression sur l'écran de consultation du domaine {domaine}",
-        "description": "Rejouer les scénarios de l'Entité {entite} validés à la livraison précédente (domaine {domaine})."
+        "titre": "Test de charge pour {domaine}",
+        "description": "Simuler une charge maximale sur le nouveau SI pour {entite} dans {domaine} et vérifier la stabilité et les performances."
+      },
+      {
+        "titre": "Recette des rapports et exportations dans {domaine}",
+        "description": "S'assurer que les rapports et exportations générés pour {entite} dans {domaine} sont exacts et conformes aux attentes après migration."
       }
     ]
   },
   "certifications": [
     {
-      "titre": "Certification de la migration de l'Entité {entite}",
-      "description": "Avis de l'équipe métier de l'Entité {entite} sur la qualité de la migration."
+      "titre": "Validation de la certification métier pour la migration de {entite}",
+      "description": "L'Entité {entite} confirme que les tests de non-régression et les vérifications des données ont été réalisés avec succès. La certification métier est accordée pour la bascule."
     },
     {
-      "titre": "Validation métier de la bascule de l'Entité {entite}",
-      "description": "Synthèse des contrôles réalisés avant la bascule de l'Entité {entite}."
+      "titre": "Avis favorable de {entite} pour la migration du SI cœur",
+      "description": "L'Entité {entite} a validé la conformité des processus métiers après migration. Aucun blocage n'a été identifié pour la bascule."
     },
     {
-      "titre": "Recette finale de l'Entité {entite}",
-      "description": "Décision de l'Entité {entite} à l'issue des tests de non-régression."
+      "titre": "Certification des données migrées pour {entite}",
+      "description": "L'Entité {entite} atteste que les données migrées sont complètes, cohérentes et conformes aux attentes métiers."
     },
     {
-      "titre": "Attestation de conformité de l'Entité {entite}",
-      "description": "Engagement de l'Entité {entite} sur la complétude des données migrées."
+      "titre": "Validation des scénarios critiques par {entite}",
+      "description": "L'Entité {entite} a testé et validé tous les scénarios critiques pour sa migration. Les résultats sont conformes aux exigences."
+    },
+    {
+      "titre": "Avis de conformité métier de {entite} pour la bascule",
+      "description": "L'Entité {entite} a émis un avis positif sur la qualité de sa migration et autorise la bascule vers le nouvel environnement."
+    },
+    {
+      "titre": "Certification finale de {entite} pour la migration",
+      "description": "L'Entité {entite} a réalisé une revue complète et certifie que sa migration est prête pour la bascule sans risque opérationnel."
     }
   ]
 }

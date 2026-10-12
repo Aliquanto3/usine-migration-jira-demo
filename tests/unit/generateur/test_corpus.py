@@ -50,12 +50,13 @@ def domaines_livres() -> tuple[str, ...]:
     return charger_yaml(PROGRAMME_LIVRE, ConfigProgramme).domaines
 
 
-def test_corpus_versionne_identique_au_provisoire(domaines_livres: tuple[str, ...]) -> None:
+def test_corpus_versionne_definitif(domaines_livres: tuple[str, ...]) -> None:
+    """Story 1.9 : Corpus définitif produit par LLM, sérialisé tel que l'outil l'écrit."""
     corpus = charger_corpus(CORPUS_VERSIONNE)
-    assert corpus.modele_corpus == MODELE_GABARITS == "gabarits-provisoires"
-    attendu = corpus_provisoire(domaines_livres)
-    assert corpus == attendu
-    assert CORPUS_VERSIONNE.read_bytes() == serialiser_corpus(attendu)
+    assert corpus.modele_corpus != MODELE_GABARITS
+    assert corpus.version_corpus == "llm-1"
+    assert tuple(corpus.domaines) == domaines_livres
+    assert CORPUS_VERSIONNE.read_bytes() == serialiser_corpus(corpus)
 
 
 def test_corpus_provisoire_complet(domaines_livres: tuple[str, ...]) -> None:

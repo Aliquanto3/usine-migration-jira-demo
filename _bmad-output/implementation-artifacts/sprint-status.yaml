@@ -77,7 +77,7 @@ development_status:
   1-6-injection-initiale-dans-jira-cloud-free: done  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: done
   1-8-calage-des-scénarios-de-démo-au-jour-près: done  # prérequis : Epic 3 terminé
-  1-9-corpus-de-textes-définitif-par-llm: backlog  # prérequis : 6.1 (après la porte M3)
+  1-9-corpus-de-textes-définitif-par-llm: done
   epic-1-retrospective: optional
 
   epic-2: done  # lane L2 Extraction

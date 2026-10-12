@@ -54,10 +54,12 @@ def test_outil_sans_fournisseur_ni_provisoire(tmp_path: Path) -> None:
     assert not sortie.exists()
 
 
-def test_outil_provisoire_identique_au_versionne(tmp_path: Path) -> None:
+def test_outil_provisoire_memes_domaines_que_le_versionne(tmp_path: Path) -> None:
     sortie = tmp_path / "textes.json"
     generer(None, provisoire=True, sortie=sortie)
-    assert sortie.read_bytes() == CORPUS_VERSIONNE.read_bytes()
+    provisoire = charger_corpus(sortie)
+    assert provisoire.modele_corpus == "gabarits-provisoires"
+    assert tuple(provisoire.domaines) == tuple(charger_corpus(CORPUS_VERSIONNE).domaines)
 
 
 def test_outil_provisoire_ignore_le_fournisseur(tmp_path: Path) -> None:

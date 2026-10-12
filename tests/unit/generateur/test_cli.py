@@ -474,7 +474,7 @@ def test_corpus_versionne_dans_l_entete(tmp_path: Path) -> None:
     corpus = charger_corpus(CORPUS)
     assert (entete.version_corpus, entete.modele_corpus) == (
         corpus.version_corpus,
-        "gabarits-provisoires",
+        corpus.modele_corpus,
     )
     titres = {e.vers for e in evenements if e.champ is Champ.titre}
     assert titres
