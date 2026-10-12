@@ -238,7 +238,7 @@ def test_dernier_passage_ignore_un_manifeste_illisible(
     mauvais = racine / "2026-10-12" / "20261013T070000Z-00000f"
     shutil.copytree(passage, mauvais)
     contenu = json.loads((mauvais / "manifeste.json").read_text(encoding="utf-8"))
-    contenu[CLE_VERSION] = "1.0.0"
+    contenu[CLE_VERSION] = "2.0.0"
     (mauvais / "manifeste.json").write_text(json.dumps(contenu), encoding="utf-8")
     with caplog.at_level(logging.WARNING):
         dernier = ConsultationPassage(passage).dernier_passage()
@@ -382,18 +382,18 @@ def test_manifeste_absent(tmp_path: Path) -> None:
 def test_version_etrangere_meteo(passage: Path) -> None:
     chemin = passage / "meteo.json"
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
-    contenu[CLE_VERSION] = "1.0.0"
+    contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*1\.0\.0.*0\.1\.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.0\.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 
 def test_version_etrangere_manifeste(passage: Path) -> None:
     chemin = passage / "manifeste.json"
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
-    contenu[CLE_VERSION] = "1.0.0"
+    contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"manifeste\.json.*1\.0\.0"):
+    with pytest.raises(UsineErreur, match=r"manifeste\.json.*2\.0\.0"):
         ConsultationPassage(passage).manifeste()
 
 

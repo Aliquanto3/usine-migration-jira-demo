@@ -21,8 +21,8 @@ SHA = hashlib.sha256(OCTETS).hexdigest()
 
 
 def test_version_courante() -> None:
-    assert CONTRATS_VERSION == "0.1.0"
-    assert version_majeure(CONTRATS_VERSION) == 0
+    assert CONTRATS_VERSION == "1.0.0"
+    assert version_majeure(CONTRATS_VERSION) == 1
 
 
 @pytest.mark.parametrize("version", ["1", "1.0", "a.b.c", "01.0.0", "", "1.0.0-rc1"])
@@ -32,13 +32,13 @@ def test_version_illisible(version: str) -> None:
 
 
 def test_verifier_version_meme_majeure() -> None:
-    verifier_version("0.9.3")
+    verifier_version("1.9.3")
 
 
 def test_verifier_version_majeure_differente() -> None:
     with pytest.raises(UsineErreur) as erreur:
-        verifier_version("1.0.0")
-    assert "1.0.0" in str(erreur.value)
+        verifier_version("2.0.0")
+    assert "2.0.0" in str(erreur.value)
     assert CONTRATS_VERSION in str(erreur.value)
 
 

@@ -137,7 +137,7 @@ def test_entete_journal() -> None:
         version_corpus="1",
         modele_corpus="mistral:petit",
     )
-    assert entete.contrats_version == "0.1.0"
+    assert entete.contrats_version == "1.0.0"
     with pytest.raises(ValidationError, match="lundi"):
         EnteteJournal.model_validate(entete.model_dump() | {"ancrage_semaines": date(2026, 8, 18)})
 
@@ -167,7 +167,7 @@ def test_entete_journal_ordre_des_dates(remplacement: dict[str, Any]) -> None:
 def test_entete_journal_version_majeure_differente() -> None:
     with pytest.raises(ValidationError, match="incompatible"):
         EnteteJournal(
-            contrats_version="1.0.0",
+            contrats_version="2.0.0",
             graine=42,
             date_generation=date(2026, 10, 12),
             date_injection=date(2026, 10, 9),
@@ -199,7 +199,7 @@ def test_manifeste_injection() -> None:
             manifeste.model_dump() | {"correspondance_cles": {"GEN-1": "DEMO-1", "GEN-2": "DEMO-1"}}
         )
     with pytest.raises(ValidationError, match="incompatible"):
-        ManifesteInjection.model_validate(manifeste.model_dump() | {"contrats_version": "1.0.0"})
+        ManifesteInjection.model_validate(manifeste.model_dump() | {"contrats_version": "2.0.0"})
 
 
 def test_evenements_en_table() -> None:

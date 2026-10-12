@@ -100,7 +100,7 @@ def _manifeste(**champs: Any) -> ManifestePassage:
 def test_manifeste_et_duree() -> None:
     manifeste = _manifeste()
     assert manifeste.etapes[1].duree == timedelta(seconds=7)
-    assert manifeste.contrats_version == "0.1.0"
+    assert manifeste.contrats_version == "1.0.0"
 
 
 def test_exclusions_rejeu_par_fichier() -> None:
@@ -207,7 +207,7 @@ def test_enveloppe_aller_retour() -> None:
         passage_id=PASSAGE, date_arrete=D, contenu=(_meteo(),)
     )
     texte = enveloppe.model_dump_json()
-    assert '"contrats_version":"0.1.0"' in texte
+    assert '"contrats_version":"1.0.0"' in texte
     relue = lire_enveloppe(texte, tuple[MeteoEntite, ...])
     assert relue.contenu == (_meteo(),)
     assert relue.passage_id == PASSAGE
@@ -215,21 +215,21 @@ def test_enveloppe_aller_retour() -> None:
 
 def test_enveloppe_version_majeure_differente() -> None:
     enveloppe = EnveloppeFichier[MeteoEntite](passage_id=PASSAGE, date_arrete=D, contenu=_meteo())
-    texte = enveloppe.model_dump_json().replace('"0.1.0"', '"1.0.0"')
+    texte = enveloppe.model_dump_json().replace('"1.0.0"', '"2.0.0"')
     with pytest.raises(UsineErreur) as erreur:
         lire_enveloppe(texte, MeteoEntite)
+    assert "2.0.0" in str(erreur.value)
     assert "1.0.0" in str(erreur.value)
-    assert "0.1.0" in str(erreur.value)
 
 
 def test_contrats_version_verifiee_par_les_modeles() -> None:
-    with pytest.raises(ValidationError, match=r"1\.0\.0"):
+    with pytest.raises(ValidationError, match=r"2\.0\.0"):
         EnveloppeFichier[MeteoEntite](
-            contrats_version="1.0.0", passage_id=PASSAGE, date_arrete=D, contenu=_meteo()
+            contrats_version="2.0.0", passage_id=PASSAGE, date_arrete=D, contenu=_meteo()
         )
-    with pytest.raises(ValidationError, match=r"1\.0\.0"):
-        _manifeste(contrats_version="1.0.0")
-    assert _manifeste(contrats_version="0.9.3").contrats_version == "0.9.3"
+    with pytest.raises(ValidationError, match=r"2\.0\.0"):
+        _manifeste(contrats_version="2.0.0")
+    assert _manifeste(contrats_version="1.9.3").contrats_version == "1.9.3"
 
 
 def test_contenus_json() -> None:
@@ -264,7 +264,7 @@ def test_enveloppe_version_lue_avant_le_contenu() -> None:
         "[]",
         '{"passage_id": "x"}',
         '{"contrats_version": 1}',
-        '{"contrats_version": "0.1.0", "passage_id": "x", "date_arrete": "2026-10-12"}',
+        '{"contrats_version": "1.0.0", "passage_id": "x", "date_arrete": "2026-10-12"}',
     ],
 )
 def test_enveloppe_invalide(texte: str) -> None:
