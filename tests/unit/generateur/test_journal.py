@@ -1,4 +1,4 @@
-"""Générateur déterministe du Journal (Stories 0.3, 1.1, 1.2 et 1.3)."""
+"""Générateur déterministe du Journal (Stories 0.3, 1.1 à 1.4)."""
 
 import json
 import re
@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 import yaml
 
+from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
 from usine.config import charger_yaml, cles_sans_commentaire
 from usine.contrats.calendrier import (
     FUSEAU,
@@ -31,12 +32,23 @@ from usine.contrats.tickets import (
     TypeTicket,
 )
 from usine.generateur.corpus import Corpus, TextesDomaine, TexteTicket
+from usine.generateur.identifiants import (
+    CIVILITES,
+    NOMS_FICTIFS,
+    PRENOMS_FICTIFS,
+    TypeIdentifiant,
+    iban_valide,
+    luhn_valide,
+)
 from usine.generateur.journal import (
+    NOM_IDENTIFIANTS,
+    PROPORTION_IDENTIFIANTS_POURCENT,
     TRANSITIONS_MAX,
     Generation,
     ecrire_journal,
     fenetre_generation,
     generer,
+    serialiser_identifiants,
     serialiser_journal,
     serialiser_verite,
 )
@@ -113,6 +125,7 @@ def test_reproductible_octet_pour_octet(
     autre = generer(config, graine, DATE_GENERATION)
     assert serialiser_journal(autre) == serialiser_journal(generation)
     assert serialiser_verite(autre) == serialiser_verite(generation)
+    assert serialiser_identifiants(autre) == serialiser_identifiants(generation)
 
 
 def test_graine_differente(config: ConfigProgramme, generation: Generation, graine: int) -> None:
@@ -256,7 +269,11 @@ def test_graine_negative_refusee(config: ConfigProgramme, graine_negative: int) 
 
 
 def test_sortie_utf8_sans_retour_chariot(generation: Generation) -> None:
-    for contenu in (serialiser_journal(generation), serialiser_verite(generation)):
+    for contenu in (
+        serialiser_journal(generation),
+        serialiser_verite(generation),
+        serialiser_identifiants(generation),
+    ):
         assert b"\r" not in contenu
         assert contenu.endswith(b"\n")
         contenu.decode("utf-8")
@@ -283,6 +300,7 @@ def test_ecrire_journal(config: ConfigProgramme, tmp_path: Path) -> None:
     assert chemin == repertoire / "journal.jsonl"
     assert chemin.read_bytes() == serialiser_journal(generation)
     assert (repertoire / "verite_terrain.json").read_bytes() == serialiser_verite(generation)
+    assert (repertoire / NOM_IDENTIFIANTS).read_bytes() == serialiser_identifiants(generation)
 
 
 def test_ecrire_journal_impossible(config: ConfigProgramme, tmp_path: Path) -> None:
@@ -742,7 +760,10 @@ def test_corpus_passe_en_parametre(config: ConfigProgramme) -> None:
         valeurs = attributs[cle]
         prefixe = "compta" if valeurs[Champ.domaine] == "comptabilite" else "gen"
         assert valeurs[Champ.titre] == f"{prefixe}-{cause.name} {valeurs[Champ.domaine]}"
-        assert valeurs[Champ.description] == f"{prefixe}-{cause.name} pour {valeurs[Champ.entite]}"
+        # Préfixe : une description peut porter ensuite des identifiants fictifs (Story 1.4).
+        assert valeurs[Champ.description].startswith(
+            f"{prefixe}-{cause.name} pour {valeurs[Champ.entite]}"
+        )
     certifications = [v for v in attributs.values() if Champ.statut_certification in v]
     assert {v[Champ.titre] for v in certifications} == {"Certif ENT-A", "Certif ENT-B"}
     # Même graine, même Corpus : même Journal ; autre Corpus : autres textes.
@@ -804,3 +825,130 @@ def test_volumetrie_cible_config_livree(
     assert "cause_racine" not in journal
     for cause in CauseRacine:
         assert f'"{cause.value}"' not in journal
+
+
+# --- Story 1.4 : identifiants sensibles fictifs ---
+
+MOTIF_IBAN = re.compile(MOTIFS_PAR_DEFAUT["COMPTE"])
+"""Motif `COMPTE` de la Pseudonymisation, importé pour suivre toute évolution."""
+
+
+def _lire_ecrits(repertoire: Path) -> tuple[list[Evenement], list[dict[str, str]]]:
+    """Événements du Journal écrit et liste des identifiants injectés écrite à côté."""
+    lignes = (repertoire / "journal.jsonl").read_bytes().decode("utf-8").splitlines()
+    evenements = [Evenement.model_validate_json(ligne) for ligne in lignes[1:]]
+    liste = json.loads((repertoire / NOM_IDENTIFIANTS).read_text(encoding="utf-8"))
+    return evenements, liste
+
+
+def _verifier_identifiants(evenements: list[Evenement], liste: list[dict[str, str]]) -> float:
+    """Vérifie la liste écrite contre le Journal écrit ; renvoie la part des descriptions
+    d'Anomalies qui contiennent au moins une valeur de la liste.
+
+    Chaque identifiant est dans la description de son Anomalie, et nulle part ailleurs ;
+    chaque valeur a la forme factice attendue de son type.
+    """
+    anomalies = {
+        e.cle_ticket
+        for e in evenements
+        if e.nature is NatureEvenement.creation and e.type_ticket is TypeTicket.anomalie
+    }
+    descriptions = {
+        e.cle_ticket: str(e.vers)
+        for e in evenements
+        if e.champ is Champ.description and e.type_ticket is TypeTicket.anomalie
+    }
+    assert set(descriptions) == anomalies
+    valeurs = {i["valeur"] for i in liste}
+    assert liste == sorted(liste, key=lambda i: _numero(i["cle_ticket"]))
+    for identifiant in liste:
+        assert set(identifiant) == {"cle_ticket", "type", "valeur"}
+        assert identifiant["cle_ticket"] in anomalies
+        assert identifiant["valeur"] in descriptions[identifiant["cle_ticket"]]
+        valeur = identifiant["valeur"]
+        match TypeIdentifiant(identifiant["type"]):
+            case TypeIdentifiant.COMPTE:
+                assert MOTIF_IBAN.fullmatch(valeur), valeur
+                trouve = MOTIF_IBAN.search(descriptions[identifiant["cle_ticket"]])
+                assert trouve is not None, valeur
+                assert valeur.replace(" ", "")[4:9] == "99999"
+                assert not iban_valide(valeur), valeur
+            case TypeIdentifiant.ID_CLIENT:
+                assert re.fullmatch(r"99\d{8}", valeur), valeur
+                assert not luhn_valide(valeur), valeur
+            case TypeIdentifiant.CLIENT:
+                civilite, prenom, nom = valeur.split(" ")
+                assert civilite in CIVILITES
+                assert (prenom, nom) in {(p, n) for p in PRENOMS_FICTIFS for n in NOMS_FICTIFS}
+    # Aucun identifiant ailleurs que dans la description de son Anomalie (titres, autres
+    # tickets, autres champs).
+    cles_par_valeur: dict[str, set[str]] = {}
+    for identifiant in liste:
+        cles_par_valeur.setdefault(identifiant["valeur"], set()).add(identifiant["cle_ticket"])
+    for e in evenements:
+        if e.vers is None:
+            continue
+        for valeur in valeurs:
+            if valeur in e.vers:
+                assert e.champ is Champ.description, (e.cle_ticket, e.champ, valeur)
+                assert e.cle_ticket in cles_par_valeur[valeur], (e.cle_ticket, valeur)
+    porteuses = [cle for cle, texte in descriptions.items() if any(v in texte for v in valeurs)]
+    assert len(porteuses) == -(-len(anomalies) * PROPORTION_IDENTIFIANTS_POURCENT // 100)
+    return len(porteuses) / len(anomalies)
+
+
+def test_identifiants_config_reduite(generation: Generation, tmp_path: Path) -> None:
+    ecrire_journal(generation, tmp_path)
+    evenements, liste = _lire_ecrits(tmp_path)
+    assert 25 <= _nb_anomalies(generation) <= 35
+    assert _verifier_identifiants(evenements, liste) >= 0.10
+    assert len({i["cle_ticket"] for i in liste}) >= 4
+
+
+def test_identifiants_config_livree(generation_livree: Generation, tmp_path: Path) -> None:
+    ecrire_journal(generation_livree, tmp_path)
+    evenements, liste = _lire_ecrits(tmp_path)
+    assert _verifier_identifiants(evenements, liste) >= 0.10
+    assert {i["type"] for i in liste} == {t.value for t in TypeIdentifiant}
+    assert [(i.cle_ticket, i.type.value, i.valeur) for i in generation_livree.identifiants] == [
+        (i["cle_ticket"], i["type"], i["valeur"]) for i in liste
+    ]
+
+
+def test_identifiants_ne_changent_que_les_descriptions(
+    config: ConfigProgramme, generation: Generation, graine: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tirés en dernier : sans identifiants, le Journal est celui de la Story 1.3, aux seules
+    descriptions des Anomalies choisies près (qui gardent leur texte en préfixe)."""
+    monkeypatch.setattr("usine.generateur.journal.PROPORTION_IDENTIFIANTS_POURCENT", 0)
+    sans = generer(config, graine, DATE_GENERATION)
+    assert sans.identifiants == ()
+    assert serialiser_verite(sans) == serialiser_verite(generation)
+    choisies = {i.cle_ticket for i in generation.identifiants}
+    assert len(sans.evenements) == len(generation.evenements)
+    for avant, apres in zip(sans.evenements, generation.evenements, strict=True):
+        if avant == apres:
+            continue
+        assert apres.champ is Champ.description
+        assert apres.cle_ticket in choisies
+        assert str(apres.vers).startswith(f"{avant.vers} Cas cité par l'Entité ")
+        assert avant.model_copy(update={"vers": apres.vers}) == apres
+    modifiees = {
+        a.cle_ticket for a, b in zip(sans.evenements, generation.evenements, strict=True) if a != b
+    }
+    assert modifiees == choisies
+
+
+def test_identifiants_reproductibles(config: ConfigProgramme, tmp_path: Path) -> None:
+    for nom in ("a", "b"):
+        ecrire_journal(generer(config, 42, DATE_GENERATION), tmp_path / nom)
+    for fichier in ("journal.jsonl", "verite_terrain.json", NOM_IDENTIFIANTS):
+        assert (tmp_path / "a" / fichier).read_bytes() == (tmp_path / "b" / fichier).read_bytes()
+    autre = serialiser_identifiants(generer(config, 43, DATE_GENERATION))
+    assert autre != (tmp_path / "a" / NOM_IDENTIFIANTS).read_bytes()
+
+
+def test_identifiants_absents_de_la_verite_terrain(generation: Generation) -> None:
+    verite = serialiser_verite(generation).decode("utf-8")
+    for identifiant in generation.identifiants:
+        assert identifiant.valeur not in verite

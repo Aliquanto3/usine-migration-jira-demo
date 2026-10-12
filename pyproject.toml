@@ -59,9 +59,10 @@ default-groups = ["dev"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-m", "not reseau", "--strict-markers"]
+addopts = ["-m", "not reseau and not lent", "--strict-markers"]
 markers = [
     "reseau: test qui accède au réseau (Jira, LLM) ; exclu par défaut, lancé par `-m reseau`",
+    "lent: test long (génération complète, plusieurs graines) ; exclu par défaut, lancé par `-m lent`",
 ]
 
 [tool.ruff]
