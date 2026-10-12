@@ -157,6 +157,8 @@ def test_franchissement_ind_3_et_tendance_non_lineaire_ind_1() -> None:
         seuil_numerateur=20,
         seuil_denominateur=1,
         version_grille=VERSION_GRILLE,
+        valeur_projetee_numerateur=20,
+        valeur_projetee_denominateur=1,
     )
     assert ind_3.valeur_projetee == Fraction(20)
 
@@ -455,3 +457,22 @@ def test_indicateurs_non_projetes_ignores() -> None:
     )
 
     assert _calculer(pl.concat([reference, ind_2])) == _calculer(reference)
+
+
+@pytest.mark.parametrize("horizon", [4, 5, 6, 10])
+def test_valeur_projetee_portee_par_chaque_risque(horizon: int) -> None:
+    """Chaque Risque rendu porte `valeur_projetee_*` égale à `valeur_projetee` (H-26)."""
+    resultat = risques_entree_rouge(
+        _reference(), _meteo(), GRILLE, ParametresRisque(horizon=horizon)
+    )
+
+    assert resultat.risques
+    for projete in resultat.risques:
+        risque = projete.risque
+        assert risque.valeur_projetee_numerateur is not None
+        assert risque.valeur_projetee_denominateur is not None
+        assert (
+            Fraction(risque.valeur_projetee_numerateur, risque.valeur_projetee_denominateur)
+            == projete.valeur_projetee
+        )
+        assert risque.valeur_projetee_denominateur == projete.valeur_projetee.denominator

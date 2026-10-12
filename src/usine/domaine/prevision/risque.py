@@ -59,7 +59,11 @@ class ParametresRisque:
 
 @dataclass(frozen=True)
 class RisqueProjete:
-    """Risque d'entrée en rouge et valeur projetée au franchissement (hors contrat gelé)."""
+    """Risque d'entrée en rouge et valeur projetée au franchissement.
+
+    Le Risque porte aussi la valeur projetée (`valeur_projetee_numerateur/denominateur`,
+    contrats 1.1, H-26), égale à `valeur_projetee` ; ce champ garde la `Fraction` exacte.
+    """
 
     risque: RisqueEntreeRouge
     valeur_projetee: Fraction
@@ -159,6 +163,8 @@ def risques_entree_rouge(
                 seuil_numerateur=seuil.numerator,
                 seuil_denominateur=seuil.denominator,
                 version_grille=meteo.version_grille,
+                valeur_projetee_numerateur=projetee.numerator,
+                valeur_projetee_denominateur=projetee.denominator,
             )
             risques.append(RisqueProjete(risque=risque, valeur_projetee=projetee))
 
