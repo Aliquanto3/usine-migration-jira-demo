@@ -30,6 +30,8 @@ CLE_ECRAN = "ecran"
 """Clé de `session_state` du sélecteur d'écran."""
 CLE_ENTITE = "entite"
 """Clé de `session_state` du sélecteur d'Entité de l'écran Détail."""
+CLE_REPLI = "mode_repli"
+"""Clé de `session_state` de la bascule manuelle du Mode repli (barre latérale)."""
 
 
 def libelles_ecrans() -> list[str]:

@@ -1,4 +1,7 @@
-"""Racine d'essai partagée par les tests de l'UI : un Passage publié (graine 42, 2026-10-09)."""
+"""Racine d'essai partagée par les tests de l'UI : un Passage publié (graine 42, 2026-10-09).
+
+Elle porte aussi la copie versionnée du Mode repli (`demo/repli/passage/`) du dépôt.
+"""
 
 import shutil
 from pathlib import Path
@@ -12,12 +15,14 @@ from tests.unit.chaine.environnement import (
     preparer_racine,
 )
 from usine.composition import lancer_rapport
+from usine.ui.cli import REPERTOIRE_REPLI
 from usine.ui.outillage import FICHIER_FICHE
 
 
 @pytest.fixture(scope="module")
 def racine_publiee(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Racine où un Passage a été publié le 09/10/2026, avec la fiche outillage du dépôt."""
+    """Racine où un Passage a été publié le 09/10/2026, avec la fiche outillage et la copie
+    du Mode repli du dépôt."""
     with pytest.MonkeyPatch.context() as environnement:
         environnement.delenv("USINE_MODE_REPLI", raising=False)
         environnement.delenv("USINE_RACINE", raising=False)
@@ -25,6 +30,7 @@ def racine_publiee(tmp_path_factory: pytest.TempPathFactory) -> Path:
         lancer_rapport(racine, DATE_ARRETE, horloge_figee(), lambda: "aaaaaa")
         (racine / "docs").mkdir(exist_ok=True)
         shutil.copyfile(RACINE_DEPOT / FICHIER_FICHE, racine / FICHIER_FICHE)
+        shutil.copytree(RACINE_DEPOT / REPERTOIRE_REPLI, racine / REPERTOIRE_REPLI)
     return racine
 
 

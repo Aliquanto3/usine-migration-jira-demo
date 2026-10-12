@@ -1,8 +1,10 @@
 """Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement, avant / après,
-outillage."""
+outillage, Mode repli."""
 
+import json
 import re
 import shutil
+import socket
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
 from functools import partial
@@ -13,6 +15,7 @@ import pytest
 import streamlit
 from streamlit.testing.v1 import AppTest
 
+from tests.unit.chaine.environnement import RACINE_DEPOT
 from tests.unit.ui.test_avant_apres import manifeste, publier
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date, formater_pourcentage
@@ -41,6 +44,8 @@ from usine.ui.progression import AUCUN_RAPPORT, texte_duree
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
 APP = REPERTOIRE_UI / "app.py"
+ENTITES_REPLI = [f"ENT-{lettre}" for lettre in "ABCDEFGHIJ"]
+"""Entités de la copie versionnée du Mode repli (Programme complet)."""
 LIEN = re.compile(r"\[((?:\\.|[^\]\\])+)\]\(([^)]+)\)")
 
 
@@ -72,6 +77,14 @@ def _entites(tableau: str) -> list[str]:
 
 def _sans_tableau(page: AppTest) -> bool:
     return not any(str(m.value).startswith("| Entité |") for m in page.markdown)
+
+
+def _repli_absent(page: AppTest) -> bool:
+    """Seule erreur : `REPLI_ABSENT` (`app.py` ne s'importe pas hors de Streamlit)."""
+    erreurs = [str(e.value) for e in page.error]
+    return len(erreurs) == 1 and all(
+        fragment in erreurs[0] for fragment in ("introuvable", "demo/repli/passage/")
+    )
 
 
 def _bandeau_en_tete(page: AppTest) -> bool:
@@ -127,6 +140,7 @@ def test_carte_en_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPat
     tableau = _tableau(page)
     assert "](http" not in tableau
     assert "DEMO-" in tableau
+    assert _entites(tableau) == ENTITES_REPLI  # la copie, pas le Passage de `sorties/`
 
 
 @pytest.mark.parametrize("ecran", list(Ecran))
@@ -470,8 +484,10 @@ def test_mode_repli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("USINE_MODE_REPLI", "1")
     assert mode_repli(tmp_path)
     page = _page()
+    assert not page.exception
     assert "Mode repli" in page.warning[0].value
     assert _bandeau_en_tete(page)
+    assert _repli_absent(page)  # pas de copie sous `tmp_path`
 
 
 def test_racine_par_variable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1085,3 +1101,224 @@ def test_outillage_racine_introuvable(tmp_path: Path, monkeypatch: pytest.Monkey
     assert str(absente) in message_carte
     assert not page.warning
     assert not _fiche(page)
+
+
+# --- Mode repli sur un Passage enregistré (Story 7.6) ---
+
+
+LECTURE_REPLI_IMPOSSIBLE = "Lecture du Passage enregistré `demo/repli/passage/` impossible : "
+"""Préfixe d'erreur d'une copie du Mode repli illisible."""
+
+
+def _bascule(page: AppTest) -> Any:
+    """Bascule latérale « Mode repli »."""
+    (bascule,) = [t for t in page.sidebar.toggle if t.label == "Mode repli"]
+    return bascule
+
+
+def _clone_frais(racine: Path) -> Path:
+    """Racine d'un clone frais : la copie versionnée et `config/demo.yaml`, sans `sorties/`."""
+    shutil.copytree(RACINE_DEPOT / cli.REPERTOIRE_REPLI, racine / cli.REPERTOIRE_REPLI)
+    (racine / "config").mkdir(exist_ok=True)
+    shutil.copyfile(RACINE_DEPOT / avant_apres.FICHIER_CONFIG, racine / avant_apres.FICHIER_CONFIG)
+    return racine
+
+
+def test_repli_par_variable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(_clone_frais(tmp_path))
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page()
+    assert not page.exception
+    assert not page.error
+    assert _bandeau_en_tete(page)
+    assert "demo/repli/passage/" in page.warning[0].value
+    assert "liens Jira sont inactifs" in page.warning[0].value
+    assert _bascule(page).value
+    assert _bascule(page).disabled  # la variable impose le Mode repli
+    tableau = _tableau(page)
+    assert _entites(tableau) == ENTITES_REPLI
+    assert "09/10/2026" in page.caption[0].value
+    assert "DEMO-" in tableau
+    assert "](http" not in tableau
+    _aller(page, Ecran.detail)
+    assert _bandeau_en_tete(page)
+    assert _bascule(page).value
+
+
+def test_repli_par_bascule(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page = _page()
+    assert not _bascule(page).value
+    assert not _bascule(page).disabled
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]  # `sorties/passages/`
+    _bascule(page).set_value(True).run()
+    assert not page.exception
+    assert _bandeau_en_tete(page)
+    tableau = _tableau(page)
+    assert _entites(tableau) == ENTITES_REPLI
+    assert "](http" not in tableau
+    page.button(key="detail_ENT-C").click().run()
+    assert not page.exception
+    assert _bandeau_en_tete(page)
+    assert page.selectbox[0].value == "ENT-C"
+    assert "](http" not in _textes(page)
+    _aller(page, Ecran.carte)
+    _bascule(page).set_value(False).run()
+    assert not page.exception
+    assert not page.warning  # bandeau retiré
+    assert _entites(_tableau(page)) == ["ENT-A", "ENT-B"]
+
+
+def test_repli_clone_frais_sans_reseau(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    connecter = socket.socket.connect
+
+    def interdit(prise: socket.socket, adresse: Any) -> None:
+        """Toute connexion réseau lève ; la boucle locale d'asyncio (Windows) reste permise."""
+        if isinstance(adresse, tuple) and adresse[0] in {"127.0.0.1", "::1"}:
+            connecter(prise, adresse)
+            return
+        raise OSError(f"connexion réseau interdite dans ce test : {adresse!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", interdit)
+    monkeypatch.chdir(_clone_frais(tmp_path))
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page()
+    assert not page.exception
+    assert not page.error
+    assert _entites(_tableau(page)) == ENTITES_REPLI
+    page.button(key="detail_ENT-A").click().run()
+    assert not page.exception
+    assert not page.error
+    consultation = cli.consultation_repli(tmp_path)
+    assert consultation is not None
+    (meteo_a,) = consultation.meteo(entite="ENT-A")
+    tableau = _tableau_regles(page)
+    assert not LIEN.findall(tableau)  # Règles sans lien
+    for regle in meteo_a.regles:
+        for cle in regle.tickets_en_cause:
+            assert cle in tableau
+    textes = _textes(page)
+    assert "Prévision de sortie du rouge" in textes
+    assert detail.PREVISION_NON_CALCULEE_PASSAGE not in textes
+    (prevision,) = consultation.previsions(entite="ENT-A")
+    for facteur in prevision.facteurs:
+        assert echapper_markdown(facteur.libelle) in textes
+    assert "Risque d'entrée en rouge" in textes
+    assert detail.RISQUE_SANS_OBJET in textes  # ENT-A est déjà rouge
+    assert "](http" not in textes
+    _aller(page, Ecran.avant_apres)
+    assert not page.exception
+    assert not page.error
+    mesure = consultation.manifeste()
+    lignes = _tableau_avant_apres(page)
+    assert lignes[2].endswith(f"| {texte_duree(avant_apres.duree_mesuree(mesure))} |")
+    assert mesure.passage_id in page.caption[0].value
+    assert not (tmp_path / "sorties").exists()
+
+
+def test_repli_lancement_desactive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lanceur = _Lanceur()
+    _installer(monkeypatch, lanceur)
+    monkeypatch.chdir(_clone_frais(tmp_path))
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page(Ecran.lancement)
+    assert not page.exception
+    assert _bandeau_en_tete(page)
+    assert page.button[0].label == "Lancer la Chaîne"
+    assert page.button[0].disabled
+    (information,) = page.info
+    assert "lancement de la Chaîne est désactivé" in information.value
+    assert "demo/repli/passage/" in information.value
+    assert lanceur.appels == []
+    assert not (tmp_path / "sorties").exists()
+
+
+@pytest.mark.parametrize("ecran", [Ecran.carte, Ecran.detail, Ecran.avant_apres])
+def test_repli_copie_absente(ecran: Ecran, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _demo(tmp_path)
+    publier(tmp_path, manifeste(3.4))  # un Passage publié, jamais lu en Mode repli
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page(ecran)
+    assert not page.exception
+    assert _bandeau_en_tete(page)
+    assert _repli_absent(page)
+    assert _sans_tableau(page)
+    assert not _tableau_avant_apres(page)
+    assert not page.selectbox
+
+
+def test_repli_sans_detection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(_clone_frais(tmp_path))
+    page = _page()  # ni variable ni bascule, aucun Passage publié : pas d'activation implicite
+    assert not page.exception
+    assert not page.warning
+    assert not _bascule(page).value
+    assert "Aucun Passage publié" in page.info[0].value
+    assert _sans_tableau(page)
+
+
+def test_repli_copie_illisible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _clone_frais(tmp_path)
+    (tmp_path / cli.REPERTOIRE_REPLI / "meteo.json").write_text("{illisible", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page()
+    assert not page.exception
+    assert _bandeau_en_tete(page)
+    assert page.error[0].value.startswith(LECTURE_REPLI_IMPOSSIBLE)
+    assert _sans_tableau(page)
+    _aller(page, Ecran.detail)
+    assert not page.exception
+    assert page.error[0].value.startswith(LECTURE_REPLI_IMPOSSIBLE)
+
+
+def test_repli_avant_apres_manifeste_illisible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clone_frais(tmp_path)
+    chemin = tmp_path / cli.REPERTOIRE_REPLI / "manifeste.json"
+    chemin.write_text("{illisible", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    (erreur,) = page.error
+    assert erreur.value.startswith(LECTURE_REPLI_IMPOSSIBLE)
+    assert not _tableau_avant_apres(page)
+
+
+def test_repli_avant_apres_classification_initiale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clone_frais(tmp_path)
+    chemin = tmp_path / cli.REPERTOIRE_REPLI / "manifeste.json"
+    donnees = json.loads(chemin.read_text(encoding="utf-8"))
+    donnees["classification_initiale"] = True
+    chemin.write_text(json.dumps(donnees), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page(Ecran.avant_apres)
+    assert not page.exception
+    assert not page.error
+    assert _bandeau_en_tete(page)
+    assert [w.value for w in page.warning][1:] == [avant_apres.SEULE_CLASSIFICATION_INITIALE]
+    assert not _tableau_avant_apres(page)
+
+
+def test_repli_variable_illisible_bascule(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.setenv("USINE_MODE_REPLI", "peut-etre")
+    page = _page()
+    # nommée une seule fois sous le bandeau, bien que lue par `racine_ui` et par `mode_repli`
+    # (la carte, qui lit aussi la variable pour l'URL Jira, préfixe son propre message)
+    illisibles = [e for e in page.error if e.value.startswith("variable d'environnement")]
+    assert len(illisibles) == 1
+    assert "USINE_MODE_REPLI" in illisibles[0].value
+    assert not _bascule(page).disabled
+    _bascule(page).set_value(True).run()
+    assert not page.exception
+    assert _bandeau_en_tete(page)  # le bandeau précède l'erreur de la variable
+    assert _entites(_tableau(page)) == ENTITES_REPLI

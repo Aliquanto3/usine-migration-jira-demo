@@ -11,6 +11,11 @@ La racine est `USINE_RACINE` si elle est définie, sinon le répertoire courant.
 repli, `Consultation`, configuration de la démo (`config/demo.yaml`) et manifestes de l'avant
 / après viennent des services de `ui/cli.py` (racine de composition). L'écran outillage affiche
 en lecture seule la fiche `docs/fiche-outillage.md` (Story 8.1), lue sous la même racine.
+
+Mode repli (activation toujours manuelle, H-30) : `USINE_MODE_REPLI` l'impose, sinon la bascule
+latérale « Mode repli » le décide. Actif, il affiche un bandeau permanent en tête de page ; la
+carte, le détail et l'avant / après lisent alors le Passage enregistré `demo/repli/passage/`
+via `Consultation`, sans lien Jira, et le lancement de la Chaîne est désactivé.
 """
 
 import subprocess
@@ -23,8 +28,10 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
 from usine.ui import avant_apres, carte, detail, lancement, navigation, outillage, progression
 from usine.ui.cli import (
+    REPERTOIRE_REPLI,
     config_demo,
     consultation_dernier_passage,
+    consultation_repli,
     manifestes_avant_apres,
     mode_repli,
     racine_ui,
@@ -46,19 +53,59 @@ _FICHIER_ERREURS = "fichier_erreurs"
 _ECHEC_LANCEMENT = "echec_lancement"
 
 
-def afficher_bandeau(racine: Path) -> None:
-    """Bandeau permanent en tête de page quand `USINE_MODE_REPLI=1` (jamais automatique)."""
+_DOSSIER_REPLI = f"{REPERTOIRE_REPLI.as_posix()}/"
+
+# Bandeau permanent du Mode repli, premier élément de la zone principale.
+BANDEAU_REPLI = (
+    f"**Mode repli** : la démo lit le Passage enregistré `{_DOSSIER_REPLI}`, sans Jira ni LLM"
+    " réels ; les liens Jira sont inactifs."
+)
+
+# Aide de la bascule latérale du Mode repli.
+AIDE_REPLI = (
+    f"Activation manuelle : l'UI lit le Passage enregistré {_DOSSIER_REPLI} et le lancement est"
+    " désactivé."
+)
+
+# Mode repli sans copie versionnée : erreur explicite, jamais de repli silencieux.
+REPLI_ABSENT = (
+    f"Mode repli : Passage enregistré introuvable (`{_DOSSIER_REPLI}manifeste.json` absent) ;"
+    f" restaurer `{_DOSSIER_REPLI}` depuis le dépôt ou désactiver le Mode repli."
+)
+
+# Écran Lancement en Mode repli : bouton visible mais désactivé.
+LANCEMENT_REPLI = (
+    "Mode repli : le lancement de la Chaîne est désactivé. L'UI lit le Passage enregistré"
+    f" `{_DOSSIER_REPLI}` ; désactiver le Mode repli pour lancer la Chaîne."
+)
+
+
+def afficher_bandeau(racine: Path, erreur_racine: str | None = None) -> bool:
+    """Mode repli effectif, toujours manuel (H-30), et bandeau permanent en tête s'il est actif.
+
+    `USINE_MODE_REPLI` actif force la bascule latérale à l'état activé et la désactive ;
+    sinon la bascule décide. Une variable illisible est signalée sous le bandeau, comme
+    `erreur_racine` (lecture de `USINE_RACINE`), puis la bascule décide.
+    """
+    erreurs = [] if erreur_racine is None else [erreur_racine]
     try:
-        repli = mode_repli(racine)
+        impose = mode_repli(racine)
     except UsineErreur as exc:
-        st.error(str(exc))
-        return
+        erreurs.append(str(exc))
+        impose = False
+    if impose:
+        st.session_state[navigation.CLE_REPLI] = True  # avant la bascule : état imposé
+    repli = st.sidebar.toggle(
+        "Mode repli",
+        key=navigation.CLE_REPLI,
+        disabled=impose,
+        help=AIDE_REPLI + (" Imposé par USINE_MODE_REPLI." if impose else ""),
+    )
     if repli:
-        st.warning(
-            "**Mode repli** : la démo tourne sans Jira ni LLM réels ; aucun lien Jira n'est"
-            " proposé.",
-            icon="⚠️",
-        )
+        st.warning(BANDEAU_REPLI, icon="⚠️")
+    for erreur in dict.fromkeys(erreurs):  # une variable illisible n'est nommée qu'une fois
+        st.error(erreur)
+    return repli
 
 
 class _Lecture(carte.LectureCarte, detail.LectureDetail, Protocol):
@@ -76,24 +123,36 @@ def _racine_introuvable(racine: Path) -> bool:
     return True
 
 
-def _lecture(racine: Path) -> _Lecture | None:
-    """`Consultation` du dernier Passage publié, ou `None` après un message explicite."""
+def _echec_lecture(exc: Exception, repli: bool) -> None:
+    """Erreur de lecture qui nomme la source : Passage enregistré en Mode repli, sinon dernier."""
+    source = f"du Passage enregistré `{_DOSSIER_REPLI}`" if repli else "du dernier Passage"
+    st.error(f"Lecture {source} impossible : {exc}")
+
+
+def _lecture(racine: Path, repli: bool) -> _Lecture | None:
+    """`Consultation` du dernier Passage publié, ou du Passage enregistré en Mode repli.
+
+    `None` après un message explicite ; en Mode repli, jamais de lecture de `sorties/`.
+    """
     if _racine_introuvable(racine):
         return None
     try:
-        consultation = consultation_dernier_passage(racine)
+        consultation = consultation_repli(racine) if repli else consultation_dernier_passage(racine)
     except UsineErreur as exc:
-        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        _echec_lecture(exc, repli)
         return None
     if consultation is None:
-        st.info("Aucun Passage publié : lancer la Chaîne pour produire une carte météo.")
+        if repli:
+            st.error(REPLI_ABSENT)
+        else:
+            st.info("Aucun Passage publié : lancer la Chaîne pour produire une carte météo.")
     return consultation
 
 
-def afficher_carte(racine: Path) -> None:
+def afficher_carte(racine: Path, repli: bool = False) -> None:
     """Carte météo du dernier Passage publié : tableau, légende et un bouton Détail par Entité."""
     st.subheader("Carte météo du dernier Passage")
-    consultation = _lecture(racine)
+    consultation = _lecture(racine, repli)
     if consultation is None:
         return
     try:
@@ -101,7 +160,7 @@ def afficher_carte(racine: Path) -> None:
         lignes = carte.lignes_carte(consultation)
         entites = [meteo.entite for meteo in consultation.meteo()]
     except UsineErreur as exc:
-        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        _echec_lecture(exc, repli)
         return
     st.caption(f"Date d'arrêté : {date_arrete}")
     if not lignes:
@@ -125,16 +184,16 @@ def _bloc(titre: str, contenu: str) -> None:
     st.markdown(contenu)
 
 
-def afficher_detail(racine: Path) -> None:
+def afficher_detail(racine: Path, repli: bool = False) -> None:
     """Détail d'une Entité (Palier 1) : Météo, Règles, KPI clés, Prévision, Risque, Explication."""
     st.subheader(Ecran.detail.value)
-    consultation = _lecture(racine)
+    consultation = _lecture(racine, repli)
     if consultation is None:
         return
     try:
         meteos = {meteo.entite: meteo for meteo in consultation.meteo()}
     except UsineErreur as exc:
-        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        _echec_lecture(exc, repli)
         return
     if not meteos:
         st.info("Ce Passage ne contient aucune Météo.")
@@ -151,7 +210,7 @@ def afficher_detail(racine: Path) -> None:
         previsions = consultation.previsions(entite=entite)
         risques = consultation.risques(entite=entite)
     except UsineErreur as exc:
-        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        _echec_lecture(exc, repli)
         return
     st.markdown(f"**Météo** : {carte.libelle_meteo(meteo.couleur)}")
     _bloc("Règles déclenchantes", carte.tableau_markdown(regles) or detail.AUCUNE_REGLE)
@@ -174,8 +233,30 @@ def _temps_manuel(racine: Path) -> int | None:
     return config.temps_manuel_minutes_par_rapport
 
 
-def _passage_mesure(racine: Path) -> ManifestePassage | None:
-    """Dernier Passage publié sans classification initiale, ou `None` après un message."""
+def _passage_repli(racine: Path) -> ManifestePassage | None:
+    """Manifeste du Passage enregistré, s'il est sans classification initiale ; sinon `None`."""
+    try:
+        consultation = consultation_repli(racine)
+        manifeste = None if consultation is None else consultation.manifeste()
+    except (UsineErreur, OSError) as exc:
+        _echec_lecture(exc, repli=True)
+        return None
+    if manifeste is None:
+        st.error(REPLI_ABSENT)
+        return None
+    if manifeste.classification_initiale:
+        st.warning(avant_apres.SEULE_CLASSIFICATION_INITIALE)
+        return None
+    return manifeste
+
+
+def _passage_mesure(racine: Path, repli: bool) -> ManifestePassage | None:
+    """Dernier Passage publié sans classification initiale, ou `None` après un message.
+
+    En Mode repli : le Passage enregistré (`_passage_repli`).
+    """
+    if repli:
+        return _passage_repli(racine)
     try:
         mesure, dernier = manifestes_avant_apres(racine)
     except (UsineErreur, OSError) as exc:
@@ -189,13 +270,13 @@ def _passage_mesure(racine: Path) -> ManifestePassage | None:
     return mesure
 
 
-def afficher_avant_apres(racine: Path) -> None:
+def afficher_avant_apres(racine: Path, repli: bool = False) -> None:
     """Temps de reporting manuel déclaré et temps mesuré de la Chaîne, par Rapport et cumulé."""
     st.subheader(Ecran.avant_apres.value)
     if _racine_introuvable(racine):
         return
     minutes = _temps_manuel(racine)
-    manifeste = _passage_mesure(racine)
+    manifeste = _passage_mesure(racine, repli)
     if minutes is None or manifeste is None:
         return
     st.markdown(avant_apres.tableau_avant_apres(minutes, avant_apres.duree_mesuree(manifeste)))
@@ -325,11 +406,12 @@ def _suivre() -> None:
     _finir()
 
 
-def afficher_lancement(racine: Path) -> None:
+def afficher_lancement(racine: Path, repli: bool = False) -> None:
     """Bouton de lancement et suivi de la progression, sans bloquer la page.
 
     Une fois la Chaîne terminée : la carte du dernier Passage publié après un succès, sinon
-    `progression.AUCUN_RAPPORT` (jamais de rapport partiel).
+    `progression.AUCUN_RAPPORT` (jamais de rapport partiel). En Mode repli, le bouton reste
+    visible mais désactivé : aucun nouveau lancement n'est possible.
     """
     st.subheader("Chaîne de reporting")
     en_cours = _en_cours()
@@ -337,8 +419,10 @@ def afficher_lancement(racine: Path) -> None:
         "Lancer la Chaîne",
         on_click=_lancer,
         args=(racine,),
-        disabled=en_cours or not racine.is_dir(),
+        disabled=repli or en_cours or not racine.is_dir(),
     )
+    if repli:
+        st.info(LANCEMENT_REPLI)
     echec = st.session_state.get(_ECHEC_LANCEMENT)
     if echec:
         st.error(echec)
@@ -349,7 +433,7 @@ def afficher_lancement(racine: Path) -> None:
     if en_cours:
         return
     if processus.poll() == 0:
-        afficher_carte(st.session_state.get(_RACINE, racine))
+        afficher_carte(st.session_state.get(_RACINE, racine), repli)
     else:
         st.info(progression.AUCUN_RAPPORT)
 
@@ -393,24 +477,25 @@ def afficher_resume() -> None:
 def principal() -> None:
     """Page entière ; le bandeau Mode repli vient en premier, à chaque exécution, sur tout écran."""
     st.set_page_config(page_title="Usine de migration", layout="wide")
+    erreur_racine: str | None = None
     try:
         racine = racine_ui()
     except UsineErreur as exc:
-        st.error(str(exc))
+        erreur_racine = str(exc)  # affichée sous le bandeau, qui reste en tête
         racine = Path.cwd()  # la page reste utilisable : carte et lancement s'affichent
-    afficher_bandeau(racine)
     ecran = Ecran(st.sidebar.radio("Écran", navigation.libelles_ecrans(), key=navigation.CLE_ECRAN))
+    repli = afficher_bandeau(racine, erreur_racine)  # premier élément de la zone principale
     if ecran is not Ecran.lancement:
         afficher_resume()  # avant l'écran : une relance de fin évite de lire la carte deux fois
     st.title("Usine de migration")
     if ecran is Ecran.carte:
-        afficher_carte(racine)
+        afficher_carte(racine, repli)
     elif ecran is Ecran.detail:
-        afficher_detail(racine)
+        afficher_detail(racine, repli)
     elif ecran is Ecran.lancement:
-        afficher_lancement(racine)
+        afficher_lancement(racine, repli)
     elif ecran is Ecran.avant_apres:
-        afficher_avant_apres(racine)
+        afficher_avant_apres(racine, repli)
     elif ecran is Ecran.outillage:
         afficher_outillage(racine)
     else:
