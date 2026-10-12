@@ -11,14 +11,17 @@ from usine.contrats.config import ConfigProgramme
 from usine.contrats.passage import EXCLUSIONS_REJEU
 
 RACINE_DEPOT = Path(__file__).resolve().parents[3]
+PROGRAMME_REDUIT = RACINE_DEPOT / "tests/unit/generateur/programme_reduit.yaml"
+"""Programme réduit figé (2 Entités) : garde la durée et les attendus des essais."""
 DATE_GENERATION = date(2026, 10, 12)
 DATE_ARRETE = date(2026, 10, 9)
 INSTANT = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
 
 
 def preparer_racine(racine: Path, journal: bool = True) -> Path:
-    """Copie `config/` et `gabarits/` sous `racine` et y génère le Journal (graine 42)."""
+    """Copie `config/` (Programme réduit) et `gabarits/` sous `racine`, y génère le Journal."""
     shutil.copytree(RACINE_DEPOT / "config", racine / "config")
+    shutil.copyfile(PROGRAMME_REDUIT, racine / "config" / "programme.yaml")
     shutil.copytree(RACINE_DEPOT / "gabarits", racine / "gabarits")
     if journal:
         programme = charger_yaml(racine / "config" / "programme.yaml", ConfigProgramme)

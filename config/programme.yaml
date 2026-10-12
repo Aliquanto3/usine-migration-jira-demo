@@ -1,8 +1,8 @@
-# Programme fictif, version réduite du walking skeleton (Story 0.3), lu par `usine donnees`.
+# Programme fictif « Banque Exemple — migration SI cœur » (Story 1.1), lu par `usine donnees`.
 # Tout est fictif : aucun nom réel d'entreprise ni de personne.
 
 # Nom du Programme de migration.
-nom: Programme fictif de démonstration
+nom: Banque Exemple — migration SI cœur
 # Graine du tirage par défaut : même graine et même date de génération, même Journal.
 graine: 42
 # Nombre de semaines du Programme, jusqu'à la semaine de la Date d'injection comprise.
@@ -22,6 +22,54 @@ entites:
     libelle: Entité Bêta
     # Code de la Vague de migration de l'Entité.
     vague: V1
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-C
+    # Libellé affiché de l'Entité.
+    libelle: Entité Gamma
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-D
+    # Libellé affiché de l'Entité.
+    libelle: Entité Delta
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-E
+    # Libellé affiché de l'Entité.
+    libelle: Entité Epsilon
+    # Code de la Vague de migration de l'Entité.
+    vague: V2
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-F
+    # Libellé affiché de l'Entité.
+    libelle: Entité Zêta
+    # Code de la Vague de migration de l'Entité.
+    vague: V2
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-G
+    # Libellé affiché de l'Entité.
+    libelle: Entité Êta
+    # Code de la Vague de migration de l'Entité.
+    vague: V2
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-H
+    # Libellé affiché de l'Entité.
+    libelle: Entité Thêta
+    # Code de la Vague de migration de l'Entité.
+    vague: V3
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-I
+    # Libellé affiché de l'Entité.
+    libelle: Entité Iota
+    # Code de la Vague de migration de l'Entité.
+    vague: V3
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-J
+    # Libellé affiché de l'Entité.
+    libelle: Entité Kappa
+    # Code de la Vague de migration de l'Entité.
+    vague: V3
 
 # Vagues de migration et calendrier de leurs Phases, en semaines du Programme.
 vagues:
@@ -36,33 +84,85 @@ vagues:
         # Première semaine de la Phase (1 = semaine de l'ancrage).
         semaine_debut: 1
         # Dernière semaine de la Phase.
-        semaine_fin: 3
+        semaine_fin: 2
       # Phase de test : recette.
       - phase: recette
         # Première semaine de la Phase.
         semaine_debut: 3
         # Dernière semaine de la Phase.
-        semaine_fin: 6
+        semaine_fin: 5
       # Phase de test : tests de non-régression.
       - phase: tnr
         # Première semaine de la Phase.
         semaine_debut: 6
         # Dernière semaine de la Phase.
         semaine_fin: 8
+  # Code de la Vague.
+  - code: V2
+    # Libellé affiché de la Vague.
+    libelle: Vague 2
+    # Phases de test de la Vague, dans l'ordre.
+    phases:
+      # Phase de test : migration à blanc.
+      - phase: migration_a_blanc
+        # Première semaine de la Phase (1 = semaine de l'ancrage).
+        semaine_debut: 1
+        # Dernière semaine de la Phase.
+        semaine_fin: 3
+      # Phase de test : recette.
+      - phase: recette
+        # Première semaine de la Phase.
+        semaine_debut: 4
+        # Dernière semaine de la Phase.
+        semaine_fin: 6
+      # Phase de test : tests de non-régression.
+      - phase: tnr
+        # Première semaine de la Phase.
+        semaine_debut: 7
+        # Dernière semaine de la Phase.
+        semaine_fin: 8
+  # Code de la Vague.
+  - code: V3
+    # Libellé affiché de la Vague.
+    libelle: Vague 3
+    # Phases de test de la Vague, dans l'ordre.
+    phases:
+      # Phase de test : migration à blanc.
+      - phase: migration_a_blanc
+        # Première semaine de la Phase (1 = semaine de l'ancrage).
+        semaine_debut: 1
+        # Dernière semaine de la Phase.
+        semaine_fin: 4
+      # Phase de test : recette.
+      - phase: recette
+        # Première semaine de la Phase.
+        semaine_debut: 5
+        # Dernière semaine de la Phase.
+        semaine_fin: 7
+      # Phase de test : tests de non-régression.
+      - phase: tnr
+        # Première semaine de la Phase.
+        semaine_debut: 8
+        # Dernière semaine de la Phase.
+        semaine_fin: 8
 
 # Domaines fonctionnels des tickets.
 domaines:
+  - credits
+  - depots
+  - paiements
+  - referentiel_clients
   - comptabilite
-  - achats
-  - paie
+  - epargne
 
-# Volumétrie du générateur (réduite pour le walking skeleton).
+# Volumétrie cible du générateur, sur les `nb_semaines` du Programme.
 volumetrie:
   # Nombre minimal d'Anomalies générées, toutes Entités confondues.
-  anomalies_min: 25
-  # Nombre maximal d'Anomalies générées, toutes Entités confondues.
-  anomalies_max: 35
-  # Nombre minimal d'Entrées d'Anomalies par semaine (non utilisé par le mini-générateur).
-  entrees_semaine_min: 1
-  # Nombre maximal d'Entrées d'Anomalies par semaine (non utilisé par le mini-générateur).
-  entrees_semaine_max: 10
+  anomalies_min: 3000
+  # Nombre maximal d'Anomalies générées ; le générateur tire dans l'intersection avec
+  # `nb_semaines` × bornes d'Entrées par semaine (ici 3 000 à 4 000).
+  anomalies_max: 5000
+  # Nombre minimal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
+  entrees_semaine_min: 200
+  # Nombre maximal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
+  entrees_semaine_max: 500

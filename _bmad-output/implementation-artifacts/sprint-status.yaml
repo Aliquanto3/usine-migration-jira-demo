@@ -68,8 +68,8 @@ development_status:
   0-9-gel-des-contrats-v1-e0-9: done  # étiquette contrats-v1 posée le 2026-10-12, CI verte
   epic-0-retrospective: optional
 
-  epic-1: backlog  # lane L1 Données
-  1-1-configuration-complète-du-programme: backlog
+  epic-1: in-progress  # lane L1 Données
+  1-1-configuration-complète-du-programme: done
   1-2-corpus-de-textes-provisoire-et-outil-de-génération: backlog
   1-3-génération-reproductible-à-la-volumétrie-cible: backlog
   1-4-identifiants-sensibles-fictifs: backlog
@@ -92,8 +92,8 @@ development_status:
 
   epic-3: in-progress  # lane L3 Calcul
   3-1-instantanés-quotidiens-complets: done
-  3-2-kpi-quotidiens: backlog
-  3-3-tendances-hebdomadaires: backlog
+  3-2-kpi-quotidiens: done
+  3-3-tendances-hebdomadaires: done
   3-4-grille-de-météo-complète-et-validation: backlog
   3-5-indicateurs-de-météo-ind-1-à-ind-8: backlog
   3-6-météo-et-règles-déclenchantes: backlog

@@ -99,7 +99,8 @@ def fabrique_source_en_memoire() -> CasSourceTickets:
 def fabrique_journal_genere() -> CasSourceTickets:
     """Doublure en mémoire sur le Journal du mini-générateur (Story 0.3), graine 42."""
     config = charger_yaml(
-        Path(__file__).resolve().parents[3] / "config" / "programme.yaml", ConfigProgramme
+        Path(__file__).resolve().parents[3] / "tests/unit/generateur/programme_reduit.yaml",
+        ConfigProgramme,
     )
     attendus = generer(config, 42, date(2026, 10, 12)).evenements
     return CasSourceTickets(SourceEnMemoire(attendus), attendus)
@@ -108,7 +109,8 @@ def fabrique_journal_genere() -> CasSourceTickets:
 def fabrique_journal() -> CasSourceTickets:
     """`SourceJournal` sur le Journal sérialisé du mini-générateur, graine 42."""
     config = charger_yaml(
-        Path(__file__).resolve().parents[3] / "config" / "programme.yaml", ConfigProgramme
+        Path(__file__).resolve().parents[3] / "tests/unit/generateur/programme_reduit.yaml",
+        ConfigProgramme,
     )
     generation = generer(config, 42, date(2026, 10, 12))
     repertoire = Path(tempfile.mkdtemp(prefix="usine-journal-"))

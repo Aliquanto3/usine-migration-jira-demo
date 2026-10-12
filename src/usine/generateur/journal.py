@@ -1,13 +1,15 @@
-"""Mini-générateur déterministe du Journal d'événements (Story 0.3, amorce de FR-2).
+"""Générateur déterministe du Journal d'événements (Stories 0.3 et 1.1, amorce de FR-2).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
-`(config, graine, date_generation)` ; tout le hasard vient d'une seule instance de
+`(config, graine, date_generation, cle_projet)` (la clé de projet ne fixe que le préfixe
+des clés de tickets) ; tout le hasard vient d'une seule instance de
 `Random` initialisée par la graine, tirée dans un ordre fixe. Seule `ecrire_journal` écrit
 sur disque : le Journal et la vérité terrain d'une `Generation`.
 """
 
 import json
 import random
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
@@ -17,11 +19,12 @@ from types import MappingProxyType
 from usine.contrats.calendrier import (
     FUSEAU,
     dernier_jour_ouvre_ecoule,
-    est_jour_ouvre,
+    jour_ouvre_precedent,
     jours_ouvres,
+    semaine_programme,
     verifier_lundi,
 )
-from usine.contrats.config import ConfigProgramme, EntiteProgramme
+from usine.contrats.config import ConfigProgramme, EntiteProgramme, VagueProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
 from usine.contrats.passage import CHEMIN_JOURNAL, CHEMIN_VERITE_TERRAIN
@@ -38,8 +41,14 @@ from usine.contrats.tickets import (
 )
 from usine.generateur.textes import DESCRIPTIONS, MODELE_CORPUS, TITRES, VERSION_CORPUS
 
-PREFIXE_CLE = "DEMO"
-"""Préfixe des clés de ticket générées (`DEMO-<n>`)."""
+CLE_PROJET_ESSAI = "DEMO"
+"""Clé de projet par défaut, pour les appelants sans configuration Jira (tests, composition).
+
+La CLI passe `ConfigJira.cle_projet` : les clés générées sont `<cle_projet>-<n>`.
+"""
+
+_MOTIF_CLE_PROJET = re.compile(r"[A-Z][A-Z0-9]+")
+"""Forme d'une clé de projet Jira (même motif que `ConfigJira.cle_projet`)."""
 
 HEURE_DEBUT = 8
 """Première heure ouvrée (heure de Paris)."""
@@ -153,16 +162,70 @@ def _textes(
     return titre, description
 
 
+def _verifier_phases(vague: VagueProgramme) -> None:
+    if not vague.phases:
+        raise UsineErreur(f"Vague {vague.code} : aucune Phase dans son calendrier")
+
+
+def _phase_du_calendrier(vague: VagueProgramme, semaine: int) -> Phase:
+    """Phase de la Vague en semaine `semaine`.
+
+    Parmi les Phases dont [début, fin] contient la semaine, la dernière ; si aucune ne la
+    contient (trou du calendrier), la dernière Phase commencée ; sinon la première Phase.
+    « Dernière » : début le plus tardif, puis rang le plus élevé dans la configuration.
+    """
+    _verifier_phases(vague)
+    en_cours = [
+        (periode.semaine_debut, rang)
+        for rang, periode in enumerate(vague.phases)
+        if periode.semaine_debut <= semaine <= periode.semaine_fin
+    ]
+    commencees = en_cours or [
+        (periode.semaine_debut, rang)
+        for rang, periode in enumerate(vague.phases)
+        if periode.semaine_debut <= semaine
+    ]
+    if not commencees:
+        return vague.phases[0].phase
+    return vague.phases[max(commencees)[1]].phase
+
+
+@dataclass
+class _Calendrier:
+    """Semaines du Programme, Phases des Vagues et Entrées d'Anomalies comptées par semaine."""
+
+    ancrage: date
+    jours: tuple[date, ...]
+    vagues: Mapping[str, VagueProgramme]
+    entrees_max: int
+    entrees: dict[int, int] = field(default_factory=dict)
+    """Entrées (créations et réouvertures) par semaine du Programme."""
+
+    def semaine(self, jour: date) -> int:
+        return semaine_programme(jour, self.ancrage)
+
+    def phase(self, entite: EntiteProgramme, jour: date) -> Phase:
+        return _phase_du_calendrier(self.vagues[entite.vague], self.semaine(jour))
+
+    def accepter_reouverture(self, jour: date) -> bool:
+        """Compte une réouverture le jour `jour` si sa semaine reste sous le maximum d'Entrées."""
+        semaine = self.semaine(jour)
+        if self.entrees.get(semaine, 0) >= self.entrees_max:
+            return False
+        self.entrees[semaine] = self.entrees.get(semaine, 0) + 1
+        return True
+
+
 def _anomalie(
     entite: EntiteProgramme,
+    jour: date,
     domaines: tuple[str, ...],
-    jours: tuple[date, ...],
+    calendrier: _Calendrier,
     rng: random.Random,
 ) -> _Ticket:
-    jour = rng.choice(jours)
     creation = _horodatage(jour, rng)
     gravite = rng.choice(tuple(Gravite))
-    phase = rng.choice(tuple(Phase))
+    phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
     cause = rng.choice(tuple(CauseRacine))
     titre, description = _textes(TypeTicket.anomalie, entite.code, domaine, rng)
@@ -182,9 +245,13 @@ def _anomalie(
         cause=cause,
     )
     statut = StatutAnomalie.nouvelle
-    for jour_transition in _jours_ulterieurs(jours, jour, rng.randint(0, TRANSITIONS_MAX), rng):
+    nb_transitions = rng.randint(0, TRANSITIONS_MAX)
+    for jour_transition in _jours_ulterieurs(calendrier.jours, jour, nb_transitions, rng):
         suivant = _statut_suivant(statut, rng)
         if suivant is None:
+            break
+        # Une réouverture est une Entrée : refusée si sa semaine a atteint son maximum.
+        if statut is StatutAnomalie.fermee and not calendrier.accepter_reouverture(jour_transition):
             break
         ticket.changements.append(
             _Changement(
@@ -202,12 +269,13 @@ def _anomalie(
 def _cas_de_test(
     entite: EntiteProgramme,
     domaines: tuple[str, ...],
-    jours: tuple[date, ...],
+    calendrier: _Calendrier,
     rng: random.Random,
 ) -> _Ticket:
+    jours = calendrier.jours
     jour = rng.choice(jours)
     creation = _horodatage(jour, rng)
-    phase = rng.choice(tuple(Phase))
+    phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
     titre, description = _textes(TypeTicket.cas_de_test, entite.code, domaine, rng)
     ticket = _Ticket(
@@ -262,12 +330,55 @@ def fenetre_generation(date_generation: date, nb_semaines: int) -> tuple[date, d
     `nb_semaines - 1` semaines.
     """
     date_injection = dernier_jour_ouvre_ecoule(date_generation)
-    # Lundi de la semaine : on recule tant que la veille est un Jour ouvré.
+    # Lundi de la semaine : premier Jour ouvré dont la veille ouvrée n'est pas la veille
+    # calendaire (`contrats.calendrier` reste seul juge des Jours ouvrés, AD-17).
     lundi = date_injection
-    while est_jour_ouvre(lundi - timedelta(days=1)):
-        lundi -= timedelta(days=1)
+    while jour_ouvre_precedent(lundi) == lundi - timedelta(days=1):
+        lundi = jour_ouvre_precedent(lundi)
     verifier_lundi(lundi)
     return lundi - timedelta(weeks=nb_semaines - 1), date_injection
+
+
+def _verifier_cle_projet(cle_projet: str) -> None:
+    if _MOTIF_CLE_PROJET.fullmatch(cle_projet) is None:
+        raise UsineErreur(
+            f"clé de projet invalide : {cle_projet!r} (attendu : une majuscule puis des"
+            " majuscules ou des chiffres, ex. DEMO)"
+        )
+
+
+def _bornes_anomalies(config: ConfigProgramme) -> tuple[int, int]:
+    """Bornes du nombre d'Anomalies : bornes configurées ∩ `nb_semaines` × bornes d'Entrées."""
+    volumetrie = config.volumetrie
+    semaines = config.nb_semaines
+    entrees_min = semaines * volumetrie.entrees_semaine_min
+    entrees_max = semaines * volumetrie.entrees_semaine_max
+    minimum = max(volumetrie.anomalies_min, entrees_min)
+    maximum = min(volumetrie.anomalies_max, entrees_max)
+    if minimum > maximum:
+        raise UsineErreur(
+            "volumétrie infaisable : Anomalies dans"
+            f" [{volumetrie.anomalies_min}, {volumetrie.anomalies_max}], hors de"
+            f" [{entrees_min}, {entrees_max}] ({semaines} semaines × Entrées par semaine dans"
+            f" [{volumetrie.entrees_semaine_min}, {volumetrie.entrees_semaine_max}])"
+        )
+    return minimum, maximum
+
+
+def _repartition_par_semaine(
+    nombre: int, semaines: int, minimum: int, maximum: int, rng: random.Random
+) -> list[int]:
+    """`nombre` créations sur `semaines` : `minimum` par semaine, puis le complément tiré
+    unité par unité parmi les semaines encore sous `maximum`."""
+    repartition = [minimum] * semaines
+    ouvertes = [s for s in range(semaines) if repartition[s] < maximum]
+    for _ in range(nombre - minimum * semaines):
+        indice = rng.randrange(len(ouvertes))
+        semaine = ouvertes[indice]
+        repartition[semaine] += 1
+        if repartition[semaine] >= maximum:
+            ouvertes.pop(indice)
+    return repartition
 
 
 def _evenements_du_ticket(cle: str, ticket: _Ticket) -> list[Evenement]:
@@ -314,39 +425,72 @@ def _evenements_du_ticket(cle: str, ticket: _Ticket) -> list[Evenement]:
     return evenements
 
 
-def generer(config: ConfigProgramme, graine: int, date_generation: date) -> Generation:
-    """Génère le Journal du Programme fictif réduit pour `graine` et `date_generation`.
+def generer(
+    config: ConfigProgramme,
+    graine: int,
+    date_generation: date,
+    *,
+    cle_projet: str = CLE_PROJET_ESSAI,
+) -> Generation:
+    """Génère le Journal du Programme fictif pour `graine` et `date_generation`.
 
-    Tirages dans un ordre fixe : nombre d'Anomalies, répartition par Entité, puis, Entité par
-    Entité (ordre de la configuration), ses Anomalies, ses Cas de test et sa Certification.
-    Les clés `DEMO-<n>` sont ensuite attribuées dans l'ordre chronologique de création.
+    Tirages dans un ordre fixe : nombre d'Anomalies (bornes d'Anomalies ∩ `nb_semaines` ×
+    bornes d'Entrées), répartition par semaine, puis, semaine par semaine, le jour, l'Entité
+    et le cycle de vie de chaque Anomalie ; enfin, Entité par Entité (ordre de la
+    configuration), ses Cas de test et sa Certification. La Phase d'un ticket est celle du
+    calendrier de la Vague de son Entité la semaine de sa création. Une réouverture n'est
+    gardée que si sa semaine reste sous le maximum d'Entrées. Les clés `<cle_projet>-<n>`
+    sont ensuite attribuées dans l'ordre chronologique de création.
     """
     if graine < 0:
         # `Random(-n)` tire comme `Random(n)` : deux graines, un même Journal.
         raise UsineErreur(f"graine invalide : {graine} (entier ≥ 0 attendu)")
+    _verifier_cle_projet(cle_projet)
+    for vague in config.vagues:
+        _verifier_phases(vague)
+    anomalies_min, anomalies_max = _bornes_anomalies(config)
     ancrage, date_injection = fenetre_generation(date_generation, config.nb_semaines)
-    jours = jours_ouvres(ancrage, date_injection)
+    volumetrie = config.volumetrie
+    calendrier = _Calendrier(
+        ancrage,
+        jours_ouvres(ancrage, date_injection),
+        {vague.code: vague for vague in config.vagues},
+        volumetrie.entrees_semaine_max,
+    )
+    jours_par_semaine: dict[int, list[date]] = {}
+    for jour in calendrier.jours:
+        jours_par_semaine.setdefault(calendrier.semaine(jour), []).append(jour)
     rng = random.Random(graine)
 
-    volumetrie = config.volumetrie
-    nb_anomalies = rng.randint(volumetrie.anomalies_min, volumetrie.anomalies_max)
-    repartition = [0] * len(config.entites)
-    for _ in range(nb_anomalies):
-        repartition[rng.randrange(len(config.entites))] += 1
-
+    nb_anomalies = rng.randint(anomalies_min, anomalies_max)
+    repartition = _repartition_par_semaine(
+        nb_anomalies,
+        config.nb_semaines,
+        volumetrie.entrees_semaine_min,
+        volumetrie.entrees_semaine_max,
+        rng,
+    )
+    calendrier.entrees.update(enumerate(repartition, start=1))
     tickets: list[_Ticket] = []
-    for entite, nombre in zip(config.entites, repartition, strict=True):
-        tickets.extend(_anomalie(entite, config.domaines, jours, rng) for _ in range(nombre))
+    for semaine, nombre in enumerate(repartition, start=1):
+        jours_semaine = jours_par_semaine[semaine]
+        for _ in range(nombre):
+            jour = rng.choice(jours_semaine)
+            entite = rng.choice(config.entites)
+            tickets.append(_anomalie(entite, jour, config.domaines, calendrier, rng))
+    for entite in config.entites:
         nb_tests = rng.randint(*CAS_DE_TEST_PAR_ENTITE)
-        tickets.extend(_cas_de_test(entite, config.domaines, jours, rng) for _ in range(nb_tests))
-        tickets.append(_certification(entite, jours, rng))
+        tickets.extend(
+            _cas_de_test(entite, config.domaines, calendrier, rng) for _ in range(nb_tests)
+        )
+        tickets.append(_certification(entite, calendrier.jours, rng))
 
     ordre = sorted(range(len(tickets)), key=lambda i: (tickets[i].creation, i))
     a_trier: list[tuple[datetime, int, int, Evenement]] = []
     verite: dict[str, CauseRacine] = {}
     for numero, indice in enumerate(ordre, start=1):
         ticket = tickets[indice]
-        cle = f"{PREFIXE_CLE}-{numero}"
+        cle = f"{cle_projet}-{numero}"
         if ticket.cause is not None:
             verite[cle] = ticket.cause
         a_trier.extend(
