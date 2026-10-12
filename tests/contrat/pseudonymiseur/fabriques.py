@@ -9,11 +9,14 @@ import shutil
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 from tests.doublures import PseudonymiseurFactice
+from usine.adaptateurs.presidio import PseudonymiseurPresidio
 from usine.adaptateurs.pseudonymisation import PseudonymiseurHmac
 from usine.adaptateurs.stockage_sqlite import TablePseudonymesSqlite
+from usine.contrats.config import ConfigPseudonymisation, Reconnaisseur
 from usine.ports import Pseudonymiseur
 
 
@@ -70,18 +73,41 @@ def fabrique_factice() -> CasPseudonymiseur:
     )
 
 
-def fabrique_hmac() -> CasPseudonymiseur:
-    """Adaptateur de production, table SQLite dans un répertoire temporaire neuf."""
+def _table_neuve() -> TablePseudonymesSqlite:
+    """Table SQLite dans un répertoire temporaire neuf."""
     repertoire = Path(tempfile.mkdtemp(prefix="pseudonymes-"))
     atexit.register(shutil.rmtree, repertoire, ignore_errors=True)
-    table = TablePseudonymesSqlite(repertoire / "pseudonymes.sqlite")
+    return TablePseudonymesSqlite(repertoire / "pseudonymes.sqlite")
+
+
+def fabrique_hmac() -> CasPseudonymiseur:
+    """Adaptateur de repli regex, table SQLite neuve."""
     return CasPseudonymiseur(
-        PseudonymiseurHmac(b"cle-de-test-fictive", MOTIFS_FACTICES, table),
+        PseudonymiseurHmac(b"cle-de-test-fictive", MOTIFS_FACTICES, _table_neuve()),
         EXEMPLES,
     )
+
+
+CONFIG_PRESIDIO = ConfigPseudonymisation(
+    entites_presidio=("PERSON",),
+    reconnaisseurs=tuple(Reconnaisseur(type_jeton=t, motif=m) for t, m in MOTIFS_FACTICES.items()),
+)
+"""Motifs factices en reconnaisseurs maison, plus les personnes du modèle spaCy."""
+
+
+@cache
+def _moteur_presidio() -> PseudonymiseurPresidio:
+    """Moteur Presidio construit une fois par session (chargement spaCy lent)."""
+    return PseudonymiseurPresidio(b"cle-de-test-fictive", CONFIG_PRESIDIO, _table_neuve())
+
+
+def fabrique_presidio() -> CasPseudonymiseur:
+    """Moteur du Palier 2 : analyseur partagé, table SQLite neuve à chaque appel."""
+    return CasPseudonymiseur(_moteur_presidio().avec_table(_table_neuve()), EXEMPLES)
 
 
 FABRIQUES: list[tuple[str, Callable[[], CasPseudonymiseur]]] = [
     ("factice", fabrique_factice),
     ("hmac", fabrique_hmac),
+    ("presidio", fabrique_presidio),
 ]
