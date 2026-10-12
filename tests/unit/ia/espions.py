@@ -22,6 +22,13 @@ from usine.contrats.meteo import (
     Operateur,
     RegleDeclenchante,
 )
+from usine.contrats.prevision import (
+    FacteurExplicatif,
+    MethodePrevision,
+    Prevision,
+    RisqueEntreeRouge,
+    StatutPrevision,
+)
 from usine.contrats.tickets import SCHEMA_TICKET_TEXTE
 
 CLE_PSEUDO = b"cle-de-test-fictive"
@@ -163,4 +170,42 @@ def textes(lignes: dict[str, tuple[str, str]], entite: str = "ENT-A") -> pl.Data
             "description": [description for _, description in lignes.values()],
         },
         schema=dict(SCHEMA_TICKET_TEXTE.colonnes),
+    )
+
+
+def prevision_rouge() -> Prevision:
+    """Prévision projetée de `ENT-A` : 3/5, sortie le 15/10/2026 (14 au 20/10)."""
+    return Prevision(
+        date_arrete=DATE_ARRETE,
+        entite="ENT-A",
+        methode=MethodePrevision.baseline,
+        statut=StatutPrevision.sortie_projetee,
+        date_sortie_estimee=date(2026, 10, 15),
+        date_sortie_optimiste=date(2026, 10, 14),
+        date_sortie_pessimiste=date(2026, 10, 20),
+        probabilite_numerateur=3,
+        probabilite_denominateur=5,
+        horizon_jours_ouvres=10,
+        facteurs=(
+            FacteurExplicatif(nom="stock", libelle="stock", numerateur=1234, denominateur=1),
+            FacteurExplicatif(nom="velocite", libelle="vélocité", numerateur=7, denominateur=2),
+            FacteurExplicatif(nom="evolution", libelle="évolution", numerateur=-3, denominateur=1),
+        ),
+        version_grille="grille123456",
+    )
+
+
+def risque_entree_rouge(indicateur: CodeIndicateur = CodeIndicateur.ind_1) -> RisqueEntreeRouge:
+    """Risque d'entrée en rouge de `ENT-B` le 16/10/2026."""
+    return RisqueEntreeRouge(
+        date_arrete=DATE_ARRETE,
+        entite="ENT-B",
+        indicateur=indicateur,
+        date_franchissement_estimee=date(2026, 10, 16),
+        horizon_jours_ouvres=10,
+        numerateur=4,
+        denominateur=1,
+        seuil_numerateur=6,
+        seuil_denominateur=1,
+        version_grille="grille123456",
     )

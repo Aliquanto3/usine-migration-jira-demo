@@ -127,7 +127,7 @@ from usine.generateur.corpus import (
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
 from usine.ia.classification import PART_PLAFOND_CLASSIFICATION, EtapeClassification
-from usine.ia.etape import EtapeExplications
+from usine.ia.etape import EtapeExplications, EtapeNarration
 from usine.ia.passerelle import Passerelle
 from usine.ia.repartition import EtapeRepartitionCauses
 from usine.ports.consultation import Consultation
@@ -581,6 +581,7 @@ def _assembler_rapport(
         )
         registre[Etape.repartition_causes] = EtapeRepartitionCauses(repartition)
         registre[Etape.explications] = EtapeExplications(passerelle, empreinte_donnees)
+        registre[Etape.narration] = EtapeNarration(passerelle, empreinte_donnees)
     # En dernier : le client Jira n'est ouvert qu'une fois tout le reste validé.
     if jira_actif is not None:
         composite = None if horodatage_extraction is None else (source, horodatage_extraction)
