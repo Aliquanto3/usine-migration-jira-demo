@@ -131,7 +131,7 @@ def test_ordre_des_slides(passage: Path, consultation: ConsultationPassage) -> N
     """Titre, Synthèse, Carte météo, une slide par Entité rouge ou orange, Tendances,
     bloquantes, Annexe (H-10)."""
     entites = _rouges_oranges(consultation)
-    assert [m.entite for m in entites] == ["ENT-A", "ENT-B"]  # graine 42 : deux rouges
+    assert [m.entite for m in entites] == ["ENT-B"]  # graine 42, flux scripté : B seule rouge
     titres = [slide.titre for slide in _publie(passage)]
     assert titres == [
         *TITRES_FIXES_DEBUT,
@@ -180,7 +180,7 @@ def test_synthese(passage: Path, consultation: ConsultationPassage) -> None:
         for m in meteos
         if (avant := evolutions[m.entite].couleur_j5) is not None and avant is not m.couleur
     ]
-    assert j5 == ["ENT-A : Orange → Rouge"]  # graine 42
+    assert j5 == []  # graine 42, flux scripté : B rouge depuis la semaine 2, A verte
     changements, messages = slide.zones
     assert changements == "\n".join(
         (
@@ -216,7 +216,7 @@ def test_synthese(passage: Path, consultation: ConsultationPassage) -> None:
             f" {programme[('sorties_fenetre', '')]}",
         )
     )
-    assert messages.splitlines()[1] == "2 Entités en rouge et 0 en orange sur 2"
+    assert messages.splitlines()[1] == "1 Entité en rouge et 0 en orange sur 2"
 
 
 def test_carte_meteo(passage: Path, consultation: ConsultationPassage) -> None:
@@ -238,7 +238,7 @@ def test_carte_meteo(passage: Path, consultation: ConsultationPassage) -> None:
             ]
         )
     assert tableau == attendu
-    assert [ligne[2] for ligne in tableau[1:]] == ["↗ aggravation", "→ stable"]  # graine 42
+    assert [ligne[2] for ligne in tableau[1:]] == ["→ stable", "→ stable"]  # graine 42
 
 
 def _kpi_cles(consultation: ConsultationPassage, entite: str) -> list[list[str]]:
@@ -390,10 +390,9 @@ def test_palier_2_brouillons(passage_palier_2: Path) -> None:
     slides = _lire(rendre_powerpoint(consultation, GABARIT.read_bytes(), DATE_ARRETE, contexte))
     brouillons = {slide.titre.split(" — ")[0]: slide.zones[1] for slide in slides[3:-3]}
     assert brouillons == {
-        "ENT-A": (
+        "ENT-B": (
             "Brouillon de commentaire\nbrouillon IA, à valider : Relancer l'équipe paramétrage."
         ),
-        "ENT-B": "Brouillon de commentaire\naucun Brouillon de commentaire",
     }
     assert slides[0].zones[0].endswith("Palier 2")
 

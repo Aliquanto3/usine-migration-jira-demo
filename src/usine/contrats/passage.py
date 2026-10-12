@@ -204,6 +204,10 @@ EXCLUSIONS_REJEU: Mapping[str, frozenset[str]] = MappingProxyType(
             }
         ),
         "trace_previsions": frozenset({"horodatage", "passage_id", "version_donnees"}),
+        "rapport_xlsx": frozenset({"Traçabilité!B5", "Traçabilité!B8"}),
+        "rapport_pptx": frozenset(
+            {"Annexe méthode!Horodatage d'extraction", "Annexe méthode!Version des données"}
+        ),
     }
 )
 """Champs ignorés par la comparaison du Rejeu, par fichier (AD-7).
@@ -212,6 +216,11 @@ Clé : nom logique de `FICHIERS_PASSAGE`. Valeur : chemins de champ depuis la ra
 l'enregistrement (la ligne d'un JSONL, l'enveloppe d'un JSON, l'objet du manifeste) ; `[]`
 désigne chaque élément d'une liste (`etapes[].horodatage_debut`). Un champ exclu dans un
 fichier reste comparé dans tous les autres. Les tables Parquet n'ont aucune exclusion.
+
+Les rendus sont repérés `<onglet ou slide>!<repère>` : adresse de cellule pour l'Excel
+(`Traçabilité!B5`), libellé de ligne pour le PowerPoint (`Annexe méthode!Version des données`,
+stable quel que soit le nombre d'Indicateurs). Ce sont les cellules qui affichent
+`horodatage_extraction` et `version_donnees`, exclus au manifeste (contrats 1.2).
 """
 
 # --- Chemins de `donnees/` et `sorties/`, relatifs à la racine du dépôt ---

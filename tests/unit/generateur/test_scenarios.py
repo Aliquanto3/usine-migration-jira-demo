@@ -44,6 +44,7 @@ from usine.generateur.scenarios import (
     ScenarioMenace,
     Scenarios,
     ScenarioSortie,
+    part_du_jour,
 )
 
 RACINE = Path(__file__).resolve().parents[3]
@@ -68,8 +69,16 @@ VERT_OU_JAUNE = {Couleur.vert, Couleur.jaune}
         (lambda: ScenarioSortie(semaine_certification=-1), "semaine_certification"),
         (lambda: ScenarioSortie(poids_vague=0), "poids_vague"),
         (lambda: ScenarioSortie(poids_decrue=-0.5), "poids_decrue"),
-        (lambda: ScenarioSortie(part_bloquantes_vague=1.2), "part_bloquantes_vague"),
         (lambda: ScenarioSortie(entite=""), "entite"),
+        (lambda: ScenarioSortie(duree_bloquantes=3), "duree_bloquantes"),
+        (lambda: ScenarioEnlisement(duree_bloquantes=11), "duree_bloquantes"),
+        (lambda: ScenarioSortie(bloquantes_par_semaine=()), "bloquantes_par_semaine"),
+        (lambda: ScenarioSortie(bloquantes_par_semaine=(2, -1)), "bloquantes_par_semaine[1]"),
+        (
+            lambda: ScenarioEnlisement(bloquantes_par_semaine=[3]),  # type: ignore[arg-type]
+            "bloquantes_par_semaine",
+        ),
+        (lambda: ScenarioEnlisement(duree_bloquantes=True), "duree_bloquantes"),
         (lambda: ScenarioSortie(bloquantes_bascule=-1), "bloquantes_bascule"),
         (lambda: ScenarioSortie(bloquantes_bascule=True), "bloquantes_bascule"),
         (lambda: ScenarioEnlisement(bloquantes_bascule=-3), "bloquantes_bascule"),
@@ -80,11 +89,7 @@ VERT_OU_JAUNE = {Couleur.vert, Couleur.jaune}
         (lambda: ScenarioEnlisement(semaine_debut=0), "semaine_debut"),
         (lambda: ScenarioEnlisement(poids=float("inf")), "poids"),
         (lambda: ScenarioEnlisement(part_majeures=-0.1), "part_majeures"),
-        (lambda: ScenarioEnlisement(part_bloquantes=float("nan")), "part_bloquantes"),
-        (
-            lambda: ScenarioEnlisement(part_bloquantes=0.6, part_majeures=0.5),
-            "part_bloquantes + part_majeures",
-        ),
+        (lambda: ScenarioEnlisement(part_majeures=float("nan")), "part_majeures"),
         (lambda: ScenarioMenace(taux_ko_initial=1.5), "taux_ko_initial"),
         (lambda: ScenarioMenace(taux_ko_hausse=(0.1, -0.1)), "taux_ko_hausse[1]"),
         (lambda: ScenarioMenace(taux_ko_hausse=(1.01,)), "taux_ko_hausse[0]"),
@@ -103,6 +108,39 @@ def test_parametre_invalide_refuse(fabrique: Any, parametre: str) -> None:
     with pytest.raises(UsineErreur) as erreur:
         fabrique()
     assert parametre in str(erreur.value)
+
+
+def test_parametres_retires() -> None:
+    """Story 4.5 : les parts de bloquantes tirées de A et B n'existent plus (flux scripté)."""
+    with pytest.raises(TypeError, match="part_bloquantes_vague"):
+        ScenarioSortie(part_bloquantes_vague=0.4)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="part_bloquantes"):
+        ScenarioEnlisement(part_bloquantes=0.06)  # type: ignore[call-arg]
+
+
+def test_flux_de_bloquantes_scriptees() -> None:
+    """Bascule le lundi de la première semaine, puis la part du jour du flux de la semaine
+    (reste aux premiers jours, dernière valeur répétée) ; rien avant."""
+    a, b = ScenarioSortie(), ScenarioEnlisement()
+    assert (a.bloquantes_bascule, a.bloquantes_par_semaine, a.duree_bloquantes) == (
+        4,
+        (9, 2, 4),
+        7,
+    )
+    assert (b.bloquantes_bascule, b.bloquantes_par_semaine, b.duree_bloquantes) == (
+        3,
+        (3, 3, 4, 4, 5, 5, 6),
+        8,
+    )
+    assert [a.bloquantes(5, r) for r in range(5)] == [0] * 5
+    assert [a.bloquantes(6, r) for r in range(5)] == [6, 2, 2, 2, 1]
+    assert [a.bloquantes(7, r) for r in range(5)] == [1, 1, 0, 0, 0]
+    assert [a.bloquantes(8, r) for r in range(5)] == [1, 1, 1, 1, 0]
+    assert [b.bloquantes(1, r) for r in range(5)] == [0] * 5
+    assert [b.bloquantes(2, r) for r in range(5)] == [4, 1, 1, 0, 0]
+    assert [b.bloquantes(8, r) for r in range(5)] == [2, 1, 1, 1, 1]
+    assert sum(b.bloquantes(12, r) for r in range(5)) == 6
+    assert [part_du_jour(9, r) for r in range(5)] == [2, 2, 2, 2, 1]
 
 
 def test_scenarios_par_defaut() -> None:
@@ -324,10 +362,10 @@ def test_scenario_b_journal(generation_livree: Generation) -> None:
 
 
 def test_scenario_c_journal(generation_livree: Generation) -> None:
-    """C (Story 1.8) : chaque Jour ouvré, 6 Cas de test créés le matin et exécutés l'après-midi ;
-    le soir, les KO cumulés de la Phase valent `ko_cumules(semaine, exécutés de la Phase)` ;
-    taux cumulé de la TNR sous 10 % fin de semaine 6, au-dessus dès le lundi de la semaine 7,
-    sous 20 % jusqu'à la fin."""
+    """C (Stories 1.8 et 4.5) : chaque Jour ouvré, 10 Cas de test créés le matin et exécutés
+    l'après-midi ; le soir, les KO cumulés de la Phase valent
+    `ko_cumules(semaine, exécutés de la Phase)` ; taux cumulé de la TNR sous 10 % fin de
+    semaine 6, au-dessus dès le lundi de la semaine 7, sous 20 % jusqu'à la fin."""
     menace = SCENARIOS_PAR_DEFAUT.menace
     assert menace is not None
     ancrage = generation_livree.entete.ancrage_semaines
@@ -338,7 +376,8 @@ def test_scenario_c_journal(generation_livree: Generation) -> None:
         for a in _attributs(generation_livree).values()
         if a[Champ.entite] == "ENT-C" and a["type"] is TypeTicket.cas_de_test
     ]
-    assert len(executes) == len(tests_c) == 6 * len(jours)
+    assert menace.cas_de_test_par_semaine == 50
+    assert len(executes) == len(tests_c) == 10 * len(jours)
     par_jour: dict[date, list[tuple[str, str]]] = defaultdict(list)
     for creation, execution, phase, resultat in executes.values():
         assert jour_local(creation) == jour_local(execution)
@@ -363,14 +402,15 @@ def test_scenario_c_journal(generation_livree: Generation) -> None:
 
 
 def test_certifications(generation_livree: Generation) -> None:
-    """A accordée, B refusée, C réservée en semaine 4 ; aucune autre Entité refusée."""
+    """A accordée en semaine 3, B et C réservées en semaine 4 (Story 4.5 : une B refusée serait
+    rouge par IND-5, règle non projetable) ; aucune Entité refusée."""
     certifications = {
         a[Champ.entite]: (a[Champ.statut_certification], a["semaine"])
         for a in _attributs(generation_livree).values()
         if a["type"] is TypeTicket.certification
     }
     assert certifications["ENT-A"] == (StatutCertification.accordee, 3)
-    assert certifications["ENT-B"] == (StatutCertification.refusee, 4)
+    assert certifications["ENT-B"] == (StatutCertification.reservee, 4)
     assert certifications["ENT-C"] == (StatutCertification.reservee, 4)
     # Story 1.8 : créées le premier Jour ouvré de leur semaine.
     ancrage = generation_livree.entete.ancrage_semaines
@@ -384,7 +424,7 @@ def test_certifications(generation_livree: Generation) -> None:
         assert jours[entite] == ancrage + timedelta(weeks=semaine - 1), entite
     autres = {e: s for e, (s, _) in certifications.items() if e not in SCENARISEES}
     assert len(autres) == 7
-    assert StatutCertification.refusee not in autres.values()
+    assert StatutCertification.refusee not in {s for s, _ in certifications.values()}
 
 
 # --- Météo du dernier Jour ouvré de chaque semaine, Grille livrée ---
@@ -447,6 +487,19 @@ def test_meteo_hors_scenarios(meteo_livree: dict[str, list[Couleur]]) -> None:
 
 
 # --- Programme réduit ---
+
+
+def test_troncature_des_bloquantes_scriptees_signalee(
+    config_reduite: ConfigProgramme, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Programme réduit : les créations d'une semaine ne suffisent pas aux bloquantes
+    scriptées ; chaque lot tronqué est signalé (Entité, jour, servies sur prévues)."""
+    with caplog.at_level("WARNING", logger="usine.generateur.journal"):
+        generer(config_reduite, GRAINE, DATE_GENERATION)
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages
+    assert all("bloquante(s) scriptée(s) sur" in m for m in messages)
+    assert any("ENT-A" in m for m in messages)
 
 
 def test_programme_reduit_une_entite_rouge(config_reduite: ConfigProgramme) -> None:

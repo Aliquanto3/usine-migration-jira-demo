@@ -205,25 +205,26 @@ def _tableau_regles(page: AppTest) -> str:
 def test_detail_entite_rouge(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(racine_publiee)
     page = _page()
-    page.button(key="detail_ENT-A").click().run()
+    # Graine 42, flux scripté (contrats 1.2) : ENT-B est la seule Entité rouge.
+    page.button(key="detail_ENT-B").click().run()
     assert not page.exception
     assert not page.error
     consultation = consultation_dernier_passage(racine_publiee)
     assert consultation is not None
-    (meteo_a,) = consultation.meteo(entite="ENT-A")
-    assert meteo_a.regles
+    (meteo_b,) = consultation.meteo(entite="ENT-B")
+    assert meteo_b.regles
     tableau = _tableau_regles(page)
     liens = LIEN.findall(tableau)
-    for regle in meteo_a.regles:
+    for regle in meteo_b.regles:
         assert formater_regle(regle) in tableau
-    attendus = [cle for regle in meteo_a.regles for cle in regle.tickets_en_cause]
+    attendus = [cle for regle in meteo_b.regles for cle in regle.tickets_en_cause]
     assert [cle for cle, _ in liens] == attendus  # chaque ticket en cause, en lien
     for cle, url in liens:
         assert url == consultation.url_ticket(cle)
     textes = _textes(page)
-    for ligne in detail.lignes_kpi(consultation.kpi(entite="ENT-A")):
+    for ligne in detail.lignes_kpi(consultation.kpi(entite="ENT-B")):
         assert f"| {ligne['KPI']} | {ligne['Valeur']} |" in textes
-    (prevision,) = consultation.previsions(entite="ENT-A")  # Prévision réelle (Story 5.3)
+    (prevision,) = consultation.previsions(entite="ENT-B")  # Prévision réelle (Story 5.3)
     if prevision.statut is StatutPrevision.regle_non_projetable:
         codes = ", ".join(c.value for c in prevision.regles_non_projetables)
         assert f"règle non projetable ({codes})" in textes
@@ -252,7 +253,8 @@ def test_detail_en_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPa
 
 
 class _Doublure:
-    """`Consultation` réelle, avec Prévision pour ENT-A, Risque et Météo orange pour ENT-B."""
+    """`Consultation` réelle, avec Météo rouge et Prévision pour ENT-A, Risque et Météo orange
+    pour ENT-B (sur le Programme réduit, ENT-A est verte depuis le flux scripté, contrats 1.2)."""
 
     def __init__(self, reelle: Any, palier: int = 1) -> None:
         self._reelle = reelle
@@ -286,9 +288,26 @@ class _Doublure:
             ),
             version_grille="abc",
         )
-        meteos = tuple(
-            orange if m.entite == "ENT-B" else m for m in self._reelle.meteo(date_arrete)
+        rouge = MeteoEntite(
+            date_arrete=self._jour,
+            entite="ENT-A",
+            couleur=Couleur.rouge,
+            regles=(
+                RegleDeclenchante(
+                    code=CodeIndicateur.ind_1,
+                    couleur=Couleur.rouge,
+                    operateur=Operateur.superieur_ou_egal,
+                    numerateur=4,
+                    denominateur=1,
+                    seuil_numerateur=3,
+                    seuil_denominateur=1,
+                    tickets_en_cause=("DEMO-11",),
+                ),
+            ),
+            version_grille="abc",
         )
+        remplacees = {"ENT-A": rouge, "ENT-B": orange}
+        meteos = tuple(remplacees.get(m.entite, m) for m in self._reelle.meteo(date_arrete))
         return tuple(m for m in meteos if entite is None or m.entite == entite)
 
     def previsions(self, date_arrete: Any = None, entite: str | None = None) -> tuple[Any, ...]:

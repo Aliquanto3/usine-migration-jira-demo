@@ -9,10 +9,11 @@ sur disque : le Journal, la vérité terrain et la liste des identifiants inject
 """
 
 import json
+import logging
 import random
 import re
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from types import MappingProxyType
@@ -50,13 +51,19 @@ from usine.generateur.corpus import Corpus, TexteTicket
 from usine.generateur.identifiants import IdentifiantInjecte, TypeIdentifiant, phrase_identifiants
 from usine.generateur.scenarios import (
     AUCUN_SCENARIO,
+    JOURS_OUVRES_SEMAINE,
     SCENARIOS_PAR_DEFAUT,
+    ScenarioEnlisement,
     ScenarioMenace,
     Scenarios,
+    ScenarioSortie,
+    part_du_jour,
     scenarios_applicables,
     scenarios_de_config,
 )
 from usine.generateur.textes import corpus_provisoire
+
+_log = logging.getLogger(__name__)
 
 CLE_PROJET_ESSAI = "DEMO"
 """Clé de projet par défaut, pour les appelants sans configuration Jira (tests, composition).
@@ -125,8 +132,8 @@ DELAIS_LENTS: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
         StatutAnomalie.a_retester: (2, 4),
     }
 )
-"""Délais d'une Anomalie enlisée (Scénario B) ou d'une bloquante de la vague du Scénario A :
-la correction dure de trois à six semaines."""
+"""Délais d'une mineure tirée enlisée du Scénario B (ses majeures gardent les délais du profil
+normal, `_DELAIS_ENLISES`) : la correction dure de trois à six semaines."""
 
 POIDS_GRAVITE_NORMAL: tuple[int, int, int] = (2, 40, 958)
 """Poids (pour mille) des gravités bloquante, majeure et mineure du profil normal : bloquantes
@@ -143,8 +150,6 @@ MARGE_REOUVERTURES_POURCENT = 10
 """Part (en %) du maximum d'Entrées d'une semaine laissée libre par les créations, pour les
 réouvertures."""
 
-JOURS_OUVRES_SEMAINE = 5
-"""Jours ouvrés d'une semaine pleine (lundi à vendredi), base de la proratisation."""
 
 CAS_DE_TEST_PAR_ENTITE = (2, 3)
 """Bornes du nombre de Cas de test d'une Entité hors Scénario C."""
@@ -220,12 +225,10 @@ _GRAVITES: tuple[Gravite, ...] = (Gravite.bloquante, Gravite.majeure, Gravite.mi
 
 @dataclass(frozen=True)
 class _Profil:
-    """Tirage d'une Anomalie : poids des gravités, délais par gravité, Cause racine imposée
-    aux bloquantes (`None` : tirée)."""
+    """Tirage d'une Anomalie : poids des gravités et délais par gravité."""
 
     poids_gravite: tuple[float, float, float]
     delais: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]]
-    cause_bloquante: CauseRacine | None = None
 
 
 _DELAIS_NORMAUX: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]] = MappingProxyType(
@@ -235,6 +238,11 @@ _DELAIS_NORMAUX: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]] = Ma
         Gravite.mineure: DELAIS_PAR_STATUT,
     }
 )
+
+_DELAIS_ENLISES: Mapping[Gravite, Mapping[StatutAnomalie, tuple[int, int]]] = MappingProxyType(
+    {**_DELAIS_NORMAUX, Gravite.mineure: DELAIS_LENTS}
+)
+"""Délais des Anomalies tirées de B pendant l'enlisement : mineures lentes."""
 
 PROFIL_NORMAL = _Profil(POIDS_GRAVITE_NORMAL, _DELAIS_NORMAUX)
 """Profil des Entités hors Scénario : vise le vert ou le jaune avec la Grille par défaut."""
@@ -253,27 +261,15 @@ majeures."""
 def _profil(code: str, semaine: int, scenarios: Scenarios) -> _Profil:
     """Profil de tirage d'une Anomalie de l'Entité `code` créée en semaine `semaine`.
 
-    A : pendant sa vague, `part_bloquantes_vague` de bloquantes « reprise de données » lentes,
-    le reste réparti comme au profil normal entre majeures et mineures. B : dès sa semaine
-    de début, parts de bloquantes et de majeures du Scénario, toutes gravités lentes. Hors
-    de ces semaines, et pour C, `PROFIL_CALME` ; Entité sans Scénario : `PROFIL_NORMAL`.
+    B : dès sa semaine de début, part de majeures du Scénario aux délais du profil normal (le
+    stock de majeures reste sous le seuil rouge d'IND-3), mineures lentes, aucune bloquante
+    tirée. A (ses bloquantes sont scriptées, `_bloquantes_scriptees`), B avant l'enlisement
+    et C : `PROFIL_CALME` ; Entité sans Scénario : `PROFIL_NORMAL`.
     """
     sortie, enlisement, menace = scenarios.sortie, scenarios.enlisement, scenarios.menace
-    if sortie is not None and code == sortie.entite and semaine == sortie.semaine_vague:
-        part = sortie.part_bloquantes_vague
-        _, poids_majeures, poids_mineures = POIDS_GRAVITE_NORMAL
-        reste = (1 - part) / (poids_majeures + poids_mineures)
-        return _Profil(
-            (part, poids_majeures * reste, poids_mineures * reste),
-            MappingProxyType({**_DELAIS_NORMAUX, Gravite.bloquante: DELAIS_LENTS}),
-            CauseRacine.reprise_donnees,
-        )
     if enlisement is not None and code == enlisement.entite and semaine >= enlisement.semaine_debut:
-        bloquantes, majeures = enlisement.part_bloquantes, enlisement.part_majeures
-        return _Profil(
-            (bloquantes, majeures, max(0.0, 1 - bloquantes - majeures)),
-            MappingProxyType(dict.fromkeys(_GRAVITES, DELAIS_LENTS)),
-        )
+        majeures = enlisement.part_majeures
+        return _Profil((0.0, majeures, 1 - majeures), _DELAIS_ENLISES)
     if code in {s.entite for s in (sortie, enlisement, menace) if s is not None}:
         return PROFIL_CALME
     return PROFIL_NORMAL
@@ -295,21 +291,46 @@ def _verifier_semaines_scenarios(
                 )
 
 
-def _bascules(
-    entites: tuple[EntiteProgramme, ...], semaine: int, scenarios: Scenarios
-) -> list[tuple[EntiteProgramme, int]]:
-    """Bloquantes de bascule de la semaine `semaine`, par Entité (A, puis B).
+@dataclass(frozen=True)
+class _Scriptees:
+    """Bloquantes scriptées d'une Entité un Jour ouvré donné."""
 
-    A : `bloquantes_bascule` en semaine de vague ; B : en semaine de début de l'enlisement.
+    entite: EntiteProgramme
+    jour: date
+    nombre: int
+    duree: int
+    """Jours ouvrés entre la création et la fermeture."""
+    cause: CauseRacine | None
+    """Cause racine imposée (`None` : tirée)."""
+
+
+def _bloquantes_scriptees(
+    entites: tuple[EntiteProgramme, ...],
+    semaine: int,
+    jours_semaine: Sequence[date],
+    scenarios: Scenarios,
+) -> list[_Scriptees]:
+    """Bloquantes scriptées de la semaine `semaine`, jour par jour, B puis A.
+
+    B : Cause racine tirée ; A : Cause racine « reprise de données » imposée. Prises sur les
+    créations de la semaine dans cet ordre : quand elles ne suffisent pas (programme réduit),
+    l'enlisement de B, rouge jusqu'à la fin, est servi d'abord.
     """
-    nombres: dict[str, int] = {}
-    sortie, enlisement = scenarios.sortie, scenarios.enlisement
-    if sortie is not None and semaine == sortie.semaine_vague:
-        nombres[sortie.entite] = sortie.bloquantes_bascule
-    if enlisement is not None and semaine == enlisement.semaine_debut:
-        nombres[enlisement.entite] = enlisement.bloquantes_bascule
     par_code = {entite.code: entite for entite in entites}
-    return [(par_code[code], n) for code, n in nombres.items() if code in par_code and n > 0]
+    lots: list[_Scriptees] = []
+    sources: tuple[tuple[ScenarioSortie | ScenarioEnlisement | None, CauseRacine | None], ...] = (
+        (scenarios.enlisement, None),
+        (scenarios.sortie, CauseRacine.reprise_donnees),
+    )
+    for scenario, cause in sources:
+        if scenario is None or scenario.entite not in par_code:
+            continue
+        for rang, jour in enumerate(jours_semaine):
+            nombre = scenario.bloquantes(semaine, rang)
+            if nombre > 0:
+                entite = par_code[scenario.entite]
+                lots.append(_Scriptees(entite, jour, nombre, scenario.duree_bloquantes, cause))
+    return lots
 
 
 def _poids_entites(
@@ -457,27 +478,26 @@ class _Calendrier:
         return True
 
 
-def _anomalie(
+def _nouvelle_anomalie(
     entite: EntiteProgramme,
     jour: date,
+    creation: datetime,
+    gravite: Gravite,
+    cause: CauseRacine | None,
     domaines: tuple[str, ...],
     corpus: Corpus,
     calendrier: _Calendrier,
-    profil: _Profil,
     rng: random.Random,
 ) -> _Ticket:
-    creation = _horodatage(jour, rng)
-    gravite = rng.choices(_GRAVITES, weights=profil.poids_gravite)[0]
+    """Anomalie créée à `creation` (jour `jour`), statut Nouvelle, sans transition : Domaine
+    tiré, Cause racine `cause` ou tirée, titre et description tirés dans la case du Corpus."""
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
-    if gravite is Gravite.bloquante and profil.cause_bloquante is not None:
-        cause = profil.cause_bloquante
-    else:
+    if cause is None:
         cause = rng.choice(tuple(CauseRacine))
-    delais = profil.delais[gravite]
     case = corpus.textes_domaine(domaine).anomalies[cause]
     titre, description = _textes(case, entite.code, domaine, rng)
-    ticket = _Ticket(
+    return _Ticket(
         TypeTicket.anomalie,
         creation,
         {
@@ -492,6 +512,70 @@ def _anomalie(
         },
         cause=cause,
     )
+
+
+_ETAPES_SCRIPTEES: tuple[tuple[StatutAnomalie, StatutAnomalie], ...] = (
+    (StatutAnomalie.nouvelle, StatutAnomalie.en_analyse),
+    (StatutAnomalie.en_analyse, StatutAnomalie.en_correction),
+    (StatutAnomalie.en_correction, StatutAnomalie.a_retester),
+    (StatutAnomalie.a_retester, StatutAnomalie.fermee),
+)
+"""Transitions d'une bloquante scriptée : le workflow H-17 sans rejet, retour ni réouverture."""
+
+
+def _bloquante_scriptee(
+    lot: _Scriptees,
+    domaines: tuple[str, ...],
+    corpus: Corpus,
+    calendrier: _Calendrier,
+    rng: random.Random,
+) -> _Ticket:
+    """Bloquante scriptée de `lot` : créée le jour `lot.jour`, En analyse à J+1, En correction
+    à J+2, À retester à J+duree−1 et Fermée à J+duree (Jours ouvrés) ; les transitions
+    au-delà de la Date d'injection ne sont pas émises (bloquante encore ouverte)."""
+    ticket = _nouvelle_anomalie(
+        lot.entite,
+        lot.jour,
+        _horodatage(lot.jour, rng),
+        Gravite.bloquante,
+        lot.cause,
+        domaines,
+        corpus,
+        calendrier,
+        rng,
+    )
+    decalages = (1, 2, lot.duree - 1, lot.duree)
+    for decalage, (de, vers) in zip(decalages, _ETAPES_SCRIPTEES, strict=True):
+        jour_transition = calendrier.jour_apres(lot.jour, decalage)
+        if jour_transition is None:
+            break
+        ticket.changements.append(
+            _Changement(
+                _horodatage(jour_transition, rng),
+                NatureEvenement.transition,
+                Champ.statut,
+                de.value,
+                vers.value,
+            )
+        )
+    return ticket
+
+
+def _anomalie(
+    entite: EntiteProgramme,
+    jour: date,
+    domaines: tuple[str, ...],
+    corpus: Corpus,
+    calendrier: _Calendrier,
+    profil: _Profil,
+    rng: random.Random,
+) -> _Ticket:
+    creation = _horodatage(jour, rng)
+    gravite = rng.choices(_GRAVITES, weights=profil.poids_gravite)[0]
+    ticket = _nouvelle_anomalie(
+        entite, jour, creation, gravite, None, domaines, corpus, calendrier, rng
+    )
+    delais = profil.delais[gravite]
     # Marche le long du workflow : séjour tiré en Jours ouvrés (≥ 1) dans chaque statut, d'où
     # des transitions sur des jours distincts, arrêtée à la Date d'injection.
     statut = StatutAnomalie.nouvelle
@@ -592,11 +676,10 @@ def _cas_de_test(
 def _cas_du_jour(par_semaine: int, rang: int) -> int:
     """Cas de test du Scénario C du `rang`-ième Jour ouvré d'une semaine (0 : lundi).
 
-    `par_semaine` réparti sur `JOURS_OUVRES_SEMAINE` jours, le reste aux premiers : une semaine
-    pleine en compte exactement `par_semaine`, une semaine partielle ceux de ses jours.
+    `par_semaine` réparti comme les bloquantes scriptées de A et B (`part_du_jour`) : le reste
+    aux premiers jours ; une semaine pleine en compte exactement `par_semaine`.
     """
-    base, reste = divmod(par_semaine, JOURS_OUVRES_SEMAINE)
-    return base + (1 if rang < reste else 0)
+    return part_du_jour(par_semaine, rang)
 
 
 def _cas_de_test_menace(
@@ -915,15 +998,22 @@ def generer(
     for semaine, nombre in zip(semaines, repartition, strict=True):
         jours_semaine = jours_par_semaine[semaine]
         restantes = nombre
-        for entite, bascule in _bascules(config.entites, semaine, scenarios):
-            profil = replace(_profil(entite.code, semaine, scenarios), poids_gravite=(1, 0, 0))
-            for _ in range(min(bascule, restantes)):
-                tickets.append(
-                    _anomalie(
-                        entite, jours_semaine[0], config.domaines, corpus, calendrier, profil, rng
-                    )
+        for lot in _bloquantes_scriptees(config.entites, semaine, jours_semaine, scenarios):
+            servies = min(lot.nombre, restantes)
+            if servies < lot.nombre:
+                _log.warning(
+                    "Semaine %d, %s : %d bloquante(s) scriptée(s) sur %d le %s, faute de"
+                    " créations dans la semaine (%d tirées)",
+                    semaine,
+                    lot.entite.code,
+                    servies,
+                    lot.nombre,
+                    lot.jour.isoformat(),
+                    nombre,
                 )
-            restantes -= min(bascule, restantes)
+            for _ in range(servies):
+                tickets.append(_bloquante_scriptee(lot, config.domaines, corpus, calendrier, rng))
+            restantes -= servies
         poids = _poids_entites(config.entites, semaine, scenarios)
         for _ in range(restantes):
             jour = rng.choice(jours_semaine)

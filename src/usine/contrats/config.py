@@ -175,44 +175,47 @@ PoidsScenario = Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)]
 """Poids d'une Entité dans le tirage des créations (Entité normale : 1)."""
 TauxScenario = Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
 """Part ou taux dans [0, 1]."""
+DureeBloquantes = Annotated[int, Field(strict=True, ge=4, le=10)]
+"""Jours ouvrés entre la création et la fermeture d'une bloquante scriptée : au moins 4 (ses
+quatre transitions sur des Jours ouvrés distincts), au plus 10 (IND-2 ≤ 10 JO)."""
 
 
 class ConfigScenarioSortie(_ModeleConfig):
     """Scénario A, « sortie de crise » (FR-3), miroir de `generateur.scenarios.ScenarioSortie`.
 
     Tous les champs sont requis : les valeurs de la démo vivent dans `config/programme.yaml`.
+    Les bloquantes de A sont scriptées (contrats 1.2) : `bloquantes_bascule` le premier Jour
+    ouvré de `semaine_vague`, puis `bloquantes_par_semaine` (la dernière valeur se répète),
+    chacune fermée `duree_bloquantes` Jours ouvrés après sa création.
     """
 
     entite: str = Field(pattern=r"^ENT-[A-Z0-9]+$")
     semaine_vague: SemaineScenario
     bloquantes_bascule: NombreScenario
+    bloquantes_par_semaine: tuple[NombreScenario, ...] = Field(min_length=1)
+    duree_bloquantes: DureeBloquantes
     poids_vague: PoidsScenario
-    part_bloquantes_vague: TauxScenario
     poids_decrue: PoidsScenario
     statut_certification: StatutCertification
     semaine_certification: SemaineScenario
 
 
 class ConfigScenarioEnlisement(_ModeleConfig):
-    """Scénario B, « enlisement » (FR-3), miroir de `generateur.scenarios.ScenarioEnlisement`."""
+    """Scénario B, « enlisement » (FR-3), miroir de `generateur.scenarios.ScenarioEnlisement`.
+
+    Les bloquantes de B sont scriptées (contrats 1.2), comme celles de A : aucune bloquante
+    n'est tirée, `part_majeures` porte seule la gravité des créations enlisées.
+    """
 
     entite: str = Field(pattern=r"^ENT-[A-Z0-9]+$")
     semaine_debut: SemaineScenario
     bloquantes_bascule: NombreScenario
+    bloquantes_par_semaine: tuple[NombreScenario, ...] = Field(min_length=1)
+    duree_bloquantes: DureeBloquantes
     poids: PoidsScenario
-    part_bloquantes: TauxScenario
     part_majeures: TauxScenario
     statut_certification: StatutCertification
     semaine_certification: SemaineScenario
-
-    @model_validator(mode="after")
-    def _parts(self) -> Self:
-        if self.part_bloquantes + self.part_majeures > 1:
-            raise ValueError(
-                f"part_bloquantes + part_majeures = {self.part_bloquantes}"
-                f" + {self.part_majeures} > 1"
-            )
-        return self
 
 
 class ConfigScenarioMenace(_ModeleConfig):

@@ -177,7 +177,7 @@ volumetrie:
   # Nombre maximal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
   entrees_semaine_max: 500
 
-# Scénarios de démo (FR-3, contrats 1.1.0), calés au jour près sur le calendrier de V1 avec la
+# Scénarios de démo (FR-3, contrats 1.2.0), calés au jour près sur le calendrier de V1 avec la
 # Grille livrée (Story 1.8). Clé `scenarios` absente ou vide (`null`) : Scénarios par défaut
 # du générateur ; `scenarios: {}` les désactive tous. Sous la clé, un Scénario absent (ou
 # `null`) est désactivé. Chacun vise une Entité du Programme, distincte de celles des autres ;
@@ -189,34 +189,43 @@ scenarios:
     entite: ENT-A
     # Semaine du Programme de la vague de bloquantes (bascule au rouge son premier Jour ouvré).
     semaine_vague: 6
-    # Bloquantes lentes créées le premier Jour ouvré de la vague (prises sur la semaine).
-    bloquantes_bascule: 3
+    # Bloquantes scriptées créées le premier Jour ouvré de la vague (prises sur la semaine).
+    bloquantes_bascule: 4
+    # Bloquantes scriptées de la semaine de vague (hors bascule), puis de chaque semaine
+    # suivante (la dernière valeur se répète), réparties sur les Jours ouvrés.
+    bloquantes_par_semaine: [9, 2, 4]
+    # Jours ouvrés entre la création et la fermeture d'une bloquante scriptée (4 à 10).
+    duree_bloquantes: 7
     # Poids de l'Entité dans le tirage des créations pendant la vague (Entité normale : 1).
     poids_vague: 1.5
-    # Part des créations tirées de la vague qui sont des bloquantes de reprise de données.
-    part_bloquantes_vague: 0.4
     # Poids de l'Entité dans le tirage des créations après la vague (décrue).
     poids_decrue: 0.25
     # Statut de la Certification de l'Entité (accordee, reservee ou refusee).
     statut_certification: accordee
     # Semaine de création de la Certification (premier Jour ouvré).
     semaine_certification: 3
-  # Scénario B, « enlisement » : bloquantes et majeures qui s'accumulent jusqu'à la fin.
+  # Scénario B, « enlisement » : bloquantes qui arrivent plus vite qu'elles ne sortent.
   enlisement:
     # Entité portant le Scénario B.
     entite: ENT-B
     # Première semaine de l'enlisement (bascule au rouge son premier Jour ouvré).
     semaine_debut: 2
-    # Bloquantes lentes créées le premier Jour ouvré de `semaine_debut` (prises sur la semaine).
+    # Bloquantes scriptées créées le premier Jour ouvré de `semaine_debut` (prises sur la
+    # semaine).
     bloquantes_bascule: 3
+    # Bloquantes scriptées de `semaine_debut` (hors bascule), puis de chaque semaine suivante
+    # (la dernière valeur se répète), réparties sur les Jours ouvrés.
+    bloquantes_par_semaine: [3, 3, 4, 4, 5, 5, 6]
+    # Jours ouvrés entre la création et la fermeture d'une bloquante scriptée (4 à 10).
+    duree_bloquantes: 8
     # Poids de l'Entité dans le tirage des créations dès `semaine_debut` (Entité normale : 1).
     poids: 3.0
-    # Part des créations enlisées tirées qui sont bloquantes.
-    part_bloquantes: 0.06
-    # Part des créations enlisées tirées qui sont majeures (le reste : mineures).
-    part_majeures: 0.3
-    # Statut de la Certification de l'Entité (accordee, reservee ou refusee).
-    statut_certification: refusee
+    # Part des créations enlisées tirées qui sont majeures (le reste : mineures ; aucune
+    # bloquante tirée).
+    part_majeures: 0.03
+    # Statut de la Certification de l'Entité (accordee, reservee ou refusee). Réservée et non
+    # refusée : IND-5 rendrait la règle non projetable et masquerait « pas de sortie projetée ».
+    statut_certification: reservee
     # Semaine de création de la Certification (premier Jour ouvré).
     semaine_certification: 4
   # Scénario C, « menace » : Cas de test nombreux dont le taux de KO monte (orange en fin).
@@ -224,12 +233,12 @@ scenarios:
     # Entité portant le Scénario C.
     entite: ENT-C
     # Cas de test d'une semaine pleine, créés et exécutés chaque Jour ouvré.
-    cas_de_test_par_semaine: 30
+    cas_de_test_par_semaine: 50
     # Taux de KO cumulé visé dans la Phase avant `semaine_hausse`.
     taux_ko_initial: 0.03
     # Première semaine de la hausse du taux de KO visé.
     semaine_hausse: 4
     # Taux de KO cumulés visés semaine après semaine dès `semaine_hausse` (le dernier se répète).
-    taux_ko_hausse: [0.045, 0.065, 0.07, 0.14, 0.17]
+    taux_ko_hausse: [0.045, 0.065, 0.07, 0.14, 0.18]
     # Semaine de création de la Certification, réservée (premier Jour ouvré).
     semaine_certification: 4

@@ -50,8 +50,23 @@ def test_programme_livre_porte_les_scenarios() -> None:
     assert scenarios.menace is not None
     assert [s.entite for _, s in scenarios.actifs()] == ["ENT-A", "ENT-B", "ENT-C"]
     assert scenarios.sortie.statut_certification is StatutCertification.accordee
-    assert scenarios.enlisement.statut_certification is StatutCertification.refusee
-    assert scenarios.menace.taux_ko_hausse == (0.045, 0.065, 0.07, 0.14, 0.17)
+    assert scenarios.enlisement.statut_certification is StatutCertification.reservee
+    assert scenarios.menace.taux_ko_hausse == (0.045, 0.065, 0.07, 0.14, 0.18)
+
+
+def test_programme_livre_flux_scripte_v1_2() -> None:
+    """Contrats 1.2.0 : bloquantes scriptées de A et B (flux par semaine, durée fixe)."""
+    scenarios = charger_yaml(PROGRAMME_LIVRE, ConfigProgramme).scenarios
+    assert scenarios is not None
+    assert scenarios.sortie is not None
+    assert scenarios.enlisement is not None
+    assert scenarios.menace is not None
+    sortie, enlisement = scenarios.sortie, scenarios.enlisement
+    assert (sortie.bloquantes_bascule, sortie.bloquantes_par_semaine) == (4, (9, 2, 4))
+    assert sortie.duree_bloquantes == 7
+    assert enlisement.bloquantes_par_semaine == (3, 3, 4, 4, 5, 5, 6)
+    assert (enlisement.duree_bloquantes, enlisement.part_majeures) == (8, 0.03)
+    assert scenarios.menace.cas_de_test_par_semaine == 50
 
 
 def test_programme_livre_volumetrie_h2() -> None:
@@ -101,11 +116,6 @@ def _sans(nom: str, cle: str) -> Callable[[dict[str, Any]], None]:
     return modifier
 
 
-def _parts_excessives(scenarios: dict[str, Any]) -> None:
-    scenarios["enlisement"]["part_bloquantes"] = 0.8
-    scenarios["enlisement"]["part_majeures"] = 0.3
-
-
 INCOHERENTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "entite_inconnue": _scenario("sortie", "entite", "ENT-Z"),
     "entite_mal_formee": _scenario("sortie", "entite", "A"),
@@ -116,7 +126,7 @@ INCOHERENTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "bloquantes_negatives": _scenario("sortie", "bloquantes_bascule", -1),
     "bloquantes_booleen": _scenario("enlisement", "bloquantes_bascule", True),
     "cas_de_test_nuls": _scenario("menace", "cas_de_test_par_semaine", 0),
-    "taux_superieur_a_1": _scenario("sortie", "part_bloquantes_vague", 1.5),
+    "taux_superieur_a_1": _scenario("enlisement", "part_majeures", 1.5),
     "taux_negatif": _scenario("menace", "taux_ko_initial", -0.1),
     "taux_nan": _scenario("menace", "taux_ko_initial", math.nan),
     "taux_ko_hausse_superieur_a_1": _scenario("menace", "taux_ko_hausse", [0.1, 1.2]),
@@ -124,7 +134,14 @@ INCOHERENTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "poids_nul": _scenario("enlisement", "poids", 0),
     "poids_negatif": _scenario("sortie", "poids_decrue", -0.5),
     "poids_infini": _scenario("sortie", "poids_vague", math.inf),
-    "parts_superieures_a_1": _parts_excessives,
+    "flux_vide": _scenario("sortie", "bloquantes_par_semaine", []),
+    "flux_negatif": _scenario("enlisement", "bloquantes_par_semaine", [3, -1]),
+    "flux_decimal": _scenario("sortie", "bloquantes_par_semaine", [9, 2.5]),
+    "duree_trop_courte": _scenario("sortie", "duree_bloquantes", 3),
+    "duree_trop_longue": _scenario("enlisement", "duree_bloquantes", 11),
+    "duree_manquante": _sans("enlisement", "duree_bloquantes"),
+    "part_bloquantes_retiree_v1_2": _scenario("enlisement", "part_bloquantes", 0.06),
+    "part_bloquantes_vague_retiree_v1_2": _scenario("sortie", "part_bloquantes_vague", 0.4),
     "statut_inconnu": _scenario("enlisement", "statut_certification", "perdue"),
     "champ_manquant": _sans("sortie", "poids_vague"),
     "cle_inconnue": _scenario("menace", "taux", 0.1),

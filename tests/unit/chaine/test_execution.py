@@ -322,8 +322,8 @@ def test_previsions_du_passage(rapport: Rapport) -> None:
     rouges = [(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge]
     assert rouges, "le jeu graine 42 doit avoir des Entités rouges"
     assert [(p.date_arrete, p.entite) for p in publie.previsions] == rouges
+    # Graine 42, flux scripté (contrats 1.2) : ENT-B rouge à D, ENT-A sans Anomalie ouverte.
     assert {(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge} >= {
-        (DATE_ARRETE, "ENT-A"),
         (DATE_ARRETE, "ENT-B"),
     }
     consultation = ConsultationPassage(repertoire)

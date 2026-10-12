@@ -67,7 +67,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.1.0"
+    assert enregistree.contrats_version == "1.2.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):

@@ -157,9 +157,10 @@ def _ecrire_json[T](chemin: Path, manifeste: ManifestePassage, contenu: T) -> No
 def completer_palier_2(repertoire: Path) -> None:
     """Manifeste en Palier 2 ; Explications, classification, répartition et trace LLM écrites.
 
-    ENT-A et ENT-B reçoivent une Explication citant leurs deux premières Anomalies ouvertes ;
-    la première bloquante ouverte de ENT-A est classée « paramétrage » ; ENT-B n'a pas de
-    Brouillon.
+    ENT-B reçoit une Explication citant ses deux premières Anomalies ouvertes, avec un
+    Brouillon ; sa première bloquante ouverte est classée « paramétrage ». Depuis le flux
+    scripté (contrats 1.2), ENT-A n'a plus d'Anomalie ouverte sur le Programme réduit : les
+    bloquantes de B prennent les créations de chaque semaine.
     """
     chemin_manifeste = repertoire / "manifeste.json"
     donnees = json.loads(chemin_manifeste.read_text(encoding="utf-8"))
@@ -169,7 +170,7 @@ def completer_palier_2(repertoire: Path) -> None:
     jour = manifeste.date_arrete
     lecteur = ConsultationPassage(repertoire)
     explications = []
-    for entite, brouillon in (("ENT-A", "Relancer l'équipe paramétrage."), ("ENT-B", "")):
+    for entite, brouillon in (("ENT-B", "Relancer l'équipe paramétrage."),):
         cles = tuple(a.cle_ticket for a in lecteur.anomalies(entite=entite).anomalies[:2])
         assert cles, f"aucune Anomalie ouverte {entite} dans le Passage d'essai"
         explications.append(
@@ -182,7 +183,7 @@ def completer_palier_2(repertoire: Path) -> None:
                 statut_controle=StatutControle.conforme,
             )
         )
-    classee = lecteur.anomalies(entite="ENT-A", gravite=Gravite.bloquante).anomalies[0]
+    classee = lecteur.anomalies(entite="ENT-B", gravite=Gravite.bloquante).anomalies[0]
     _ecrire_json(repertoire / "llm" / "explications.json", manifeste, tuple(explications))
     _ecrire_json(
         repertoire / "llm" / "classification.json",
@@ -196,7 +197,7 @@ def completer_palier_2(repertoire: Path) -> None:
     _ecrire_json(
         repertoire / "llm" / "narrations.json",
         manifeste,
-        (SortieNarration(date_arrete=jour, entite="ENT-A", texte="Narration."),),
+        (SortieNarration(date_arrete=jour, entite="ENT-B", texte="Narration."),),
     )
     pl.DataFrame(
         {
@@ -214,9 +215,9 @@ def completer_palier_2(repertoire: Path) -> None:
         horodatage=datetime(2026, 10, 12, 7, 30, tzinfo=UTC),
         passage_id=manifeste.passage_id,
         date_arrete=jour,
-        entite="ENT-A",
+        entite="ENT-B",
         tache=Tache.explication,
-        cible="ENT-A",
+        cible="ENT-B",
         fournisseur="factice",
         version_prompt=VERSION_PROMPT,
         version_modele=VERSION_MODELE,

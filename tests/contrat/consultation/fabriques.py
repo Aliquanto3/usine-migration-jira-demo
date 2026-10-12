@@ -11,7 +11,7 @@ au filtre de FR-44.
 `passage_palier_2` : copie du Passage sous une racine de Passages distincte (avec sa copie
 `classification_initiale`), manifeste en Palier 2, complétée de `previsions.json`,
 `trace/previsions.jsonl`, `llm/*.json` et `repartition_causes.parquet` écrits par les modèles
-de contrats.
+de contrats pour ENT-B (Risque d'entrée en rouge : ENT-A).
 """
 
 import atexit
@@ -170,7 +170,7 @@ def _completer_palier_2(repertoire: Path, entite: str) -> None:
     )
     risque = RisqueEntreeRouge(
         date_arrete=jour,
-        entite="ENT-B",
+        entite="ENT-A",
         indicateur=CodeIndicateur.ind_1,
         date_franchissement_estimee=jour + timedelta(days=7),
         horizon_jours_ouvres=20,
@@ -247,7 +247,10 @@ def _passage_palier_2() -> tuple[Path, Path]:
         repertoire.parent / PASSAGE_CLASSIFICATION_INITIALE,
         cible_date / PASSAGE_CLASSIFICATION_INITIALE,
     )
-    _completer_palier_2(cible, "ENT-A")
+    # ENT-B (Scénario B, enlisée) a des Anomalies ouvertes à la Date d'arrêté ; sur le
+    # Programme réduit, ENT-A n'en a plus (Story 4.5 : les bloquantes scriptées de B prennent
+    # les créations de chaque semaine).
+    _completer_palier_2(cible, "ENT-B")
     return racine_passages, cible
 
 
@@ -260,7 +263,7 @@ def passage_palier_2() -> CasConsultation:
     )
     return CasConsultation(
         consultation,
-        "ENT-A",
+        "ENT-B",
         PASSAGE_CLASSIFICATION_INITIALE,
         url_attendue=True,
         avec_sorties=True,

@@ -71,19 +71,68 @@ def _verifier_entite(scenario: str, valeur: str) -> None:
         raise UsineErreur(f"Scénario {scenario} : entite = {valeur!r} (code d'Entité attendu)")
 
 
+JOURS_OUVRES_SEMAINE = 5
+"""Jours ouvrés d'une semaine pleine (lundi à vendredi), base de la proratisation."""
+
+DUREE_BLOQUANTE_MIN = 4
+"""Durée minimale, en Jours ouvrés, d'une bloquante scriptée : ses quatre transitions
+(En analyse, En correction, À retester, Fermée) tombent sur des Jours ouvrés distincts."""
+
+DUREE_BLOQUANTE_MAX = 10
+"""Durée maximale, en Jours ouvrés, d'une bloquante scriptée : la plus vieille bloquante
+ouverte reste sous le seuil rouge d'IND-2 (10 Jours ouvrés), condition de SM-6."""
+
+
+def part_du_jour(par_semaine: int, rang: int) -> int:
+    """Part du `rang`-ième Jour ouvré d'une semaine (0 : lundi) dans `par_semaine` éléments
+    répartis sur `JOURS_OUVRES_SEMAINE` Jours ouvrés, le reste aux premiers jours : une
+    semaine pleine en compte exactement `par_semaine`, une semaine partielle ceux de ses
+    jours."""
+    base, reste = divmod(par_semaine, JOURS_OUVRES_SEMAINE)
+    return base + (1 if rang < reste else 0)
+
+
+def _verifier_flux(scenario: str, flux: tuple[int, ...], duree: int) -> None:
+    if not isinstance(flux, tuple) or not flux:
+        raise UsineErreur(
+            f"Scénario {scenario} : bloquantes_par_semaine = {flux!r} (tuple non vide attendu)"
+        )
+    for rang, nombre in enumerate(flux):
+        _verifier_nombre(scenario, f"bloquantes_par_semaine[{rang}]", nombre, 0)
+    _verifier_nombre(scenario, "duree_bloquantes", duree, DUREE_BLOQUANTE_MIN)
+    if duree > DUREE_BLOQUANTE_MAX:
+        raise UsineErreur(
+            f"Scénario {scenario} : duree_bloquantes = {duree!r}"
+            f" (entier ≤ {DUREE_BLOQUANTE_MAX} attendu)"
+        )
+
+
+def _bloquantes_du_flux(
+    debut: int, bascule: int, flux: tuple[int, ...], semaine: int, rang: int
+) -> int:
+    """Bloquantes scriptées du `rang`-ième Jour ouvré de `semaine` : `bascule` le premier Jour
+    ouvré de `debut`, plus la part du jour de `flux[semaine − debut]` (dernier répété)."""
+    if semaine < debut:
+        return 0
+    nombre = part_du_jour(flux[min(semaine - debut, len(flux) - 1)], rang)
+    return nombre + (bascule if semaine == debut and rang == 0 else 0)
+
+
 @dataclass(frozen=True)
 class ScenarioSortie:
     """Scénario A, « sortie de crise » : vague de bloquantes de reprise de données, puis décrue.
 
-    Profil calme du générateur (sans bloquante, peu de majeures : vert ou jaune) avant
-    `semaine_vague` et pendant la décrue. Le premier Jour ouvré de `semaine_vague`,
-    `bloquantes_bascule` bloquantes de Cause racine « reprise de données », lentes à corriger,
-    sont créées : rouge par IND-1 (≥ 3 bloquantes ouvertes) dès ce jour-là et jusqu'à la fin
-    de l'historique. Le reste de la semaine, l'Entité reçoit `poids_vague` fois la part de
-    créations d'une Entité normale, dont `part_bloquantes_vague` de bloquantes de même nature.
-    Les semaines suivantes (décrue), la part de créations tombe à `poids_decrue` : les Sorties
-    dépassent les Entrées. Sa Certification (`statut_certification`) est créée le premier
-    Jour ouvré de `semaine_certification`.
+    Profil calme du générateur (sans bloquante tirée, peu de majeures : vert ou jaune). Les
+    bloquantes de A sont scriptées (Cause racine « reprise de données ») : le premier Jour
+    ouvré de `semaine_vague`, `bloquantes_bascule` d'un coup (rouge par IND-1, ≥ 3 bloquantes
+    ouvertes, dès ce jour-là), puis chaque semaine sa part de `bloquantes_par_semaine`
+    répartie sur ses Jours ouvrés ; chacune est corrigée et fermée `duree_bloquantes` Jours
+    ouvrés après sa création. La vague retombe dès la semaine suivante : les Sorties dépassent
+    les Entrées, le stock baisse sans repasser sous 3 (rouge jusqu'à la fin) et, en fin
+    d'historique, la plus ancienne bloquante ouverte a moins de 10 Jours ouvrés : la Baseline
+    projette une sortie dans l'horizon (SM-6). Pendant la vague, l'Entité reçoit `poids_vague`
+    fois la part de créations d'une Entité normale, puis `poids_decrue` fois. Sa Certification
+    (`statut_certification`) est créée le premier Jour ouvré de `semaine_certification`.
     """
 
     LETTRE: ClassVar[str] = "A"
@@ -92,13 +141,16 @@ class ScenarioSortie:
     """Code de l'Entité du Scénario."""
     semaine_vague: int = 6
     """Semaine du Programme de la vague de bloquantes."""
-    bloquantes_bascule: int = 3
-    """Bloquantes lentes de reprise de données créées le premier Jour ouvré de la vague (entier
-    ≥ 0), prises sur les créations de la semaine : elles fixent le jour de la bascule au rouge."""
+    bloquantes_bascule: int = 4
+    """Bloquantes de reprise de données créées le premier Jour ouvré de la vague (entier ≥ 0),
+    prises sur les créations de la semaine : elles fixent le jour de la bascule au rouge."""
+    bloquantes_par_semaine: tuple[int, ...] = (9, 2, 4)
+    """Bloquantes scriptées de la semaine de vague (hors bascule), puis de chaque semaine
+    suivante (la dernière valeur se répète), réparties sur les Jours ouvrés (`part_du_jour`)."""
+    duree_bloquantes: int = 7
+    """Jours ouvrés entre la création et la fermeture d'une bloquante scriptée (4 à 10)."""
     poids_vague: float = 1.5
     """Poids de l'Entité dans le tirage des créations pendant la vague (Entité normale : 1)."""
-    part_bloquantes_vague: float = 0.4
-    """Part des créations tirées de la vague qui sont des bloquantes de reprise de données."""
     poids_decrue: float = 0.25
     """Poids de l'Entité dans le tirage des créations après la vague."""
     statut_certification: StatutCertification = StatutCertification.accordee
@@ -110,8 +162,8 @@ class ScenarioSortie:
         _verifier_entite("A", self.entite)
         _verifier_semaine("A", "semaine_vague", self.semaine_vague)
         _verifier_nombre("A", "bloquantes_bascule", self.bloquantes_bascule, 0)
+        _verifier_flux("A", self.bloquantes_par_semaine, self.duree_bloquantes)
         _verifier_poids("A", "poids_vague", self.poids_vague)
-        _verifier_taux("A", "part_bloquantes_vague", self.part_bloquantes_vague)
         _verifier_poids("A", "poids_decrue", self.poids_decrue)
         _verifier_semaine("A", "semaine_certification", self.semaine_certification)
 
@@ -122,17 +174,33 @@ class ScenarioSortie:
             ("semaine_certification", self.semaine_certification),
         )
 
+    def bloquantes(self, semaine: int, rang: int) -> int:
+        """Bloquantes scriptées créées le `rang`-ième Jour ouvré de `semaine`."""
+        return _bloquantes_du_flux(
+            self.semaine_vague,
+            self.bloquantes_bascule,
+            self.bloquantes_par_semaine,
+            semaine,
+            rang,
+        )
+
 
 @dataclass(frozen=True)
 class ScenarioEnlisement:
-    """Scénario B, « enlisement » : le premier Jour ouvré de `semaine_debut`,
-    `bloquantes_bascule` bloquantes lentes sont créées (rouge par IND-1 dès ce jour-là). À
-    partir de cette semaine, l'Entité reçoit plus de créations que les autres (`poids`),
-    beaucoup de majeures (`part_majeures`) et de bloquantes (`part_bloquantes`), toutes
-    corrigées très lentement : les Entrées dépassent les Sorties chaque semaine, les
-    bloquantes et les majeures s'accumulent (rouge par IND-1, IND-2 et IND-3) jusqu'à la fin
-    de l'historique, sans sortie projetée. Sa Certification (`statut_certification`) est créée
-    le premier Jour ouvré de `semaine_certification`.
+    """Scénario B, « enlisement » : les bloquantes arrivent plus vite qu'elles ne sortent.
+
+    Les bloquantes de B sont scriptées : le premier Jour ouvré de `semaine_debut`,
+    `bloquantes_bascule` d'un coup (rouge par IND-1 dès ce jour-là), puis chaque semaine sa
+    part de `bloquantes_par_semaine`, en hausse ; chacune est fermée `duree_bloquantes` Jours
+    ouvrés après sa création. Les Entrées de bloquantes dépassent leurs Sorties, le stock
+    monte jusqu'à la fin de l'historique : vélocité nette défavorable, « pas de sortie
+    projetée » (SM-6), la plus ancienne bloquante ouverte ayant moins de 10 Jours ouvrés.
+    Dès `semaine_debut`, l'Entité reçoit plus de créations que les autres (`poids`), dont
+    `part_majeures` de majeures aux délais du profil normal (le stock de majeures reste sous
+    le seuil rouge d'IND-3) et des mineures corrigées lentement (`DELAIS_LENTS`) : les
+    Entrées d'Anomalies dépassent les Sorties chaque semaine ; aucune bloquante tirée. Sa
+    Certification (`statut_certification`) est créée le premier Jour ouvré de
+    `semaine_certification`.
     """
 
     LETTRE: ClassVar[str] = "B"
@@ -142,16 +210,20 @@ class ScenarioEnlisement:
     semaine_debut: int = 2
     """Première semaine de l'enlisement."""
     bloquantes_bascule: int = 3
-    """Bloquantes lentes créées le premier Jour ouvré de `semaine_debut` (entier ≥ 0), prises
-    sur les créations de la semaine : elles fixent le jour de la bascule au rouge."""
+    """Bloquantes créées le premier Jour ouvré de `semaine_debut` (entier ≥ 0), prises sur les
+    créations de la semaine : elles fixent le jour de la bascule au rouge."""
+    bloquantes_par_semaine: tuple[int, ...] = (3, 3, 4, 4, 5, 5, 6)
+    """Bloquantes scriptées de `semaine_debut` (hors bascule), puis de chaque semaine suivante
+    (la dernière valeur se répète), réparties sur les Jours ouvrés (`part_du_jour`)."""
+    duree_bloquantes: int = 8
+    """Jours ouvrés entre la création et la fermeture d'une bloquante scriptée (4 à 10)."""
     poids: float = 3.0
     """Poids de l'Entité dans le tirage des créations dès `semaine_debut` (Entité normale : 1)."""
-    part_bloquantes: float = 0.06
-    """Part des créations enlisées tirées qui sont bloquantes."""
-    part_majeures: float = 0.3
+    part_majeures: float = 0.03
     """Part des créations enlisées tirées qui sont majeures (le reste : mineures)."""
-    statut_certification: StatutCertification = StatutCertification.refusee
-    """Statut de la Certification de l'Entité."""
+    statut_certification: StatutCertification = StatutCertification.reservee
+    """Statut de la Certification de l'Entité (refusée, IND-5 rendrait la règle non
+    projetable et masquerait « pas de sortie projetée »)."""
     semaine_certification: int = 4
     """Semaine de création de la Certification (premier Jour ouvré)."""
 
@@ -159,14 +231,9 @@ class ScenarioEnlisement:
         _verifier_entite("B", self.entite)
         _verifier_semaine("B", "semaine_debut", self.semaine_debut)
         _verifier_nombre("B", "bloquantes_bascule", self.bloquantes_bascule, 0)
+        _verifier_flux("B", self.bloquantes_par_semaine, self.duree_bloquantes)
         _verifier_poids("B", "poids", self.poids)
-        _verifier_taux("B", "part_bloquantes", self.part_bloquantes)
         _verifier_taux("B", "part_majeures", self.part_majeures)
-        if self.part_bloquantes + self.part_majeures > 1:
-            raise UsineErreur(
-                f"Scénario B : part_bloquantes + part_majeures = {self.part_bloquantes}"
-                f" + {self.part_majeures} > 1"
-            )
         _verifier_semaine("B", "semaine_certification", self.semaine_certification)
 
     def semaines(self) -> tuple[tuple[str, int], ...]:
@@ -174,6 +241,16 @@ class ScenarioEnlisement:
         return (
             ("semaine_debut", self.semaine_debut),
             ("semaine_certification", self.semaine_certification),
+        )
+
+    def bloquantes(self, semaine: int, rang: int) -> int:
+        """Bloquantes scriptées créées le `rang`-ième Jour ouvré de `semaine`."""
+        return _bloquantes_du_flux(
+            self.semaine_debut,
+            self.bloquantes_bascule,
+            self.bloquantes_par_semaine,
+            semaine,
+            rang,
         )
 
 
@@ -193,7 +270,9 @@ class ScenarioMenace:
     semaine 3 (IND-4 sous 5 %, IND-8 sous 3 points), jaune en semaines 4 à 6 par la
     Certification réservée (IND-6) créée le premier Jour ouvré de `semaine_certification`
     (IND-4 sous 10 %, IND-8 sous 5 points), puis orange dès le lundi de la semaine 7 (IND-4
-    au-dessus de 10 % et sous 20 % : une menace, pas encore une crise). Les Anomalies de
+    au-dessus de 10 % et sous 20 % : une menace, pas encore une crise). En fin d'historique,
+    la régression d'IND-4 sur 10 Jours ouvrés franchit 20 % dans les 5 Jours ouvrés : Risque
+    d'entrée en rouge (SM-6), quel que soit le jour de la semaine 8. Les Anomalies de
     l'Entité suivent le profil calme du générateur (sans bloquante, peu de majeures).
     """
 
@@ -201,17 +280,20 @@ class ScenarioMenace:
 
     entite: str = "ENT-C"
     """Code de l'Entité du Scénario."""
-    cas_de_test_par_semaine: int = 30
-    """Cas de test d'une semaine pleine, créés et exécutés chaque Jour ouvré (6 par jour :
-    le garde-fou d'IND-4, 20 exécutés, est franchi le quatrième Jour ouvré d'une Phase)."""
+    cas_de_test_par_semaine: int = 50
+    """Cas de test d'une semaine pleine, créés et exécutés chaque Jour ouvré (10 par jour : le
+    garde-fou d'IND-4, 20 exécutés, est franchi le deuxième Jour ouvré d'une Phase ; la
+    fenêtre de 10 Jours ouvrés du Risque d'entrée en rouge reste évaluable dès le lundi de la
+    semaine 8, Story 4.5)."""
     taux_ko_initial: float = 0.03
     """Taux de KO cumulé visé avant `semaine_hausse`."""
     semaine_hausse: int = 4
     """Première semaine de la hausse du taux de KO visé."""
-    taux_ko_hausse: tuple[float, ...] = (0.045, 0.065, 0.07, 0.14, 0.17)
+    taux_ko_hausse: tuple[float, ...] = (0.045, 0.065, 0.07, 0.14, 0.18)
     """Taux de KO cumulés visés semaine après semaine à partir de `semaine_hausse` ; le dernier
-    se répète. 0,045 et 0,065 (et non 0,05) gardent IND-8 sous 5 points en recette : le
-    vendredi de la semaine 4, 3 KO sur 60 contre 0 sur 30 à J-5 feraient 5 points (orange)."""
+    se répète. 0,045 et 0,065 (et non 0,05) gardent IND-8 sous 5 points en recette (Story
+    1.8). 0,18 en semaine 8 (et non 0,17) donne au Risque d'entrée en rouge une marge nette
+    le vendredi : projection à 5 Jours ouvrés de 22 % au lieu de 19,8 % (Story 4.5)."""
     semaine_certification: int = 4
     """Semaine de création de la Certification, réservée (premier Jour ouvré)."""
 
@@ -332,8 +414,9 @@ def _sortie(config: ConfigScenarioSortie) -> ScenarioSortie:
         entite=config.entite,
         semaine_vague=config.semaine_vague,
         bloquantes_bascule=config.bloquantes_bascule,
+        bloquantes_par_semaine=tuple(config.bloquantes_par_semaine),
+        duree_bloquantes=config.duree_bloquantes,
         poids_vague=config.poids_vague,
-        part_bloquantes_vague=config.part_bloquantes_vague,
         poids_decrue=config.poids_decrue,
         statut_certification=config.statut_certification,
         semaine_certification=config.semaine_certification,
@@ -345,8 +428,9 @@ def _enlisement(config: ConfigScenarioEnlisement) -> ScenarioEnlisement:
         entite=config.entite,
         semaine_debut=config.semaine_debut,
         bloquantes_bascule=config.bloquantes_bascule,
+        bloquantes_par_semaine=tuple(config.bloquantes_par_semaine),
+        duree_bloquantes=config.duree_bloquantes,
         poids=config.poids,
-        part_bloquantes=config.part_bloquantes,
         part_majeures=config.part_majeures,
         statut_certification=config.statut_certification,
         semaine_certification=config.semaine_certification,

@@ -398,17 +398,20 @@ def test_palier_1_mentions(passage: Path) -> None:
 
 
 def test_synthese_previsions_du_passage(consultation: ConsultationPassage, passage: Path) -> None:
-    """ENT-A et ENT-B rouges à D : leur Prévision Baseline est affichée."""
+    """ENT-B rouge à D (seule, flux scripté des contrats 1.2) : sa Prévision Baseline est
+    affichée."""
     synthese = _valeurs(_classeur((passage / NOM).read_bytes())["Synthèse"])
     previsions = consultation.previsions()
-    assert [p.entite for p in previsions] == ["ENT-A", "ENT-B"]
-    assert [ligne[0] for ligne in synthese[1:]] == ["ENT-A", "ENT-B"]
-    for ligne in synthese[1:]:
-        assert ligne[1] == "Rouge"
-        attendu = "\n".join(
-            formater_prevision(p) for p in consultation.previsions(DATE_ARRETE, ligne[0])
-        )
-        assert ligne[5] == attendu
+    assert [p.entite for p in previsions] == ["ENT-B"]
+    assert [(ligne[0], ligne[1]) for ligne in synthese[1:]] == [
+        ("ENT-A", "Vert"),
+        ("ENT-B", "Rouge"),
+    ]
+    (ligne,) = [ligne for ligne in synthese[1:] if ligne[0] == "ENT-B"]
+    attendu = "\n".join(
+        formater_prevision(p) for p in consultation.previsions(DATE_ARRETE, "ENT-B")
+    )
+    assert ligne[5] == attendu
 
 
 # --- Fixture Palier 2 ---

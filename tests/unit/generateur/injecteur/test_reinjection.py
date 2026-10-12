@@ -1,5 +1,6 @@
 """Réinjection idempotente : liste exacte, rapprochement, reprise et clés stables (Story 1.7)."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -258,10 +259,17 @@ def test_ticket_connu_absent_refuse(
 def test_statut_cible_inaccessible_refuse(
     fabrique_client: FabriqueClient, config: ConfigJira, plan: PlanInjection
 ) -> None:
+    # Le Journal réduit n'a plus d'Anomalie « Nouvelle » à la Date d'injection depuis le flux
+    # scripté (contrats 1.2) : la première Anomalie du plan y est ramenée.
+    rang = next(i for i, t in enumerate(plan.tickets) if t.type_ticket is TypeTicket.anomalie)
+    ticket = plan.tickets[rang]
+    nouvelle = replace(
+        ticket, valeurs={**ticket.valeurs, Champ.statut: StatutAnomalie.nouvelle.value}
+    )
+    plan = replace(plan, tickets=(*plan.tickets[:rang], nouvelle, *plan.tickets[rang + 1 :]))
     faux = FauxJira()
     client, site = _preparer(faux, fabrique_client, config, plan)
     premier = _injecter(client, site, config, plan)
-    nouvelle = next(t for t in plan.tickets if t.statut_final is StatutAnomalie.nouvelle)
     cle_jira = premier.manifeste.correspondance_cles[nouvelle.cle]
     faux.tickets[cle_jira].statut = "En analyse"
     faux.requetes.clear()

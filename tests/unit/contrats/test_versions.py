@@ -21,7 +21,7 @@ SHA = hashlib.sha256(OCTETS).hexdigest()
 
 
 def test_version_courante() -> None:
-    assert CONTRATS_VERSION == "1.1.0"
+    assert CONTRATS_VERSION == "1.2.0"
     assert version_majeure(CONTRATS_VERSION) == 1
 
 

@@ -154,6 +154,7 @@ def test_passage_reel_identite_et_ind1(repertoire: Path) -> None:
         .select("date", "entite", "numerateur")
         .iter_rows()
     }
+    maxima = {}
     for entite in entites:
         lignes = serie.filter(pl.col("serie") == entite).sort("date").to_dicts()
         precedent = 0
@@ -161,4 +162,7 @@ def test_passage_reel_identite_et_ind1(repertoire: Path) -> None:
             assert ligne["stock"] == ind1[(entite, ligne["date"])]
             assert ligne["stock"] == precedent + ligne["entrees"] - ligne["sorties"]
             precedent = ligne["stock"]
-        assert max(ligne["stock"] for ligne in lignes) > 0
+        maxima[entite] = max(ligne["stock"] for ligne in lignes)
+    # Flux scripté (contrats 1.2) : sur le Programme réduit, les bloquantes de B prennent les
+    # créations de chaque semaine ; ENT-A n'a jamais de bloquante ouverte.
+    assert maxima["ENT-B"] > 0

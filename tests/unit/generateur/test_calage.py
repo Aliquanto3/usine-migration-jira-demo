@@ -205,7 +205,13 @@ def test_calage_autres_graines(
 
 @pytest.mark.parametrize(
     ("par_semaine", "attendu"),
-    [(30, [6, 6, 6, 6, 6]), (32, [7, 7, 6, 6, 6]), (4, [1, 1, 1, 1, 0]), (1, [1, 0, 0, 0, 0])],
+    [
+        (50, [10, 10, 10, 10, 10]),
+        (30, [6, 6, 6, 6, 6]),
+        (32, [7, 7, 6, 6, 6]),
+        (4, [1, 1, 1, 1, 0]),
+        (1, [1, 0, 0, 0, 0]),
+    ],
 )
 def test_cas_du_jour(par_semaine: int, attendu: list[int]) -> None:
     """Répartition des Cas de test de C : le reste aux premiers jours, total d'une semaine
@@ -251,13 +257,76 @@ def generation_livree(config_livree: ConfigProgramme) -> Generation:
 
 
 def test_bascule_au_premier_jour_ouvre(generation_livree: Generation) -> None:
-    """A : 3 bloquantes de reprise de données le lundi de la semaine 6 ; B : 3 bloquantes le
-    lundi de la semaine 2, sa première semaine d'enlisement."""
+    """A : au moins 3 bloquantes de reprise de données le lundi de la semaine 6 ; B : au moins
+    3 bloquantes le lundi de la semaine 2, sa première semaine d'enlisement."""
     a = _bloquantes_du_jour(generation_livree, "ENT-A", _lundi(generation_livree, 6))
     assert len(a) >= 3, a
     assert {generation_livree.verite_terrain[cle] for cle in a} == {CauseRacine.reprise_donnees}
     b = _bloquantes_du_jour(generation_livree, "ENT-B", _lundi(generation_livree, 2))
     assert len(b) >= 3, b
+
+
+# --- Bloquantes scriptées de A et B (Story 4.5) ---
+
+
+def _transitions_statut(generation: Generation) -> dict[str, list[tuple[date, str, str]]]:
+    transitions: dict[str, list[tuple[date, str, str]]] = defaultdict(list)
+    for e in generation.evenements:
+        if e.nature is NatureEvenement.transition and e.champ is Champ.statut:
+            assert e.de is not None and e.vers is not None
+            transitions[e.cle_ticket].append((jour_local(e.horodatage), e.de, e.vers))
+    return transitions
+
+
+@pytest.mark.parametrize("date_generation", [DATE_GENERATION, DATE_GENERATION + timedelta(days=2)])
+def test_bloquantes_scriptees(config_livree: ConfigProgramme, date_generation: date) -> None:
+    """Chaque bloquante de A et B est scriptée : créée au nombre du flux du jour, En analyse à
+    J+1, En correction à J+2, À retester à J+durée−1 et Fermée à J+durée (Jours ouvrés), sans
+    rejet ni retour ; une transition postérieure à la Date d'injection n'est pas émise (la
+    bloquante reste ouverte). A : Cause racine « reprise de données »."""
+    generation = generer(config_livree, GRAINE, date_generation, corpus=_corpus_versionne())
+    ancrage = generation.entete.ancrage_semaines
+    jours = jours_ouvres(ancrage, generation.entete.date_injection)
+    rangs = {jour: rang for rang, jour in enumerate(jours)}
+    creations, transitions = _creations(generation), _transitions_statut(generation)
+    sortie, enlisement = SCENARIOS_PAR_DEFAUT.sortie, SCENARIOS_PAR_DEFAUT.enlisement
+    assert sortie is not None and enlisement is not None
+    ouvertes_fin = fermees = 0
+    for scenario in (sortie, enlisement):
+        bloquantes = {
+            cle: t
+            for cle, t in creations.items()
+            if t["type"] is TypeTicket.anomalie
+            and t[Champ.entite] == scenario.entite
+            and t[Champ.gravite] == Gravite.bloquante
+        }
+        par_jour = Counter(t["jour"] for t in bloquantes.values())
+        for jour in jours:
+            semaine = semaine_programme(jour, ancrage)
+            rang_semaine = (jour - _lundi(generation, semaine)).days
+            attendu = scenario.bloquantes(semaine, rang_semaine)
+            assert par_jour[jour] == attendu, (scenario.entite, jour)
+        duree = scenario.duree_bloquantes
+        for cle, t in bloquantes.items():
+            rang = rangs[t["jour"]]
+            attendues = [
+                (jours[rang + decalage], de, vers)
+                for decalage, de, vers in (
+                    (1, "nouvelle", "en_analyse"),
+                    (2, "en_analyse", "en_correction"),
+                    (duree - 1, "en_correction", "a_retester"),
+                    (duree, "a_retester", "fermee"),
+                )
+                if rang + decalage < len(jours)
+            ]
+            assert transitions[cle] == attendues, cle
+            if rang + duree < len(jours):
+                fermees += 1
+            else:
+                ouvertes_fin += 1
+            if scenario is sortie:
+                assert generation.verite_terrain[cle] is CauseRacine.reprise_donnees
+    assert fermees and ouvertes_fin
 
 
 @pytest.fixture(scope="module")

@@ -295,12 +295,12 @@ def test_traces(passage: Path) -> None:
 
 
 def _ecrire_sorties_llm(
-    passage: Path, cle_classee: str = "DEMO-6"
+    passage: Path, cle_classee: str = "DEMO-6", entite: str = "ENT-A"
 ) -> tuple[SortieExplication, SortieClassification, SortieNarration]:
-    """Écrit `llm/*` (une sortie ENT-A chacun) et `repartition_causes.parquet` (ENT-A)."""
+    """Écrit `llm/*` (une sortie de `entite` chacun) et `repartition_causes.parquet` (`entite`)."""
     explication = SortieExplication(
         date_arrete=DATE_ARRETE,
-        entite="ENT-A",
+        entite=entite,
         texte="Texte.",
         citations=(cle_classee,),
         brouillon_commentaire="Brouillon.",
@@ -308,7 +308,7 @@ def _ecrire_sorties_llm(
     classification = SortieClassification(
         cle_ticket=cle_classee, cause_racine=CauseRacine.parametrage
     )
-    narration = SortieNarration(date_arrete=DATE_ARRETE, entite="ENT-A", texte="Narration.")
+    narration = SortieNarration(date_arrete=DATE_ARRETE, entite=entite, texte="Narration.")
     (passage / "llm").mkdir()
     for nom, type_contenu, contenu in (
         ("explications", tuple[SortieExplication, ...], (explication,)),
@@ -325,7 +325,7 @@ def _ecrire_sorties_llm(
     repartition = pl.DataFrame(
         {
             "date": [date(2026, 10, 8), DATE_ARRETE],
-            "entite": ["ENT-A", "ENT-A"],
+            "entite": [entite, entite],
             "cause_racine": ["parametrage", "parametrage"],
             "nombre": [2, 1],
         },
@@ -402,7 +402,7 @@ def test_version_etrangere_meteo(passage: Path) -> None:
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
     contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.1\.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.2\.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 
@@ -521,8 +521,8 @@ def test_previsions_passage_reel(lance: PassageLance) -> None:
         non_rouges = {m.entite for m in consultation.meteo(jour)} - set(rouges)
         assert {r.entite for r in consultation.risques(jour)} <= non_rouges, jour
         total += len(consultation.previsions(jour)) + len(consultation.risques(jour))
-    assert [p.entite for p in consultation.previsions()] == ["ENT-A", "ENT-B"]
-    assert consultation.previsions(entite="ENT-B") == consultation.previsions()[1:]
+    assert [p.entite for p in consultation.previsions()] == ["ENT-B"]  # flux scripté (1.2)
+    assert consultation.previsions(entite="ENT-B") == consultation.previsions()
     traces = consultation.traces()
     assert len(traces) == total
     assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}
@@ -572,23 +572,28 @@ def test_previsions_majeur_etranger(passage: Path) -> None:
 
 
 def test_palier_1_par_entite(passage: Path) -> None:
-    """FR-46 : en Palier 1, rien de LLM pour l'Entité ; le déterministe ne change pas."""
-    ouvertes = ConsultationPassage(passage).anomalies(entite="ENT-A").anomalies
-    assert ouvertes, "aucune Anomalie ouverte ENT-A dans le Passage d'essai"
+    """FR-46 : en Palier 1, rien de LLM pour l'Entité ; le déterministe ne change pas.
+
+    ENT-B (Scénario B, enlisée) a des bloquantes ouvertes à la Date d'arrêté ; sur le Programme
+    réduit, ENT-A n'a plus de création après la semaine 1 (Story 4.5 : les bloquantes
+    scriptées de B prennent les créations de chaque semaine)."""
+    entite = "ENT-B"
+    ouvertes = ConsultationPassage(passage).anomalies(entite=entite).anomalies
+    assert ouvertes, "aucune Anomalie ouverte ENT-B dans le Passage d'essai"
     premiere = ouvertes[0]
-    explication, _, narration = _ecrire_sorties_llm(passage, premiere.cle_ticket)
+    explication, _, narration = _ecrire_sorties_llm(passage, premiere.cle_ticket, entite)
     consultation = ConsultationPassage(passage)
     # Palier 2 : les sorties de l'Entité existent bien.
-    assert consultation.explications(entite="ENT-A") == (explication,)
-    assert consultation.narrations(entite="ENT-A") == (narration,)
-    assert not consultation.repartition_causes(entite="ENT-A").is_empty()
-    palier_2 = consultation.anomalies(entite="ENT-A")
+    assert consultation.explications(entite=entite) == (explication,)
+    assert consultation.narrations(entite=entite) == (narration,)
+    assert not consultation.repartition_causes(entite=entite).is_empty()
+    palier_2 = consultation.anomalies(entite=entite)
     assert palier_2.anomalies[0].cause_racine_proposee is CauseRacine.parametrage
     # Palier 1 : sorties LLM vides ou `None`.
-    assert consultation.explications(entite="ENT-A", palier=1) == ()
-    assert consultation.narrations(entite="ENT-A", palier=1) == ()
-    assert consultation.repartition_causes(entite="ENT-A", palier=1).is_empty()
-    palier_1 = consultation.anomalies(entite="ENT-A", palier=1)
+    assert consultation.explications(entite=entite, palier=1) == ()
+    assert consultation.narrations(entite=entite, palier=1) == ()
+    assert consultation.repartition_causes(entite=entite, palier=1).is_empty()
+    palier_1 = consultation.anomalies(entite=entite, palier=1)
     # Lectures déterministes identiques, cause racine proposée exceptée.
     assert palier_1.total == palier_2.total
     assert palier_1.anomalies == tuple(
