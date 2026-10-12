@@ -318,6 +318,7 @@ def test_modeles_geles() -> None:
 def test_yaml_livres_en_e0(racine_depot: Path) -> None:
     assert sorted(p.name for p in (racine_depot / "config").glob("*.yaml")) == [
         "chaine.yaml",
+        "demo.yaml",
         "grille_meteo.yaml",
         "jira.yaml",
         "programme.yaml",
@@ -328,7 +329,7 @@ def test_jira_yaml_livre_valide(racine_depot: Path) -> None:
     texte = (racine_depot / "config" / "jira.yaml").read_text(encoding="utf-8")
     jira = ConfigJira.model_validate(yaml.safe_load(texte))
     assert (jira.url_site, jira.mode, jira.cle_projet) == (
-        "https://jira.example.invalid",
+        "https://anaelyahi.atlassian.net",
         "cloud",
         "DEMO",
     )

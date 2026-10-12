@@ -4,6 +4,13 @@ Chaque fichier est lu en ouvrir-lire-fermer, sa version de contrats vérifiée (
 Parquet, enveloppe JSON, manifeste) et chaque table validée par son `SCHEMA_X`. Un fichier
 absent du Passage (étape bouchon ou sautée) donne un résultat vide ; seul le manifeste est
 obligatoire. Un `date_arrete` à `None` désigne la Date d'arrêté du Passage.
+
+Un Passage de version majeure étrangère est refusé (AD-2) : quand `manifeste.json` existe, il
+fait foi pour tout le Passage. Il est lu (version comprise) avant tout autre fichier, puis mis
+en cache ; chaque lecture de données du Passage lève alors une `UsineErreur` qui le nomme.
+`url_ticket` (aucun fichier du Passage lu) et `dernier_passage` (qui parcourt les autres
+Passages) ne sont pas concernés. Un Passage en construction, sans manifeste, reste lisible :
+ses fichiers sont contrôlés un par un.
 """
 
 import json
@@ -153,8 +160,18 @@ class ConsultationPassage:
     def _chemin(self, nom: str) -> Path:
         return self._repertoire / FICHIERS_PASSAGE[nom]
 
+    def _verifier_passage(self) -> None:
+        """Lit le manifeste s'il existe (version vérifiée, AD-2), une fois grâce au cache.
+
+        Les lignes de `trace/*.jsonl` ne portent pas de version, et un fichier en `1.x` peut
+        cohabiter avec un manifeste d'une autre version majeure : le manifeste fait foi.
+        """
+        if self._manifeste is None and self._chemin("manifeste").exists():
+            self.manifeste()
+
     def _table(self, nom: str, schema: SchemaTable) -> pl.DataFrame:
         """Table `nom` validée ; table vide au schéma si le fichier est absent du Passage."""
+        self._verifier_passage()
         if nom not in self._tables:
             chemin = self._chemin(nom)
             if chemin.exists():
@@ -165,6 +182,7 @@ class ConsultationPassage:
 
     def _contenu(self, nom: str) -> object | None:
         """Contenu de l'enveloppe JSON `nom`, ou `None` si le fichier est absent du Passage."""
+        self._verifier_passage()
         if nom not in self._json:
             chemin = self._chemin(nom)
             if not chemin.exists():
@@ -435,7 +453,13 @@ class ConsultationPassage:
     def previsions(
         self, date_arrete: date | None = None, entite: str | None = None
     ) -> tuple[Prevision, ...]:
-        """Prévisions de sortie du rouge à la date."""
+        """Prévisions de sortie du rouge à la date (statistiques, jamais LLM : pas de palier).
+
+        `()` sans `previsions.json` : Passage antérieur au câblage de l'étape `prevision`
+        (Story 5.3) ou en construction avant elle. C'est la valeur absente explicite, distincte
+        d'une `Prevision` de statut `pas_de_sortie_projetee` ; `consultation.prevision` dit si
+        la Prévision a été calculée.
+        """
         previsions = self._previsions().previsions
         if not previsions:
             return ()
@@ -449,7 +473,11 @@ class ConsultationPassage:
     def risques(
         self, date_arrete: date | None = None, entite: str | None = None
     ) -> tuple[RisqueEntreeRouge, ...]:
-        """Risques d'entrée en rouge à la date."""
+        """Risques d'entrée en rouge à la date.
+
+        `()` sans `previsions.json` (Passage antérieur au câblage de l'étape `prevision`) comme
+        sans Risque : `consultation.prevision` distingue les deux par le manifeste.
+        """
         risques = self._previsions().risques
         if not risques:
             return ()
@@ -462,6 +490,7 @@ class ConsultationPassage:
 
     def _sorties_llm(self, nom: str, palier: Palier) -> tuple[Any, ...]:
         """Contenu du fichier LLM `nom` (type de `CONTENUS_JSON`), vide en Palier 1."""
+        self._verifier_passage()
         if palier == 1:
             return ()
         contenu = self._contenu(nom)
@@ -477,6 +506,7 @@ class ConsultationPassage:
 
         Filtrée sur la Date d'arrêté du Passage, puis sur l'Entité.
         """
+        self._verifier_passage()
         if palier == 1:
             return pl.DataFrame(schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes))
         table = self._table("repartition_causes", SCHEMA_REPARTITION_CAUSES)
@@ -504,6 +534,7 @@ class ConsultationPassage:
 
     def traces(self) -> tuple[EntreeTrace, ...]:
         """Lignes `EntreeTrace` de `trace/llm.jsonl` puis de `trace/previsions.jsonl`."""
+        self._verifier_passage()
         entrees: list[EntreeTrace] = []
         for nom in ("trace_llm", "trace_previsions"):
             chemin = self._chemin(nom)

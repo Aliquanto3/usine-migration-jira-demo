@@ -11,7 +11,7 @@ Rappel : dépôt public. Toutes les valeurs ci-dessous sont **inventées** ; auc
 | ID | Hypothèse | Exigences | Impact si fausse | Statut |
 |---|---|---|---|---|
 | H-1 | Le calendrier fictif ne compte aucun jour férié (Jours ouvrés = lundi à vendredi) | Glossaire, FR-10, FR-20 | Ajout d'un calendrier de jours fériés en configuration | acceptée par défaut (10/10/2026) |
-| H-2 | Volumétrie : 3 000 à 5 000 Anomalies sur 8 semaines, 200 à 500 nouvelles par semaine, 10 Entités (traduction de « plusieurs milliers, quelques centaines par semaine, une dizaine d'entités ») | FR-2, NFR-2 | Ajustement du générateur et des seuils IND-3 | acceptée par défaut (10/10/2026) |
+| H-2 | Volumétrie : 3 000 à 5 000 Anomalies sur 8 semaines, 200 à 500 nouvelles par semaine, 10 Entités (traduction de « plusieurs milliers, quelques centaines par semaine, une dizaine d'entités ») | FR-2, NFR-2 | Ajustement du générateur et des seuils IND-3 | modifiée (12/10/2026) : 3 000 à 4 000 Anomalies |
 | H-3 | Au plus 2 Entités rouges en fin d'historique | FR-3 | Démo moins lisible si trop de rouges | acceptée par défaut (10/10/2026) |
 | H-4 | Au moins 10 % des descriptions contiennent un identifiant sensible fictif | FR-4, FR-31 | Démonstration de la Pseudonymisation moins visible | acceptée par défaut (10/10/2026) |
 | H-5 | L'API Jira ne permettant pas d'antidater les transitions, l'historique de 8 semaines vient du journal d'événements du générateur ; Jira Cloud porte l'état courant et les mises à jour en direct | FR-5, FR-8 | Si refusé : import CSV ou champ « date d'effet » (voir addendum § C) | confirmée (10/10/2026) |

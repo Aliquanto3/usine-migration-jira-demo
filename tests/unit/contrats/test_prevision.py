@@ -128,6 +128,92 @@ def test_fourchette_sans_sortie_projetee_refusee() -> None:
             )
 
 
+def _risque(**champs: Any) -> RisqueEntreeRouge:
+    base: dict[str, Any] = {
+        "date_arrete": D,
+        "entite": "ENT-C",
+        "indicateur": CodeIndicateur.ind_4,
+        "date_franchissement_estimee": date(2026, 10, 15),
+        "horizon_jours_ouvres": 5,
+        "numerateur": 3,
+        "denominateur": 20,
+        "seuil_numerateur": 1,
+        "seuil_denominateur": 5,
+        "version_grille": "0123456789ab",
+    }
+    base.update(champs)
+    return RisqueEntreeRouge.model_validate(base)
+
+
+def test_valeur_projetee_absente_par_defaut() -> None:
+    risque = _risque()
+    assert (risque.valeur_projetee_numerateur, risque.valeur_projetee_denominateur) == (None, None)
+
+
+def test_valeur_projetee_aller_retour_json() -> None:
+    risque = _risque(valeur_projetee_numerateur=5, valeur_projetee_denominateur=24)
+    relu = RisqueEntreeRouge.model_validate_json(risque.model_dump_json())
+    assert relu == risque
+    assert (relu.valeur_projetee_numerateur, relu.valeur_projetee_denominateur) == (5, 24)
+    contenu = ContenuPrevisions(previsions=(), risques=(risque,))
+    assert ContenuPrevisions.model_validate_json(contenu.model_dump_json()) == contenu
+
+
+def test_valeur_projetee_absente_omise_du_json() -> None:
+    """Sans valeur projetée, la forme JSON reste celle de 1.0.0 : clés omises."""
+    risque = _risque()
+    cles = ("valeur_projetee_numerateur", "valeur_projetee_denominateur")
+    texte = risque.model_dump_json()
+    assert all(cle not in texte for cle in cles)
+    assert all(cle not in risque.model_dump() for cle in cles)
+    contenu = ContenuPrevisions(previsions=(), risques=(risque,))
+    assert all(cle not in contenu.model_dump_json() for cle in cles)
+    assert RisqueEntreeRouge.model_validate_json(texte) == risque
+
+
+def test_valeur_projetee_renseignee_serialisee() -> None:
+    risque = _risque(valeur_projetee_numerateur=5, valeur_projetee_denominateur=24)
+    donnees = risque.model_dump()
+    assert (donnees["valeur_projetee_numerateur"], donnees["valeur_projetee_denominateur"]) == (
+        5,
+        24,
+    )
+    texte = risque.model_dump_json()
+    assert '"valeur_projetee_numerateur":5' in texte
+    assert '"valeur_projetee_denominateur":24' in texte
+    assert RisqueEntreeRouge.model_validate(donnees) == risque
+    assert RisqueEntreeRouge.model_validate_json(texte) == risque
+
+
+def test_risque_v1_0_lu() -> None:
+    """Un Risque écrit en contrats 1.0.0 (sans valeur projetée) se lit toujours."""
+    texte = (
+        '{"date_arrete": "2026-10-12", "entite": "ENT-C", "indicateur": "IND-4",'
+        ' "date_franchissement_estimee": "2026-10-15", "horizon_jours_ouvres": 5,'
+        ' "numerateur": 3, "denominateur": 20, "seuil_numerateur": 1,'
+        ' "seuil_denominateur": 5, "version_grille": "0123456789ab"}'
+    )
+    risque = RisqueEntreeRouge.model_validate_json(texte)
+    assert risque == _risque()
+    assert risque.valeur_projetee_numerateur is None
+    assert risque.valeur_projetee_denominateur is None
+
+
+@pytest.mark.parametrize(
+    "valeur",
+    [
+        {"valeur_projetee_numerateur": 5},
+        {"valeur_projetee_denominateur": 24},
+        {"valeur_projetee_numerateur": 5, "valeur_projetee_denominateur": 0},
+        {"valeur_projetee_numerateur": 5, "valeur_projetee_denominateur": -24},
+    ],
+    ids=["numerateur_seul", "denominateur_seul", "denominateur_nul", "denominateur_negatif"],
+)
+def test_valeur_projetee_incomplete_ou_invalide(valeur: dict[str, int]) -> None:
+    with pytest.raises(ValidationError):
+        _risque(**valeur)
+
+
 def test_contenu_previsions() -> None:
     contenu = ContenuPrevisions(previsions=(_prevision(),), risques=())
     assert ContenuPrevisions.model_validate_json(contenu.model_dump_json()) == contenu

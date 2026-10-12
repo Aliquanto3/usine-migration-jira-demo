@@ -5,12 +5,15 @@ sondage ; une dernière ligne incomplète (sans saut de ligne) attend le sondage
 """
 
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
 
 from pydantic import ValidationError
 
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.format import formater_nombre
 from usine.contrats.passage import (
     REPERTOIRE_PROGRESSION,
     Etape,
@@ -31,6 +34,11 @@ LIBELLES_ETATS: Mapping[str, str] = MappingProxyType(
     }
 )
 """Libellé français de chaque état d'étape affiché."""
+
+AUCUN_RAPPORT = (
+    "Aucun rapport publié par ce lancement : la carte météo reste celle du dernier Passage publié."
+)
+"""Message de l'écran Lancement après un échec : aucun rapport partiel n'est affiché."""
 
 
 def fichiers_progression(racine: Path) -> frozenset[Path]:
@@ -76,3 +84,61 @@ def etat_des_etapes(evenements: Iterable[EvenementProgression]) -> list[tuple[Et
     for evenement in evenements:
         derniers[evenement.etape] = evenement.statut.value
     return [(etape, derniers.get(etape, EN_ATTENTE)) for etape in Etape]
+
+
+_FINAUX = frozenset({StatutEtape.reussie, StatutEtape.sautee, StatutEtape.echouee})
+
+
+@dataclass(frozen=True)
+class SuiviEtape:
+    """État affiché d'une étape et sa durée (seulement pour une étape terminée)."""
+
+    etape: Etape
+    etat: str
+    duree: timedelta | None
+
+
+def suivi_des_etapes(evenements: Iterable[EvenementProgression]) -> list[SuiviEtape]:
+    """Pour chaque `Etape` dans l'ordre d'AD-8 : dernier statut et durée.
+
+    La durée vaut l'horodatage du dernier événement final moins celui du dernier `en_cours` ;
+    une étape en cours, en attente, sans `en_cours` ou aux horodatages incohérents n'en a pas.
+    """
+    etats: dict[Etape, str] = {}
+    debuts: dict[Etape, datetime] = {}
+    fins: dict[Etape, datetime] = {}
+    for evenement in evenements:
+        etats[evenement.etape] = evenement.statut.value
+        if evenement.statut in _FINAUX:
+            fins[evenement.etape] = evenement.horodatage
+        else:
+            debuts[evenement.etape] = evenement.horodatage
+    suivis: list[SuiviEtape] = []
+    for etape in Etape:
+        etat = etats.get(etape, EN_ATTENTE)
+        duree: timedelta | None = None
+        if etat in _FINAUX and etape in debuts and etape in fins:
+            ecart = fins[etape] - debuts[etape]
+            duree = ecart if ecart >= timedelta(0) else None
+        suivis.append(SuiviEtape(etape, etat, duree))
+    return suivis
+
+
+def etape_en_echec(evenements: Iterable[EvenementProgression]) -> Etape | None:
+    """Dernière étape signalée `echouee` dans la progression, ou `None`."""
+    fautive: Etape | None = None
+    for evenement in evenements:
+        if evenement.statut is StatutEtape.echouee:
+            fautive = evenement.etape
+    return fautive
+
+
+def texte_duree(duree: timedelta) -> str:
+    """Durée en secondes au format français : `0,3 s`."""
+    return f"{formater_nombre(duree.total_seconds(), 1)} s"
+
+
+def ligne_suivi(suivi: SuiviEtape) -> str:
+    """Ligne Markdown d'une étape : `- **kpi** : Réussie (0,3 s)` ou `- **kpi** : En cours`."""
+    ligne = f"- **{suivi.etape.value}** : {LIBELLES_ETATS[suivi.etat]}"
+    return ligne if suivi.duree is None else f"{ligne} ({texte_duree(suivi.duree)})"

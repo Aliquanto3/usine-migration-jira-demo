@@ -11,11 +11,19 @@ from typing import Any
 import polars as pl
 import pytest
 
-from tests.unit.chaine.environnement import DATE_ARRETE, horloge_figee, preparer_racine
-from usine.composition import PassageLance, lancer_rapport
+from tests.unit.chaine.environnement import (
+    DATE_ARRETE,
+    contenu_previsions,
+    horloge_figee,
+    preparer_racine,
+)
+from usine.composition import PassageLance, construire_rapport, lancer_rapport
+from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
+from usine.consultation.prevision import previsions_calculees
 from usine.contrats.agent import AnomalieResume
 from usine.contrats.calcul import SCHEMA_KPI
+from usine.contrats.config import ConfigJira
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
     SCHEMA_REPARTITION_CAUSES,
@@ -25,6 +33,7 @@ from usine.contrats.llm import (
 )
 from usine.contrats.meteo import Couleur
 from usine.contrats.passage import EnveloppeFichier
+from usine.contrats.prevision import ContenuPrevisions
 from usine.contrats.tickets import SCHEMA_TICKET_ETAT, CauseRacine, StatutAnomalie
 from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.contrats.versions import CLE_VERSION, CONTRATS_VERSION
@@ -155,20 +164,21 @@ def test_tables_filtrees(lance: PassageLance) -> None:
     assert set(indicateurs["date"].to_list()) == {date(2026, 10, 8)}
 
 
-def test_palier_1_textes_presents_autres_fichiers_absents(lance: PassageLance) -> None:
+def test_palier_1_kpi_et_textes_presents_autres_fichiers_absents(lance: PassageLance) -> None:
     consultation = ConsultationPassage(lance.repertoire)
-    kpi = consultation.kpi()
-    assert kpi.is_empty()
+    kpi = consultation.kpi()  # écrit par `kpi` (Story 5.1)
+    assert not kpi.is_empty()
+    assert set(kpi["date"].to_list()) == {DATE_ARRETE}
     assert kpi.schema == dict(SCHEMA_KPI.colonnes)
-    assert consultation.tendances().is_empty()
+    assert not consultation.tendances().is_empty()
     assert consultation.textes_tickets().height > 0  # écrit par `instantanes` (Story 0.7)
+    # Palier 1 : aucune sortie LLM ; `prevision` est câblée (Story 5.3) : traces de Prévision.
     assert consultation.explications() == ()
     assert consultation.narrations() == ()
     assert consultation.classification() == ()
     assert consultation.repartition_causes().is_empty()
-    assert consultation.previsions() == ()
-    assert consultation.risques() == ()
-    assert consultation.traces() == ()
+    assert consultation.previsions()
+    assert {t.type_trace for t in consultation.traces()} == {TypeTrace.prevision}
 
 
 def test_anomalies(lance: PassageLance) -> None:
@@ -273,32 +283,35 @@ def _trace() -> EntreeTrace:
 
 
 def test_traces(passage: Path) -> None:
-    (passage / "trace").mkdir()
+    previsions = ConsultationPassage(passage).traces()  # `trace/previsions.jsonl` du Passage
+    assert previsions
     chemin = passage / "trace" / "llm.jsonl"
     chemin.write_text(_trace().model_dump_json() + "\n", encoding="utf-8")
-    assert ConsultationPassage(passage).traces() == (_trace(),)
+    # `trace/llm.jsonl`, puis `trace/previsions.jsonl`.
+    assert ConsultationPassage(passage).traces() == (_trace(), *previsions)
     chemin.write_text(_trace().model_dump_json() + "\n{}\n", encoding="utf-8")
     with pytest.raises(UsineErreur, match=r"llm\.jsonl, ligne 2"):
         ConsultationPassage(passage).traces()
 
 
-def test_sorties_llm_selon_palier(passage: Path) -> None:
+def _ecrire_sorties_llm(
+    passage: Path, cle_classee: str = "DEMO-6"
+) -> tuple[SortieExplication, SortieClassification, SortieNarration]:
+    """Écrit `llm/*` (une sortie ENT-A chacun) et `repartition_causes.parquet` (ENT-A)."""
     explication = SortieExplication(
         date_arrete=DATE_ARRETE,
         entite="ENT-A",
         texte="Texte.",
-        citations=("DEMO-6",),
+        citations=(cle_classee,),
         brouillon_commentaire="Brouillon.",
     )
-    modele = EnveloppeFichier[tuple[SortieExplication, ...]]
-    enveloppe = modele(passage_id=passage.name, date_arrete=DATE_ARRETE, contenu=(explication,))
-    (passage / "llm").mkdir()
-    (passage / "llm" / "explications.json").write_text(
-        enveloppe.model_dump_json(), encoding="utf-8"
+    classification = SortieClassification(
+        cle_ticket=cle_classee, cause_racine=CauseRacine.parametrage
     )
-    classification = SortieClassification(cle_ticket="DEMO-6", cause_racine=CauseRacine.parametrage)
     narration = SortieNarration(date_arrete=DATE_ARRETE, entite="ENT-A", texte="Narration.")
+    (passage / "llm").mkdir()
     for nom, type_contenu, contenu in (
+        ("explications", tuple[SortieExplication, ...], (explication,)),
         ("classification", tuple[SortieClassification, ...], (classification,)),
         ("narrations", tuple[SortieNarration, ...], (narration,)),
     ):
@@ -321,6 +334,11 @@ def test_sorties_llm_selon_palier(passage: Path) -> None:
     repartition.write_parquet(
         passage / "repartition_causes.parquet", metadata={CLE_VERSION: CONTRATS_VERSION}
     )
+    return explication, classification, narration
+
+
+def test_sorties_llm_selon_palier(passage: Path) -> None:
+    explication, classification, narration = _ecrire_sorties_llm(passage)
     consultation = ConsultationPassage(passage)
     assert consultation.explications(palier=1) == ()
     assert consultation.explications(palier=2) == (explication,)
@@ -384,7 +402,7 @@ def test_version_etrangere_meteo(passage: Path) -> None:
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
     contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.0\.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.1\.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 
@@ -445,3 +463,150 @@ def test_anomalies_cause_proposee_selon_palier(passage: Path) -> None:
     palier_1 = consultation.anomalies(palier=1)
     assert palier_1.total == palier_2.total
     assert all(a.cause_racine_proposee is None for a in palier_1.anomalies)
+
+
+# --- Story 5.2 : Prévisions, version du Passage, Palier 1 par Entité, URL Jira ---
+
+VEILLE = date(2026, 10, 8)
+
+
+def _ecrire_previsions(passage: Path, contenu: ContenuPrevisions) -> Path:
+    modele = EnveloppeFichier[ContenuPrevisions]
+    chemin = passage / "previsions.json"
+    chemin.write_text(
+        modele(passage_id=passage.name, date_arrete=DATE_ARRETE, contenu=contenu).model_dump_json(),
+        encoding="utf-8",
+    )
+    return chemin
+
+
+def _version_etrangere(chemin: Path) -> None:
+    contenu = json.loads(chemin.read_text(encoding="utf-8"))
+    contenu[CLE_VERSION] = "2.0.0"
+    chemin.write_text(json.dumps(contenu), encoding="utf-8")
+
+
+def test_previsions_presentes(passage: Path) -> None:
+    du_jour = contenu_previsions(DATE_ARRETE, "grille")
+    de_la_veille = contenu_previsions(VEILLE, "grille")
+    _ecrire_previsions(
+        passage,
+        ContenuPrevisions(
+            previsions=du_jour.previsions + de_la_veille.previsions,
+            risques=du_jour.risques + de_la_veille.risques,
+        ),
+    )
+    consultation = ConsultationPassage(passage)
+    assert consultation.previsions() == du_jour.previsions
+    assert consultation.previsions(VEILLE) == de_la_veille.previsions
+    assert consultation.previsions(entite="ENT-A") == du_jour.previsions
+    assert consultation.previsions(entite="ENT-B") == ()
+    assert consultation.risques() == du_jour.risques
+    assert consultation.risques(entite="ENT-B") == du_jour.risques
+    assert consultation.risques(entite="ENT-A") == ()
+    assert consultation.risques(VEILLE) == de_la_veille.risques
+
+
+def test_previsions_passage_reel(lance: PassageLance) -> None:
+    """Story 5.3 : une Prévision par Entité rouge et par Jour ouvré, une trace par élément."""
+    assert (lance.repertoire / "previsions.json").is_file()
+    consultation = ConsultationPassage(lance.repertoire)
+    assert previsions_calculees(consultation.manifeste())
+    dates = consultation.dates_disponibles()
+    assert dates[-1] == DATE_ARRETE
+    total = 0
+    for jour in dates:
+        rouges = [m.entite for m in consultation.meteo(jour) if m.couleur is Couleur.rouge]
+        assert [p.entite for p in consultation.previsions(jour)] == rouges, jour
+        non_rouges = {m.entite for m in consultation.meteo(jour)} - set(rouges)
+        assert {r.entite for r in consultation.risques(jour)} <= non_rouges, jour
+        total += len(consultation.previsions(jour)) + len(consultation.risques(jour))
+    assert [p.entite for p in consultation.previsions()] == ["ENT-A", "ENT-B"]
+    assert consultation.previsions(entite="ENT-B") == consultation.previsions()[1:]
+    traces = consultation.traces()
+    assert len(traces) == total
+    assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}
+
+
+def test_previsions_passage_vide(tmp_path: Path) -> None:
+    consultation = ConsultationPassage(tmp_path)
+    assert consultation.previsions() == ()
+    assert consultation.risques() == ()
+
+
+@pytest.mark.parametrize(
+    "lecture",
+    [
+        lambda c: c.kpi(DATE_ARRETE),
+        lambda c: c.traces(),
+        lambda c: c.previsions(),
+        lambda c: c.meteo(),
+        lambda c: c.tickets_etats(DATE_ARRETE),
+        lambda c: c.explications(palier=1),
+        lambda c: c.repartition_causes(palier=1),
+    ],
+    ids=[
+        "kpi",
+        "traces",
+        "previsions",
+        "meteo",
+        "tickets_etats",
+        "explications_palier_1",
+        "repartition_causes_palier_1",
+    ],
+)
+def test_manifeste_majeur_etranger_refuse_chaque_lecture(
+    passage: Path, lecture: Callable[[ConsultationPassage], object]
+) -> None:
+    """AD-2 : le manifeste fait foi pour tout le Passage, même si ses fichiers sont en 1.x."""
+    _ecrire_previsions(passage, contenu_previsions(DATE_ARRETE, "grille"))
+    _version_etrangere(passage / "manifeste.json")
+    with pytest.raises(UsineErreur, match=r"manifeste\.json.*2\.0\.0"):
+        lecture(ConsultationPassage(passage))
+
+
+def test_previsions_majeur_etranger(passage: Path) -> None:
+    _version_etrangere(_ecrire_previsions(passage, contenu_previsions(DATE_ARRETE, "grille")))
+    with pytest.raises(UsineErreur, match=r"previsions\.json.*2\.0\.0"):
+        ConsultationPassage(passage).previsions()
+
+
+def test_palier_1_par_entite(passage: Path) -> None:
+    """FR-46 : en Palier 1, rien de LLM pour l'Entité ; le déterministe ne change pas."""
+    ouvertes = ConsultationPassage(passage).anomalies(entite="ENT-A").anomalies
+    assert ouvertes, "aucune Anomalie ouverte ENT-A dans le Passage d'essai"
+    premiere = ouvertes[0]
+    explication, _, narration = _ecrire_sorties_llm(passage, premiere.cle_ticket)
+    consultation = ConsultationPassage(passage)
+    # Palier 2 : les sorties de l'Entité existent bien.
+    assert consultation.explications(entite="ENT-A") == (explication,)
+    assert consultation.narrations(entite="ENT-A") == (narration,)
+    assert not consultation.repartition_causes(entite="ENT-A").is_empty()
+    palier_2 = consultation.anomalies(entite="ENT-A")
+    assert palier_2.anomalies[0].cause_racine_proposee is CauseRacine.parametrage
+    # Palier 1 : sorties LLM vides ou `None`.
+    assert consultation.explications(entite="ENT-A", palier=1) == ()
+    assert consultation.narrations(entite="ENT-A", palier=1) == ()
+    assert consultation.repartition_causes(entite="ENT-A", palier=1).is_empty()
+    palier_1 = consultation.anomalies(entite="ENT-A", palier=1)
+    # Lectures déterministes identiques, cause racine proposée exceptée.
+    assert palier_1.total == palier_2.total
+    assert palier_1.anomalies == tuple(
+        a.model_copy(update={"cause_racine_proposee": None}) for a in palier_2.anomalies
+    )
+
+
+def test_url_ticket_par_la_composition(
+    racine: Path, lance: PassageLance, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L'URL vient de `config/jira.yaml` via la composition ; `None` en Mode repli."""
+    url_site = charger_yaml(racine / "config" / "jira.yaml", ConfigJira).url_site
+    for variable in ("USINE_MODE_REPLI", "JIRA_EMAIL", "JIRA_TOKEN_LECTURE", "JIRA_DC_PAT"):
+        monkeypatch.delenv(variable, raising=False)
+    fabrique = construire_rapport(racine).fabrique_consultation(DATE_ARRETE)
+    assert fabrique(lance.repertoire).url_ticket("DEMO-123") == (
+        f"{str(url_site).rstrip('/')}/browse/DEMO-123"
+    )
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    repli = construire_rapport(racine).fabrique_consultation(DATE_ARRETE)
+    assert repli(lance.repertoire).url_ticket("DEMO-123") is None

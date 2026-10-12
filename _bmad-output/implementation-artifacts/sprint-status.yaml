@@ -74,9 +74,9 @@ development_status:
   1-3-génération-reproductible-à-la-volumétrie-cible: done
   1-4-identifiants-sensibles-fictifs: done
   1-5-scénarios-de-démo-scriptés: done
-  1-6-injection-initiale-dans-jira-cloud-free: backlog  # prérequis : 2.1
+  1-6-injection-initiale-dans-jira-cloud-free: done  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: backlog
-  1-8-calage-des-scénarios-de-démo-au-jour-près: backlog  # prérequis : Epic 3 terminé
+  1-8-calage-des-scénarios-de-démo-au-jour-près: done  # prérequis : Epic 3 terminé
   1-9-corpus-de-textes-définitif-par-llm: backlog  # prérequis : 6.1 (après la porte M3)
   epic-1-retrospective: optional
 
@@ -90,7 +90,7 @@ development_status:
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
 
-  epic-3: in-progress  # lane L3 Calcul
+  epic-3: done  # lane L3 Calcul
   3-1-instantanés-quotidiens-complets: done
   3-2-kpi-quotidiens: done
   3-3-tendances-hebdomadaires: done
@@ -103,7 +103,7 @@ development_status:
 
   epic-4: in-progress  # lane L4 Prévision (après L3)
   4-1-prévision-de-sortie-du-rouge-par-baseline: done
-  4-2-risque-d-entrée-en-rouge: backlog
+  4-2-risque-d-entrée-en-rouge: done
   4-3-conversion-du-public-jira-dataset-en-seriestock: backlog
   4-4-évaluation-de-la-baseline-sur-données-réelles: backlog
   4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: backlog  # prérequis : 1.8 et Epic 3
@@ -111,11 +111,11 @@ development_status:
   4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
   epic-4-retrospective: optional
 
-  epic-5: backlog  # lane L5 Rapport (après L3)
-  5-1-étapes-déterministes-complètes-et-passage-autoportant: backlog
-  5-2-consultation-complète: backlog
-  5-3-classeur-excel-en-9-onglets: backlog
-  5-4-présentation-powerpoint-en-7-sections: backlog
+  epic-5: in-progress  # lane L5 Rapport (après L3)
+  5-1-étapes-déterministes-complètes-et-passage-autoportant: done
+  5-2-consultation-complète: done
+  5-3-classeur-excel-en-9-onglets: done
+  5-4-présentation-powerpoint-en-7-sections: done
   5-5-commande-unique-et-rejeu-idempotent: backlog
   5-6-recette-du-rapport-sur-données-complètes: backlog  # prérequis : 1.8, 2.6, 4.5
   5-7-porte-palier-1-m3: backlog  # PORTE PALIER 1 (M3) — bloque l Epic 6
@@ -137,13 +137,13 @@ development_status:
   6-13-bonus-observabilité-externe: backlog  # BONUS — après tous les indispensables
   epic-6-retrospective: optional
 
-  epic-7: backlog  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
-  7-1-carte-météo-et-navigation: backlog  # Palier 1 (7.1–7.6) : prérequis 5.2, avant la porte M3
-  7-2-détail-d-une-entité-palier-1: backlog
-  7-3-lancement-de-la-chaîne-et-progression: backlog
-  7-4-avant-après: backlog
-  7-5-écran-ce-qu-il-faut-pour-le-faire-en-vrai: backlog  # prérequis : 8.1
-  7-6-mode-repli-sur-un-passage-enregistré: backlog
+  epic-7: in-progress  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
+  7-1-carte-météo-et-navigation: done  # Palier 1 (7.1–7.6) : prérequis 5.2, avant la porte M3
+  7-2-détail-d-une-entité-palier-1: done
+  7-3-lancement-de-la-chaîne-et-progression: done
+  7-4-avant-après: done
+  7-5-écran-ce-qu-il-faut-pour-le-faire-en-vrai: done  # prérequis : 8.1
+  7-6-mode-repli-sur-un-passage-enregistré: done
   7-7-explication-sourcée-à-l-écran-et-comparaison-des-paliers: backlog  # Palier 2 (7.7–7.12) : après l Epic 6
   7-8-outils-de-consultation-de-l-agent: backlog
   7-9-agent-conversationnel-aux-chiffres-contrôlés: backlog

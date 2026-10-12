@@ -40,6 +40,9 @@ def programme_cible(graine: int) -> ConfigProgramme:
             for n in range(1, NB_ENTITES + 1)
         ],
     )
+    # Les Scénarios livrés visent ENT-A à ENT-C, absentes ici (Entité inconnue refusée,
+    # contrats 1.1.0) : la mesure se fait explicitement sans Scénario de démo.
+    donnees["scenarios"] = {}
     # Le générateur tire dans [anomalies] ∩ NB_SEMAINES × [Entrées par semaine], sous des
     # plafonds de créations qui réservent 10 % du maximum hebdomadaire aux réouvertures : on
     # élargit le maximum d'Entrées hebdomadaires (double du strict nécessaire) pour que

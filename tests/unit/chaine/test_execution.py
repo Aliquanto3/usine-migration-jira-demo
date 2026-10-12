@@ -16,6 +16,7 @@ from tests.doublures.source_en_memoire import SourceEnMemoire
 from tests.unit.chaine.environnement import (
     DATE_ARRETE,
     INSTANT,
+    contenu_previsions,
     horloge_figee,
     horloge_pas_a_pas,
     preparer_racine,
@@ -25,7 +26,7 @@ from tests.unit.domaine.constructeur import Flux
 from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
 from usine.chaine.ecrivain import EcrivainPassage
-from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo
+from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo, EtapePrevision
 from usine.chaine.execution import executer_passage
 from usine.composition import PassageLance, Rapport, construire_rapport, lancer_rapport
 from usine.consultation.passage import ConsultationPassage
@@ -46,10 +47,16 @@ from usine.contrats.passage import (
     StatutEtape,
     lire_enveloppe,
 )
-from usine.contrats.trace import EntreeTrace
-from usine.contrats.versions import version_prompt
+from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.trace import EntreeTrace, TypeTrace
+from usine.contrats.versions import CONTRATS_VERSION, version_prompt
+from usine.domaine.kpi import kpi as calculer_kpi
+from usine.domaine.kpi import tendances as calculer_tendances
 from usine.domaine.meteo import indicateurs as calculer_indicateurs
 from usine.domaine.meteo import meteo as calculer_meteo
+from usine.domaine.prevision.baseline import prevoir_sortie
+from usine.domaine.prevision.risque import risques_entree_rouge
+from usine.domaine.prevision.serie import series_stock
 from usine.ia.explication import lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -112,13 +119,18 @@ def test_passage_publie(rapport: Rapport) -> None:
     assert sorted(p.name for p in repertoire.iterdir()) == [
         "indicateurs.parquet",
         "instantanes.parquet",
+        "kpi.parquet",
         "manifeste.json",
         "meteo.json",
+        "previsions.json",
         "rapport-2026-10-09.pptx",
         "rapport-2026-10-09.xlsx",
+        "tendances.parquet",
         "tickets_etats.parquet",
         "tickets_textes.parquet",
+        "trace",
     ]
+    assert sorted(p.name for p in (repertoire / "trace").iterdir()) == ["previsions.jsonl"]
     assert not list((rapport.racine_sorties / "passages").glob(".en-cours-*"))
     relu = ManifestePassage.model_validate_json((repertoire / "manifeste.json").read_bytes())
     assert relu == manifeste
@@ -186,6 +198,143 @@ def test_extraction_et_alignements_recopies_au_manifeste(rapport: Rapport) -> No
     assert ordre == ["extraction", "rendu", "compte"]
     assert manifeste.horodatage_extraction == extraction
     assert manifeste.nb_alignements == 3
+
+
+def test_manifeste_complet_relu(rapport: Rapport) -> None:
+    """AC 3 : chaque champ de traçabilité est présent dans `manifeste.json` relu."""
+    manifeste, ecrivain = _executer(rapport)
+    assert ecrivain.repertoire_publie is not None
+    brut = json.loads((ecrivain.repertoire_publie / "manifeste.json").read_text(encoding="utf-8"))
+    for champ in (
+        "date_arrete",
+        "source",
+        "horodatage_extraction",
+        "nb_tickets",
+        "nb_alignements",
+        "version_grille",
+        "version_donnees",
+        "etapes",
+        "contrats_version",
+    ):
+        assert champ in brut, champ
+    assert brut["date_arrete"] == "2026-10-09"
+    assert brut["source"] == "journal"
+    assert brut["horodatage_extraction"] is None  # aucune extraction Jira dans l'essai
+    assert brut["nb_tickets"] == manifeste.nb_tickets > 0
+    assert isinstance(brut["nb_alignements"], int)
+    assert brut["nb_alignements"] == manifeste.nb_alignements >= 0
+    assert brut["version_grille"] == rapport.donnees.version_grille
+    assert brut["version_donnees"] == rapport.donnees.version_donnees
+    assert brut["contrats_version"] == CONTRATS_VERSION
+    assert [e["etape"] for e in brut["etapes"]] == [e.value for e in Etape]
+    for execution in brut["etapes"]:
+        assert execution["horodatage_debut"]
+        assert execution["horodatage_fin"]
+    consultation = ConsultationPassage(ecrivain.repertoire_publie)
+    assert consultation.manifeste() == manifeste
+
+
+def test_autoportance_kpi(rapport: Rapport) -> None:
+    """AC 1 : KPI et Tendances publiés = sorties directes du domaine, chaque Jour ouvré."""
+    manifeste, ecrivain = _executer(rapport)
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    racine = rapport.racine_sorties.parent
+    ancrage = SourceJournal(racine / CHEMIN_JOURNAL).entete.ancrage_semaines
+    programme = rapport.configuration.programme
+    assert programme is not None
+    entites = [entite.code for entite in programme.entites]
+    etats = pl.read_parquet(repertoire / "tickets_etats.parquet")
+    quotidiens = pl.read_parquet(repertoire / "kpi.parquet")
+    hebdo = pl.read_parquet(repertoire / "tendances.parquet")
+    dates = sorted(quotidiens.get_column("date").unique().to_list())
+    assert dates == list(jours_ouvres(ancrage, DATE_ARRETE))
+    directs = calculer_kpi(etats, entites)
+    assert quotidiens.equals(directs)
+    assert hebdo.equals(calculer_tendances(directs, DATE_ARRETE, ancrage))
+    assert hebdo.get_column("date").max() == DATE_ARRETE
+    consultation = ConsultationPassage(repertoire)
+    assert consultation.kpi().equals(directs.filter(pl.col("date") == DATE_ARRETE))
+    assert consultation.tendances().equals(hebdo)
+    assert manifeste.date_arrete == DATE_ARRETE
+
+
+def test_passage_avec_previsions(rapport: Rapport) -> None:
+    """AC 2 : une `EtapePrevision` injectée publie `previsions.json` et ses traces."""
+    contenu = contenu_previsions(DATE_ARRETE, rapport.donnees.version_grille)
+
+    def prevoir(ctx: ContextePassage[Consultation]) -> ContenuPrevisions:
+        # La prévision lit le Passage en cours : la Météo y est déjà.
+        assert ctx.consultation.meteo(ctx.date_arrete)
+        return contenu
+
+    etape = EtapePrevision(prevoir, rapport.donnees.version_donnees, horloge_figee())
+    manifeste, ecrivain = _executer(rapport, remplacements={Etape.prevision: etape})
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    assert (repertoire / "previsions.json").is_file()
+    assert (repertoire / "trace" / "previsions.jsonl").is_file()
+    assert not (repertoire / "trace" / "llm.jsonl").exists()
+    consultation = ConsultationPassage(repertoire)
+    assert consultation.previsions() == contenu.previsions
+    assert consultation.risques() == contenu.risques
+    traces = consultation.traces()
+    assert [(t.type_trace, t.cible) for t in traces] == [
+        (TypeTrace.prevision, "ENT-A"),
+        (TypeTrace.prevision, "ENT-B"),
+    ]
+    assert {t.passage_id for t in traces} == {manifeste.passage_id}
+    assert {t.horodatage for t in traces} == {INSTANT}
+    assert {t.version_grille for t in traces} == {manifeste.version_grille}
+    assert {t.version_donnees for t in traces} == {manifeste.version_donnees}
+
+
+def test_previsions_du_passage(rapport: Rapport) -> None:
+    """Story 5.3 : `previsions.json` = appel direct du domaine sur les séries du Passage.
+
+    Une Prévision Baseline par Entité rouge et par Jour ouvré, les Risques des autres, dans
+    l'ordre jour puis `meteo.json` ; une trace par élément.
+    """
+    manifeste, ecrivain = _executer(rapport)
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    grille = rapport.configuration.grille_meteo
+    assert isinstance(grille, GrilleMeteo)
+    etats = pl.read_parquet(repertoire / "tickets_etats.parquet")
+    indicateurs = pl.read_parquet(repertoire / "indicateurs.parquet")
+    meteos = lire_enveloppe(
+        (repertoire / "meteo.json").read_bytes(), tuple[MeteoEntite, ...]
+    ).contenu
+    jours = sorted({m.date_arrete for m in meteos})
+    assert jours == list(jours_ouvres(date(2026, 8, 17), DATE_ARRETE))
+    series = series_stock(etats, ["ENT-A", "ENT-B"], jours)
+    previsions = tuple(prevoir_sortie(series, m) for m in meteos if m.couleur is Couleur.rouge)
+    risques = tuple(
+        projete.risque
+        for m in meteos
+        if m.couleur is not Couleur.rouge
+        for projete in risques_entree_rouge(indicateurs, m, grille).risques
+    )
+    publie = lire_enveloppe(
+        (repertoire / "previsions.json").read_bytes(), ContenuPrevisions
+    ).contenu
+    assert publie == ContenuPrevisions(previsions=previsions, risques=risques)
+    rouges = [(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge]
+    assert rouges, "le jeu graine 42 doit avoir des Entités rouges"
+    assert [(p.date_arrete, p.entite) for p in publie.previsions] == rouges
+    assert {(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge} >= {
+        (DATE_ARRETE, "ENT-A"),
+        (DATE_ARRETE, "ENT-B"),
+    }
+    consultation = ConsultationPassage(repertoire)
+    traces = consultation.traces()
+    assert len(traces) == len(publie.previsions) + len(publie.risques)
+    assert {t.type_trace for t in traces} == {TypeTrace.prevision}
+    assert [t.sortie for t in traces] == [
+        e.model_dump_json() for e in (*publie.previsions, *publie.risques)
+    ]
+    assert {t.passage_id for t in traces} == {manifeste.passage_id}
+    assert {t.version_donnees for t in traces} == {manifeste.version_donnees}
 
 
 def test_progression(rapport: Rapport) -> None:
@@ -424,7 +573,7 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     explications = consultation.explications()
     assert [e.entite for e in explications] == [m.entite for m in a_expliquer]
     assert all(e.statut_controle is StatutControle.conforme for e in explications)
-    traces = consultation.traces()
+    traces = [t for t in consultation.traces() if t.type_trace is TypeTrace.llm]
     assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
@@ -505,7 +654,9 @@ def test_palier_2_par_lancer_rapport(tmp_path: Path, monkeypatch: pytest.MonkeyP
         racine, DATE_ARRETE, horloge_figee(instant), lambda: "abc123", fournisseur
     )
     assert lance.manifeste.palier == 2
-    traces = ConsultationPassage(lance.repertoire).traces()
+    traces = [
+        t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
+    ]
     assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
     assert {t.horodatage for t in traces} == {instant}
     assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}

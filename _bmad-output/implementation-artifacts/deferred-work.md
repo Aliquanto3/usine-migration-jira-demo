@@ -14,3 +14,13 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-9-gel-des-contrats-v1.md`
   summary: Vérifier si `entite` (et les attributs de rattachement) doivent rejoindre `non_nulles` dans `SCHEMA_INSTANTANE` et `SCHEMA_TICKET_ETAT`.
   evidence: Non vérifié (sévérité medium si avéré). D3 a déclaré un ensemble prudent ; si aucun producteur du domaine n'émet `entite` à null, le resserrer après le gel serait un changement majeur. À trancher en relisant `domaine/instantanes.py` et le générateur avant le premier ajout de colonne en L3.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-etapes-deterministes-completes-et-passage-autoportant.md`
+  summary: Câbler `EtapePrevision` dans le registre de `composition.py` dès que `domaine/prevision` (Stories 4.1 et 4.2) est sur `main`.
+  evidence: l'étape `prevision` reste `EtapeBouchon()` ; un Passage réel n'a ni `previsions.json` ni `trace/previsions.jsonl`.
+  status: résolu le 2026-10-12 par la Story 5.3 (`prevision_du_passage`, `domaine.prevision.serie`, paramètres H-7/H-8 par défaut du domaine).
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-etapes-deterministes-completes-et-passage-autoportant.md`
+  summary: Configurer la journalisation et l'encodage UTF-8 de la console de la CLI en Story 5.5 (rétrospective de l'Epic 0, constat 15).
+  evidence: aucune configuration de `logging` ni de `sys.stdout` ; sortie « Journal �crit » sous Git Bash.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-3-classeur-excel-en-9-onglets.md`
+  summary: Contrats v1.1 : permettre au port `Consultation` de distinguer « Prévision non calculée » de « aucun Risque », et déclarer les cellules de Traçabilité exclues du Rejeu.
+  evidence: Impossible sans modifier les contrats gelés. (1) `previsions()`/`risques()` rendent `()` sans `previsions.json` comme sans Risque ; `usine.consultation.prevision.previsions_calculees` lit l'étape `prevision` au manifeste et règle les Passages publiés depuis la Story 5.3, mais un Passage publié avec l'ancien bouchon (étape « réussie », sans fichier) reste lu « aucun Risque ». (2) Une Entité non rouge dont tous les indicateurs projetés sont écartés (`ResultatRisque.exclus`) est lue « aucun Risque » : `ContenuPrevisions` n'a aucun champ pour les indicateurs écartés (proposition : `exclus` avec Entité, date, indicateur, motif). (3) `rapport_xlsx` affiche `horodatage_extraction` (`Traçabilité!B5`) et `version_donnees` (`Traçabilité!B8`), exclus du Rejeu au manifeste : à déclarer sous `EXCLUSIONS_REJEU["rapport_xlsx"]` avant la comparaison du Rejeu (Story 5.5), sinon deux Passages composites de mêmes données diffèrent.
