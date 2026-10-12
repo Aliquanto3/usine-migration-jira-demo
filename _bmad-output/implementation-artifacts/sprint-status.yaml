@@ -111,8 +111,8 @@ development_status:
   4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
   epic-4-retrospective: optional
 
-  epic-5: backlog  # lane L5 Rapport (après L3)
-  5-1-étapes-déterministes-complètes-et-passage-autoportant: backlog
+  epic-5: in-progress  # lane L5 Rapport (après L3)
+  5-1-étapes-déterministes-complètes-et-passage-autoportant: done
   5-2-consultation-complète: backlog
   5-3-classeur-excel-en-9-onglets: backlog
   5-4-présentation-powerpoint-en-7-sections: backlog
