@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 import sys
-from fnmatch import fnmatch
+from fnmatch import fnmatchcase
 from pathlib import Path
 from types import ModuleType
 
@@ -85,8 +85,8 @@ def carte_du_spine() -> dict[int, tuple[set[str], set[str]]]:
 
 def _memes_chemins(script: tuple[str, ...], spine: set[str]) -> bool:
     """Chaque chemin du script relève d'un motif du spine (`jira_*` compris), et réciproquement."""
-    return all(any(fnmatch(c, m) for m in spine) for c in script) and all(
-        any(fnmatch(c, m) for c in script) for m in spine
+    return all(any(fnmatchcase(c, m) for m in spine) for c in script) and all(
+        any(fnmatchcase(c, m) for c in script) for m in spine
     )
 
 

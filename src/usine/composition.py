@@ -182,8 +182,12 @@ def url_jira(racine: Path) -> str | None:
     """
     if charger_secrets(racine).usine_mode_repli:
         return None
-    jira = _config_jira(racine)
-    return None if jira is None else jira.url_site
+    return _url_jira(False, _config_jira(racine))
+
+
+def _url_jira(mode_repli: bool, jira: ConfigJira | None) -> str | None:
+    """URL Jira déduite de valeurs déjà chargées : `None` en Mode repli ou sans configuration."""
+    return None if mode_repli or jira is None else jira.url_site
 
 
 def construire_rapport(
@@ -250,7 +254,7 @@ def construire_rapport(
         donnees=DonneesPassage("journal", empreinte_grille, empreinte_donnees),
         racine_sorties=racine / REPERTOIRE_SORTIES,
         chemin_verrou=racine / CHEMIN_VERROU,
-        url_jira=url_jira(racine),
+        url_jira=_url_jira(secrets_usine.usine_mode_repli, jira),
     )
 
 

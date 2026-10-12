@@ -56,3 +56,14 @@ def test_apercu_identique_sans_ecrire_la_table(fabrique: Callable[[], CasPseudon
         vu = apercu.pseudonymiseur.apercu(exemple.texte)
         assert vu == attendu
         assert apercu.pseudonymiseur.reidentifier(vu) == vu
+
+
+def test_reidentifie_un_jeton_colle_ou_prefixe(cas: CasPseudonymiseur) -> None:
+    """Grammaire de `contrats.llm` : un jeton collé ou préfixé `MAJUSCULES_` est reconnu."""
+    valeur = "Mme Exemplaire"
+    jeton = cas.pseudonymiseur.pseudonymiser(valeur)
+    assert JETON.fullmatch(jeton), jeton
+    reidentifier = cas.pseudonymiseur.reidentifier
+    assert reidentifier(f"voir{jeton}.") == f"voir{valeur}."
+    assert reidentifier(f"ID_{jeton} et (x{jeton}y)") == f"ID_{valeur} et (x{valeur}y)"
+    assert reidentifier(f"{jeton}0") == f"{jeton}0"  # 7 hex : pas un jeton

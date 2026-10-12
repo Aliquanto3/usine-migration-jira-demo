@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from usine.config import Secrets, charger_secrets
+from usine.config import secrets as secrets_module
 from usine.contrats.erreurs import UsineErreur
 
 
@@ -49,3 +50,22 @@ def test_charger_secrets_nomme_la_variable_illisible(
     with pytest.raises(UsineErreur, match="USINE_MODE_REPLI") as erreur:
         charger_secrets(tmp_path)
     assert "peut-être" not in str(erreur.value)
+    assert erreur.value.__cause__ is None  # la ValidationError, qui cite la valeur, est coupée
+    assert erreur.value.__suppress_context__
+
+
+def test_charger_secrets_env_non_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("USINE_MODE_REPLI", raising=False)
+    (tmp_path / ".env").write_bytes("USINE_RACINE=dépôt\n".encode("latin-1"))
+    with pytest.raises(UsineErreur, match=r"\.env.*UTF-8"):
+        charger_secrets(tmp_path)
+
+
+def test_charger_secrets_env_illisible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuser(**_options: object) -> Secrets:
+        raise PermissionError(13, "accès refusé", str(tmp_path / ".env"))
+
+    monkeypatch.setattr(secrets_module, "Secrets", refuser)
+    with pytest.raises(UsineErreur, match=r"\.env.*accès refusé") as erreur:
+        charger_secrets(tmp_path)
+    assert erreur.value.__suppress_context__

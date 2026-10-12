@@ -43,8 +43,10 @@ def _en_dict(valeur: Mapping[Any, Any], suite: Callable[[Any], Any]) -> Any:
 MappingFige = Annotated[Mapping[_K, _V], AfterValidator(_figer), WrapSerializer(_en_dict)]
 """`Mapping` figé en `MappingProxyType` après validation, pour un modèle gelé (AD-2).
 
-La forme JSON ou YAML est celle d'un objet, inchangée ; toute affectation d'élément lève
-`TypeError`. S'emploie comme `MappingFige[str, JsonValue]`.
+La forme JSON ou YAML est celle d'un objet, inchangée. Seul le premier niveau est figé : y
+affecter un élément lève `TypeError`, mais une valeur `dict` ou `list` imbriquée (`JsonValue`)
+reste modifiable ; une valeur elle-même `MappingFige` est figée à son tour. S'emploie comme
+`MappingFige[str, JsonValue]`.
 """
 
 

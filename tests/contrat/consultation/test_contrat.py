@@ -92,9 +92,15 @@ def test_palier_1_sans_sortie_llm(cas: CasConsultation) -> None:
 
 
 def test_dernier_passage_sans_classification_initiale(cas: CasConsultation) -> None:
-    """FR-44 : le filtre ne rend jamais un Passage de classification initiale."""
-    dernier = cas.consultation.dernier_passage(sans_classification_initiale=True)
-    assert dernier is None or not dernier.classification_initiale
+    """FR-44 : le dernier Passage a fait la classification initiale ; le filtre l'écarte."""
+    tous = cas.consultation.dernier_passage()
+    assert tous is not None
+    assert tous.passage_id == cas.passage_classification_initiale
+    assert tous.classification_initiale
+    sans = cas.consultation.dernier_passage(sans_classification_initiale=True)
+    assert sans is not None
+    assert sans.passage_id == cas.consultation.manifeste().passage_id
+    assert not sans.classification_initiale
 
 
 @pytest.mark.parametrize("cle", ["DEMO-1"])

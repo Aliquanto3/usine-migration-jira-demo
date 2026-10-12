@@ -135,6 +135,11 @@ def test_exclusions_rejeu_par_fichier() -> None:
         EXCLUSIONS_REJEU["kpi"] = frozenset()  # type: ignore[index]
 
 
+def test_exclusions_rejeu_couvrent_chaque_enveloppe() -> None:
+    """Chaque JSON enveloppé (`CONTENUS_JSON`) exclut son `passage_id` du Rejeu."""
+    assert [n for n in CONTENUS_JSON if "passage_id" not in EXCLUSIONS_REJEU.get(n, ())] == []
+
+
 def _champs(modele: type[BaseModel], chemin: str) -> bool:
     """Vrai si `chemin` (`a`, `a[].b`) désigne un champ de `modele`."""
     tete, _, reste = chemin.partition("[].")

@@ -83,6 +83,8 @@ def test_mode_repli_illisible(racine_publiee: Path, monkeypatch: pytest.MonkeyPa
     assert not page.exception
     assert not page.warning
     assert any("USINE_MODE_REPLI" in erreur.value for erreur in page.error)
+    assert page.subheader[-1].value == "Chaîne de reporting"  # le lancement reste affiché
+    assert not page.button[0].disabled
 
 
 def test_passage_illisible(

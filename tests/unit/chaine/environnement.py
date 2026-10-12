@@ -8,6 +8,7 @@ from pathlib import Path
 from usine.composition import generer_journal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
+from usine.contrats.passage import EXCLUSIONS_REJEU
 
 RACINE_DEPOT = Path(__file__).resolve().parents[3]
 DATE_GENERATION = date(2026, 10, 12)
@@ -34,3 +35,21 @@ def horloge_pas_a_pas(instant: datetime = INSTANT) -> Callable[[], datetime]:
     """Horloge qui avance d'une seconde à chaque lecture."""
     compteur = iter(range(10_000))
     return lambda: instant + timedelta(seconds=next(compteur))
+
+
+def sans_exclusions(nom: str, valeur: object) -> object:
+    """`valeur` (fichier `nom` de `FICHIERS_PASSAGE`) sans ses champs exclus du Rejeu (AD-7)."""
+    exclus = EXCLUSIONS_REJEU.get(nom, frozenset())
+
+    def retirer(valeur: object, chemin: str) -> object:
+        if isinstance(valeur, dict):
+            return {
+                cle: retirer(v, f"{chemin}.{cle}" if chemin else cle)
+                for cle, v in valeur.items()
+                if (f"{chemin}.{cle}" if chemin else cle) not in exclus
+            }
+        if isinstance(valeur, list):
+            return [retirer(v, f"{chemin}[]") for v in valeur]
+        return valeur
+
+    return retirer(valeur, "")

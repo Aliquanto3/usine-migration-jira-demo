@@ -12,13 +12,12 @@ import time_machine
 from openpyxl import load_workbook  # type: ignore[import-untyped]
 from pptx import Presentation
 
-from tests.unit.chaine.environnement import preparer_racine
+from tests.unit.chaine.environnement import preparer_racine, sans_exclusions
 from usine import cli, composition
 from usine.chaine.cli import lire_date_arrete
 from usine.contrats.calendrier import FUSEAU
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import (
-    EXCLUSIONS_REJEU,
     FICHIERS_PASSAGE,
     ContextePassage,
     Etape,
@@ -51,24 +50,6 @@ def _passages(racine: Path) -> list[Path]:
     return sorted((racine / "sorties" / "passages" / "2026-10-09").iterdir())
 
 
-def _sans_exclusions(nom: str, valeur: object) -> object:
-    """`valeur` (fichier `nom` de `FICHIERS_PASSAGE`) sans ses champs exclus du Rejeu (AD-7)."""
-    exclus = EXCLUSIONS_REJEU.get(nom, frozenset())
-
-    def retirer(valeur: object, chemin: str) -> object:
-        if isinstance(valeur, dict):
-            return {
-                cle: retirer(v, f"{chemin}.{cle}" if chemin else cle)
-                for cle, v in valeur.items()
-                if (f"{chemin}.{cle}" if chemin else cle) not in exclus
-            }
-        if isinstance(valeur, list):
-            return [retirer(v, f"{chemin}[]") for v in valeur]
-        return valeur
-
-    return retirer(valeur, "")
-
-
 def test_exclusions_appliquees_par_fichier() -> None:
     """Un champ exclu dans un fichier reste comparé dans les autres, et à un autre chemin."""
     valeur = {
@@ -76,15 +57,15 @@ def test_exclusions_appliquees_par_fichier() -> None:
         "horodatage_debut": "b",
         "etapes": [{"horodatage": "c", "horodatage_debut": "d", "etape": "kpi"}],
     }
-    assert _sans_exclusions("manifeste", valeur) == {
+    assert sans_exclusions("manifeste", valeur) == {
         "horodatage": "a",
         "etapes": [{"horodatage": "c", "etape": "kpi"}],
     }
-    assert _sans_exclusions("trace_llm", valeur) == {
+    assert sans_exclusions("trace_llm", valeur) == {
         "horodatage_debut": "b",
         "etapes": [{"horodatage": "c", "horodatage_debut": "d", "etape": "kpi"}],
     }
-    assert _sans_exclusions("kpi", valeur) == valeur
+    assert sans_exclusions("kpi", valeur) == valeur
 
 
 def _excel_relu(chemin: Path) -> object:
@@ -137,7 +118,7 @@ def test_passage_publie_et_rejeu(
             for p in (premier, second)
         )
         assert a != b, nom  # le passage_id diffère : l'exclusion est nécessaire
-        assert _sans_exclusions(nom, a) == _sans_exclusions(nom, b), nom
+        assert sans_exclusions(nom, a) == sans_exclusions(nom, b), nom
     for nom in ("tickets_etats.parquet", "instantanes.parquet", "indicateurs.parquet"):
         assert pl.read_parquet(premier / nom).equals(pl.read_parquet(second / nom)), nom
     xlsx, pptx = "rapport-2026-10-09.xlsx", "rapport-2026-10-09.pptx"

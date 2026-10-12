@@ -77,16 +77,6 @@ def test_type_du_plus_long_dans_un_groupe(tmp_path: Path) -> None:
     assert pseudo.reidentifier(sortie) == texte
 
 
-def test_reidentifie_un_jeton_colle_ou_prefixe(tmp_path: Path) -> None:
-    pseudo = _pseudonymiseur(tmp_path / "pseudonymes.sqlite")
-    jeton = pseudo.pseudonymiser(NUMERO_COMPTE)
-    assert pseudo.reidentifier(f"voir{jeton}.") == f"voir{NUMERO_COMPTE}."
-    assert pseudo.reidentifier(f"ID_{jeton} et (x{jeton}y)") == (
-        f"ID_{NUMERO_COMPTE} et (x{NUMERO_COMPTE}y)"
-    )
-    assert pseudo.reidentifier(f"{jeton}0") == f"{jeton}0"  # 7 hex : pas un jeton
-
-
 def test_motif_court_ne_masque_pas_un_motif_long(tmp_path: Path) -> None:
     motifs = {"PAYS": r"FR\d{2}", "COMPTE": MOTIFS_PAR_DEFAUT["COMPTE"]}
     pseudo = PseudonymiseurHmac(CLE, motifs, TablePseudonymesSqlite(tmp_path / "p.sqlite"))

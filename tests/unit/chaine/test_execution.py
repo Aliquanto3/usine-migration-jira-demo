@@ -4,7 +4,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -15,9 +15,11 @@ from tests.doublures.pseudonymiseur_factice import PseudonymiseurFactice
 from tests.doublures.source_en_memoire import SourceEnMemoire
 from tests.unit.chaine.environnement import (
     DATE_ARRETE,
+    INSTANT,
     horloge_figee,
     horloge_pas_a_pas,
     preparer_racine,
+    sans_exclusions,
 )
 from tests.unit.domaine.constructeur import Flux
 from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
@@ -32,6 +34,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import ReponseExplication, StatutControle
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import (
+    FICHIERS_PASSAGE,
     MOTIF_PASSAGE_ID,
     ContextePassage,
     Etape,
@@ -467,6 +470,46 @@ def test_deux_passages_palier_2_cache_et_pseudonymisation(
                 assert textes["description"].str.contains(NUMERO_COMPTE, literal=True).any()
                 continue
             assert NUMERO_COMPTE.encode("utf-8") not in fichier.read_bytes(), fichier.name
+
+
+def test_rejeu_palier_2_exclusions_par_fichier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AD-7 : deux Passages Palier 2 (le second servi par le cache) ne diffèrent que par les
+    champs exclus de `explications` et de `trace_llm`."""
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    premier = lancer_rapport(
+        racine,
+        DATE_ARRETE,
+        horloge_pas_a_pas(),
+        fournisseur=FournisseurFactice(_reponses(a_expliquer)),
+    )
+    second_fournisseur = FournisseurFactice()  # aucune réponse : tout vient du cache
+    second = lancer_rapport(
+        racine,
+        DATE_ARRETE,
+        horloge_pas_a_pas(INSTANT + timedelta(hours=1)),
+        fournisseur=second_fournisseur,
+    )
+    assert second_fournisseur.appels == []
+
+    def lire(lance: PassageLance, nom: str) -> object:
+        texte = (lance.repertoire / FICHIERS_PASSAGE[nom]).read_text(encoding="utf-8")
+        if nom.startswith("trace_"):
+            return [json.loads(ligne) for ligne in texte.splitlines() if ligne.strip()]
+        return json.loads(texte)
+
+    for nom in ("explications", "trace_llm"):
+        a, b = lire(premier, nom), lire(second, nom)
+        assert a != b, nom  # passage_id, horodatage, depuis_cache… diffèrent bien
+        if nom == "trace_llm":
+            assert isinstance(a, list) and isinstance(b, list)
+            assert [sans_exclusions(nom, x) for x in a] == [sans_exclusions(nom, y) for y in b]
+        else:
+            assert sans_exclusions(nom, a) == sans_exclusions(nom, b), nom
 
 
 def test_palier_2_cle_de_pseudonymisation_blanche(

@@ -3,6 +3,8 @@
 import json
 from collections.abc import Callable
 
+import pytest
+
 from tests.contrat.cache_llm.fabriques import CasCache
 from usine.contrats.llm import EnveloppeCache
 from usine.ports import CacheLLM
@@ -57,6 +59,6 @@ def test_instances_independantes(fabrique: Callable[[], CasCache]) -> None:
 def test_persistance(cas: CasCache) -> None:
     """Un adaptateur persistant relit ce qu'une autre instance a écrit sur le même stockage."""
     if cas.rouvrir is None:
-        return
+        pytest.skip("adaptateur non persistant : rien à rouvrir")
     cas.cache.ecrire(CLE, "a")
     assert cas.rouvrir().lire(CLE) == "a"

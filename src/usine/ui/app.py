@@ -178,7 +178,7 @@ def principal() -> None:
         racine = racine_ui()
     except UsineErreur as exc:
         st.error(str(exc))
-        return
+        racine = Path.cwd()  # la page reste utilisable : carte et lancement s'affichent
     afficher_bandeau(racine)
     st.title("Usine de migration")
     afficher_carte(racine)
