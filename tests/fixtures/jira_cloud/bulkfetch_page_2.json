@@ -1,0 +1,16 @@
+{
+  "issueChangeLogs": [
+    {
+      "issueId": "10002",
+      "changeHistories": [
+        {
+          "id": "20002",
+          "created": "2026-09-03T11:00:00.000+0000",
+          "items": [
+            {"field": "status", "fieldtype": "jira", "fromString": "En analyse", "toString": "En correction"}
+          ]
+        }
+      ]
+    }
+  ]
+}

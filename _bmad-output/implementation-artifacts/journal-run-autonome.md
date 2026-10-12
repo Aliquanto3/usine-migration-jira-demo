@@ -16,6 +16,8 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 | Story | Lane | Statut | Commit sur `main` | Résumé |
 |---|---|---|---|---|
 | 8.1 | L8 (`lane-8-portage`) | done | `824fba1` | Fiche d'une page `docs/fiche-outillage.md` : demandes priorisées, correspondance par brique rattachée à AD-1, AD-19 et NFR-8, points d'attention par cible, avec un test de structure. |
+| 3.1 | L3 (`lane-3-calcul`) | done | `03182ed` | Instantanés complets : dédoublonnage par `id_evenement`, refus des dates hors Jours ouvrés, ordre canonique des lignes par `rang_cle`, tests de propriété (futur sans effet) et de déterminisme. |
+| 2.1 | L2 (`lane-2-extraction`) | done | `10a7e5e` | Paquet `adaptateurs/jira_http` : transport commun (authentification Cloud et DC, reprise sur 429 avec `Retry-After`, pagination par jeton et par position), `ClientJiraLecture` à liste blanche vérifiée avant envoi et `ClientJiraEcriture` distinct ; fixtures synthétiques, à remplacer par de vrais enregistrements à la recette 2.7. |
 
 ## File humaine
 
