@@ -1,5 +1,11 @@
 # Programme fictif « Banque Exemple — migration SI cœur » (Story 1.1), lu par `usine donnees`.
 # Tout est fictif : aucun nom réel d'entreprise ni de personne.
+#
+# Scénarios de démo A, B et C (Story 1.5, FR-3) : portés par ENT-A, ENT-B et ENT-C (Vague V1),
+# leurs paramètres sont typés dans `src/usine/generateur/scenarios.py`
+# (`SCENARIOS_PAR_DEFAUT`) et passés au générateur. Les contrats de configuration sont gelés
+# (`ConfigProgramme` refuse toute clé inconnue) : une clé `scenarios` ici attend la prochaine
+# version des contrats. Changer les Entités ou le calendrier de V1 décale les Scénarios.
 
 # Nom du Programme de migration.
 nom: Banque Exemple — migration SI cœur

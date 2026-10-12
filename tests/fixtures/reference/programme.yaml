@@ -1,0 +1,74 @@
+# Programme réduit du Rapport de référence (Story 3.8, FR-13, SM-1) : jeu figé, fictif.
+# Ancrage des semaines (en-tête du Journal) : lundi 2026-09-07 ; semaine 1 = 07-11/09,
+# semaine 2 = 14-18/09 (Date d'arrêté vendredi 2026-09-18), semaine 3 = 21-25/09.
+# Ne pas modifier : les valeurs de `attendu.yaml` en dépendent.
+
+# Nom du Programme de migration.
+nom: Rapport de référence — jeu réduit
+# Graine (sans objet ici : le Journal est écrit à la main).
+graine: 0
+# Nombre de semaines du Programme couvertes par le calendrier des Vagues.
+nb_semaines: 3
+
+# Entités pilotées ; chacune appartient à une seule Vague.
+entites:
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-A
+    # Libellé affiché de l'Entité.
+    libelle: Entité Alpha
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+  # Code de l'Entité (forme ENT-XXX).
+  - code: ENT-B
+    # Libellé affiché de l'Entité.
+    libelle: Entité Bêta
+    # Code de la Vague de migration de l'Entité.
+    vague: V1
+
+# Vagues de migration et calendrier de leurs Phases, en semaines du Programme.
+vagues:
+  # Code de la Vague.
+  - code: V1
+    # Libellé affiché de la Vague.
+    libelle: Vague 1
+    # Phases de test de la Vague, dans l'ordre.
+    phases:
+      # Recette en semaines 1 et 2 : Phase en cours à J-5 (11/09) et à D (18/09).
+      - phase: recette
+        # Première semaine de la Phase (1 = semaine de l'ancrage).
+        semaine_debut: 1
+        # Dernière semaine de la Phase.
+        semaine_fin: 2
+      # Tests de non-régression en semaine 3 (après la Date d'arrêté).
+      - phase: tnr
+        # Première semaine de la Phase.
+        semaine_debut: 3
+        # Dernière semaine de la Phase.
+        semaine_fin: 3
+  # Code de la Vague (sans Entité : porte la Certification REF-22, hors Vague en cours).
+  - code: V2
+    # Libellé affiché de la Vague.
+    libelle: Vague 2
+    # Phases de test de la Vague, dans l'ordre.
+    phases:
+      # Recette en semaines 1 à 3.
+      - phase: recette
+        # Première semaine de la Phase.
+        semaine_debut: 1
+        # Dernière semaine de la Phase.
+        semaine_fin: 3
+
+# Domaines fonctionnels des tickets.
+domaines:
+  - paie
+
+# Volumétrie cible du générateur (sans objet ici, exigée par le modèle).
+volumetrie:
+  # Nombre minimal d'Anomalies.
+  anomalies_min: 0
+  # Nombre maximal d'Anomalies.
+  anomalies_max: 100
+  # Nombre minimal d'Entrées d'Anomalies par semaine.
+  entrees_semaine_min: 0
+  # Nombre maximal d'Entrées d'Anomalies par semaine.
+  entrees_semaine_max: 100
