@@ -1,6 +1,8 @@
-"""Indicateurs IND-1 à IND-8, Météo par Entité et Grille livrée.
+"""Indicateurs IND-1 à IND-8, Météo par Entité, Règles déclenchantes et Grille livrée.
 
-Stories 0.4, 3.4 et 3.5 ; FR-11, FR-15, FR-16, FR-18.
+Stories 0.4, 3.4, 3.5 et 3.6 ; FR-11, FR-15, FR-16, FR-17, FR-18. Story 3.6 : pire couleur
+des indicateurs évalués, sans état d'un jour à l'autre ; toutes les Règles de la couleur
+retenue ; tickets en cause par type de règle (FR-17).
 """
 
 import hashlib
@@ -19,7 +21,12 @@ from tests.unit.domaine.constructeur import Flux
 from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.calcul import SCHEMA_INDICATEUR, StatutIndicateur
-from usine.contrats.calendrier import jour_ouvre_de, jour_ouvre_precedent, jours_ouvres
+from usine.contrats.calendrier import (
+    fenetre_glissante,
+    jour_ouvre_de,
+    jour_ouvre_precedent,
+    jours_ouvres,
+)
 from usine.contrats.config import ConfigProgramme, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement
@@ -846,3 +853,240 @@ def test_journal_genere(tmp_path: Path) -> None:
     table_bis, resultats_bis = calculer()
     assert table.equals(table_bis)
     assert resultats == resultats_bis
+
+
+# --- Météo et Règles déclenchantes (Story 3.6) ---
+
+
+def _resume(resultat: MeteoEntite) -> list[tuple[str, str, tuple[int, int], str, tuple[str, ...]]]:
+    """Code, couleur, valeur, seuil écrit et tickets en cause de chaque Règle déclenchante."""
+    return [
+        (
+            regle.code.value,
+            regle.couleur.value,
+            (regle.numerateur, regle.denominateur),
+            f"{regle.operateur.value} {regle.seuil_numerateur}/{regle.seuil_denominateur}",
+            regle.tickets_en_cause,
+        )
+        for regle in resultat.regles
+    ]
+
+
+def test_rouge_par_ind1_et_ind5(grille_livree: GrilleMeteo) -> None:
+    flux = Flux()
+    for numero in (7, 2, 11):  # créées à J-5 : âge 5, hors Fenêtre glissante
+        flux.anomalie(f"DEMO-{numero}", _a(J5))
+    _certification(flux, "DEMO-20", "refusee")
+    (resultat,) = _calculer_meteo(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert resultat.couleur is Couleur.rouge
+    assert resultat.version_grille == VERSION
+    assert resultat.date_arrete == LUNDI
+    assert _resume(resultat) == [
+        ("IND-1", "rouge", (3, 1), ">= 3/1", ("DEMO-2", "DEMO-7", "DEMO-11")),
+        ("IND-5", "rouge", (1, 1), ">= 1/1", ("DEMO-20",)),
+    ]
+
+
+def _grille_tout_rouge() -> GrilleMeteo:
+    """Grille livrée (garde-fous compris) où chaque indicateur n'a qu'un seuil rouge bas."""
+    seuils = {
+        "IND-1": ">= 1",
+        "IND-2": "> 0",
+        "IND-3": ">= 1",
+        "IND-4": ">= 0.05",
+        "IND-5": ">= 1",
+        "IND-6": ">= 1",
+        "IND-7": "> 1",
+        "IND-8": ">= 0.03",
+    }
+    return _grille(**{code: _regle({"rouge": seuil}) for code, seuil in seuils.items()})
+
+
+def _ouverte(ligne: dict[str, Any]) -> bool:
+    return ligne["statut"] is not None and ligne["statut"] not in {s.value for s in STATUTS_FERMES}
+
+
+def test_toutes_les_regles_et_tickets_en_cause_fr17() -> None:
+    flux = Flux()
+    flux.anomalie("DEMO-1", _a(J5))  # bloquante entrée avant la Fenêtre glissante
+    flux.anomalie("DEMO-2", _a(J5), gravite="majeure")
+    _entrees_fenetre(flux, 5, debut=3)  # DEMO-3 à DEMO-7 : bloquantes entrées dans la Fenêtre
+    flux.anomalie("DEMO-8", _a(date(2026, 9, 21)))  # entrée avant la Fenêtre…
+    flux.transition("DEMO-8", _a(date(2026, 9, 30)), "nouvelle", "fermee")  # …sortie dedans
+    _hausse(flux, ko_j5=1, ko_d=6)  # DEMO-100 à DEMO-119 en recette, KO : DEMO-100 à DEMO-105
+    _cas(flux, "DEMO-200", J5, "ko", phase="tnr")  # KO hors Phase en cours
+    _certification(flux, "DEMO-300", "refusee")
+    _certification(flux, "DEMO-301", "reservee")
+    _certification(flux, "DEMO-302", "reservee", vague="V2")  # autre Vague
+    flux.anomalie("DEMO-400", _a(LUNDI), gravite="mineure")
+    # Leurres d'une autre Entité : bloquante ouverte et Cas de test KO de recette d'ENT-B.
+    flux.anomalie("DEMO-500", _a(LUNDI), entite="ENT-B")
+    _cas(flux, "DEMO-501", J5, "ko", entite="ENT-B")
+    etats = _etats(flux)
+    resultat, _ = _calculer_meteo(etats, LUNDI, ["ENT-A", "ENT-B"], _grille_tout_rouge())
+
+    assert resultat.entite == "ENT-A"
+    assert resultat.couleur is Couleur.rouge
+    assert [r.code for r in resultat.regles] == list(CodeIndicateur)
+    ko_recette = tuple(f"DEMO-{n}" for n in range(100, 106))
+    fenetre = tuple(f"DEMO-{n}" for n in range(3, 8))
+    assert _resume(resultat) == [
+        ("IND-1", "rouge", (6, 1), ">= 1/1", ("DEMO-1", *fenetre)),
+        ("IND-2", "rouge", (5, 1), "> 0/1", ("DEMO-1",)),
+        ("IND-3", "rouge", (1, 1), ">= 1/1", ("DEMO-2",)),
+        ("IND-4", "rouge", (6, 20), ">= 1/20", ko_recette),
+        ("IND-5", "rouge", (1, 1), ">= 1/1", ("DEMO-300",)),
+        ("IND-6", "rouge", (1, 1), ">= 1/1", ("DEMO-301",)),
+        ("IND-7", "rouge", (5, 1), "> 1/1", (*fenetre, "DEMO-8")),
+        ("IND-8", "rouge", (1, 4), ">= 3/100", ko_recette),
+    ]
+
+    # Chaque ticket en cause est retrouvé dans l'état des tickets avec le type FR-17 attendu.
+    par_jour = {(ligne["cle_ticket"], ligne["date"]): ligne for ligne in etats.to_dicts()}
+    lignes = {cle: ligne for (cle, jour), ligne in par_jour.items() if jour == LUNDI}
+    phase = phase_en_cours(PROGRAMME, "ENT-A", LUNDI, ANCRAGE)
+    assert phase is Phase.recette
+    vague = next(e.vague for e in PROGRAMME.entites if e.code == "ENT-A")
+
+    def anomalie_ouverte(gravite: str) -> Callable[[dict[str, Any]], bool]:
+        return lambda t: t["type_ticket"] == "anomalie" and t["gravite"] == gravite and _ouverte(t)
+
+    def ko_phase_en_cours(t: dict[str, Any]) -> bool:
+        return t["type_ticket"] == "cas_de_test" and (t["statut_test"], t["phase"]) == (
+            "ko",
+            phase.value,
+        )
+
+    def certification(statut: str) -> Callable[[dict[str, Any]], bool]:
+        attendu = ("certification", vague, statut)
+        return lambda t: (t["type_ticket"], t["vague"], t["statut_certification"]) == attendu
+
+    def mouvement_fenetre(t: dict[str, Any]) -> bool:
+        """Entrée un jour de la Fenêtre, ou ouverte la veille d'un jour de la Fenêtre et
+        fermée ce jour-là (lignes J-5 à D de l'état des tickets)."""
+        for jour in fenetre_glissante(LUNDI):
+            du_jour = par_jour.get((t["cle_ticket"], jour))
+            veille = par_jour.get((t["cle_ticket"], jour_ouvre_precedent(jour)))
+            if du_jour is None or du_jour["type_ticket"] != "anomalie":
+                continue
+            if du_jour["gravite"] not in ("bloquante", "majeure"):
+                continue
+            entree = du_jour["date_derniere_entree"] == jour
+            sortie = veille is not None and _ouverte(veille) and not _ouverte(du_jour)
+            if entree or sortie:
+                return True
+        return False
+
+    types_fr17: dict[CodeIndicateur, Callable[[dict[str, Any]], bool]] = {
+        CodeIndicateur.ind_1: anomalie_ouverte("bloquante"),
+        CodeIndicateur.ind_2: anomalie_ouverte("bloquante"),
+        CodeIndicateur.ind_3: anomalie_ouverte("majeure"),
+        CodeIndicateur.ind_4: ko_phase_en_cours,
+        CodeIndicateur.ind_5: certification("refusee"),
+        CodeIndicateur.ind_6: certification("reservee"),
+        CodeIndicateur.ind_7: mouvement_fenetre,
+        CodeIndicateur.ind_8: ko_phase_en_cours,
+    }
+    for regle in resultat.regles:
+        assert regle.tickets_en_cause, regle.code
+        for cle in regle.tickets_en_cause:
+            ticket = lignes[cle]
+            assert ticket["entite"] == "ENT-A", (regle.code, cle)
+            assert types_fr17[regle.code](ticket), (regle.code, cle, ticket)
+    en_cause = {cle for regle in resultat.regles for cle in regle.tickets_en_cause}
+    assert en_cause.isdisjoint({"DEMO-200", "DEMO-302", "DEMO-400"})
+    cles_ent_b = set(etats.filter(pl.col("entite") == "ENT-B")["cle_ticket"].to_list())
+    assert cles_ent_b == {"DEMO-500", "DEMO-501"}
+    assert en_cause.isdisjoint(cles_ent_b)
+
+
+def test_sans_etat_d_un_jour_a_l_autre(grille_livree: GrilleMeteo) -> None:
+    flux = Flux()
+    for numero in (1, 2, 3):
+        flux.anomalie(f"DEMO-{numero}", _a(J5))
+    for numero in (1, 2):
+        flux.transition(f"DEMO-{numero}", _a(LUNDI), "nouvelle", "fermee")
+    etats = tickets_etats(flux.evenements, jours_ouvres(jour_ouvre_precedent(VENDREDI, 5), LUNDI))
+    (vendredi,) = _calculer_meteo(etats, VENDREDI, ["ENT-A"], grille_livree)
+    (lundi,) = _calculer_meteo(etats, LUNDI, ["ENT-A"], grille_livree)
+    assert vendredi.couleur is Couleur.rouge
+    assert _resume(vendredi) == [
+        ("IND-1", "rouge", (3, 1), ">= 3/1", ("DEMO-1", "DEMO-2", "DEMO-3")),
+    ]
+    assert lundi.couleur is Couleur.orange  # pas de maintien du rouge (pas d'hystérésis)
+    assert _resume(lundi) == [("IND-1", "orange", (1, 1), ">= 1/1", ("DEMO-3",))]
+    # Le lundi ne dépend pas de la Météo du vendredi : un flux qui atteint le même état des
+    # tickets au lundi sans avoir jamais été rouge (DEMO-1 et DEMO-2 fermées dès J-5) donne
+    # la même Météo.
+    jamais_rouge = Flux()
+    for numero in (1, 2, 3):
+        jamais_rouge.anomalie(f"DEMO-{numero}", _a(J5))
+    for numero in (1, 2):
+        jamais_rouge.transition(f"DEMO-{numero}", _a(J5, 10), "nouvelle", "fermee")
+    etats_bis = tickets_etats(
+        jamais_rouge.evenements, jours_ouvres(jour_ouvre_precedent(VENDREDI, 5), LUNDI)
+    )
+    (vendredi_bis,) = _calculer_meteo(etats_bis, VENDREDI, ["ENT-A"], grille_livree)
+    assert vendredi_bis.couleur is Couleur.orange
+    (lundi_bis,) = _calculer_meteo(etats_bis, LUNDI, ["ENT-A"], grille_livree)
+    assert lundi_bis == lundi
+
+
+def test_non_evaluable_sans_effet(grille_livree: GrilleMeteo) -> None:
+    flux = Flux()
+    _entrees_fenetre(flux, 4)  # 4 Entrées bloquantes : sous le garde-fou d'IND-7
+    for numero in (2, 3, 4):
+        jour = jour_ouvre_precedent(LUNDI, 4 - (numero - 1))
+        flux.transition(f"DEMO-{numero}", _a(jour, 10), "nouvelle", "rejetee")
+    # 19 Cas exécutés tous KO : sous le garde-fou d'IND-4. Évalué, IND-4 vaudrait 19/19,
+    # au-delà du seuil rouge (>= 0,20) : il ferait passer la Météo au rouge.
+    _campagne(flux, ko=19, executes=19)
+    (resultat,) = _calculer_meteo(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert resultat.couleur is Couleur.orange
+    assert _resume(resultat) == [("IND-1", "orange", (1, 1), ">= 1/1", ("DEMO-1",))]
+    table = _calculer_indicateurs(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    non_evaluables = table.filter(pl.col("statut") == "non_evaluable")
+    assert non_evaluables["code"].to_list() == ["IND-4", "IND-7", "IND-8"]
+    motifs = dict(zip(non_evaluables["code"], non_evaluables["motif"], strict=True))
+    assert "19 Cas de test" in motifs["IND-4"] and "garde-fou de 20" in motifs["IND-4"]
+    assert "4 Entrée(s)" in motifs["IND-7"] and "garde-fou de 5" in motifs["IND-7"]
+    assert "IND-4 non évaluable" in motifs["IND-8"]
+
+
+def test_tout_non_evaluable_ou_vert(grille_livree: GrilleMeteo) -> None:
+    flux = Flux()
+    _entrees_fenetre(flux, 4, gravite="majeure")  # IND-3 sous le jaune, IND-7 non évaluable
+    _campagne(flux, ko=19, executes=19)  # IND-4 et IND-8 non évaluables
+    (resultat,) = _calculer_meteo(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert resultat.couleur is Couleur.vert
+    assert resultat.regles == ()
+    table = _calculer_indicateurs(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert set(table["couleur"].to_list()) == {"vert"}
+    non_evaluables = table.filter(pl.col("statut") == "non_evaluable")["code"].to_list()
+    assert non_evaluables == ["IND-2", "IND-4", "IND-7", "IND-8"]
+    # Seuls des indicateurs non évaluables actifs (IND-4 à 19/19 franchirait le rouge s'il
+    # était évalué) : vert, sans règle.
+    seuls = _grille_seule("IND-2", "IND-4", "IND-7", "IND-8")
+    (resultat,) = _calculer_meteo(_etats(flux), LUNDI, ["ENT-A"], seuls)
+    assert resultat.couleur is Couleur.vert
+    assert resultat.regles == ()
+    table = _calculer_indicateurs(_etats(flux), LUNDI, ["ENT-A"], seuls)
+    assert table["code"].to_list() == ["IND-2", "IND-4", "IND-7", "IND-8"]
+    assert set(table["statut"].to_list()) == {"non_evaluable"}
+
+
+def test_egalite_de_couleurs(grille_livree: GrilleMeteo) -> None:
+    flux = Flux()
+    flux.anomalie("DEMO-1", _a(J5))  # IND-1 orange
+    for numero in range(10, 15):  # IND-3 jaune
+        flux.anomalie(f"DEMO-{numero}", _a(J5), gravite="majeure")
+    _certification(flux, "DEMO-21", "reservee")  # IND-6 orange
+    _certification(flux, "DEMO-20", "reservee")
+    (resultat,) = _calculer_meteo(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert resultat.couleur is Couleur.orange
+    assert _resume(resultat) == [
+        ("IND-1", "orange", (1, 1), ">= 1/1", ("DEMO-1",)),
+        ("IND-6", "orange", (2, 1), ">= 2/1", ("DEMO-20", "DEMO-21")),
+    ]
+    table = _calculer_indicateurs(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
+    assert table.filter(pl.col("code") == "IND-3")["couleur"].item() == "jaune"

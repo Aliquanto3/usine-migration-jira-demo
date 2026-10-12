@@ -49,6 +49,7 @@ from usine.contrats.passage import (
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
 from usine.domaine.meteo import indicateurs as calculer_indicateurs
+from usine.domaine.meteo import meteo as calculer_meteo
 from usine.ia.explication import lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -192,6 +193,24 @@ def test_autoportance_meteo(rapport: Rapport) -> None:
     colonnes = ["date", "entite", "statut", "motif", "numerateur", "denominateur"]
     comparees = [*colonnes, pl.col("code").cast(pl.Utf8), pl.col("couleur").cast(pl.Utf8)]
     assert indicateurs.select(comparees).equals(directs.select(comparees))
+    # Météo publiée (Story 3.6) : chaque `MeteoEntite` de `meteo.json`, règles, valeurs et
+    # tickets en cause compris, est celle que calcule directement le domaine.
+    meteos_directes = tuple(
+        m
+        for jour in jours
+        for m in calculer_meteo(
+            etats.filter(pl.col("date") <= jour),
+            jour,
+            ["ENT-A", "ENT-B"],
+            grille,
+            manifeste.version_grille,
+            programme=programme,
+            ancrage=ancrage,
+        )
+    )
+    assert meteo == meteos_directes
+    assert any(m.regles for m in meteo)
+    assert all(regle.tickets_en_cause for m in meteo for regle in m.regles)
 
 
 @pytest.mark.parametrize(
