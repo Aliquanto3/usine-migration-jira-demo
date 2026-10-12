@@ -1,6 +1,6 @@
 """Fabriques des adaptateurs de `SourceTickets` soumis à la suite de contrat.
 
-Chaque lane ajoute ici la fabrique de son adaptateur (Journal, Jira Cloud, Jira DC).
+Chaque lane ajoute ici la fabrique de son adaptateur (Journal, Jira Cloud, Jira DC, composite).
 """
 
 import atexit
@@ -12,6 +12,15 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from tests.doublures import SourceEnMemoire
+from tests.unit.adaptateurs.composite.outils import (
+    autre_valeur,
+    etat_a_l_injection,
+    generation_reduite,
+    injection_simulee,
+    journal_aux_cles_jira,
+    premiere_anomalie,
+    transition_jira,
+)
 from tests.unit.adaptateurs.jira_cloud.outils import (
     evenements_attendus as evenements_attendus_cloud,
 )
@@ -21,6 +30,7 @@ from tests.unit.adaptateurs.jira_dc.outils import (
 )
 from tests.unit.adaptateurs.jira_dc.outils import source_fixtures_dc
 from tests.unit.adaptateurs.journal.outils import cle_jira, manifeste_pour
+from usine.adaptateurs.composite import SourceComposite, id_alignement
 from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
@@ -157,6 +167,59 @@ def fabrique_jira_dc() -> CasSourceTickets:
     return CasSourceTickets(source_fixtures_dc(), evenements_attendus_dc())
 
 
+def fabrique_composite() -> CasSourceTickets:
+    """`SourceComposite` : Journal aux clés Jira, puis événements Jira postérieurs à l'injection.
+
+    Jira simulé sans réseau : injection fidèle (coupée), transition faite à la main, ticket
+    créé à la main et alignement, tous après `horodatage_fin_injection`.
+    """
+    repertoire = Path(tempfile.mkdtemp(prefix="usine-composite-"))
+    atexit.register(shutil.rmtree, repertoire, True)
+    journal = journal_aux_cles_jira(repertoire, generation_reduite())
+    manifeste = journal.manifeste
+    if manifeste is None:  # pragma: no cover - `journal_aux_cles_jira` pose un manifeste
+        raise AssertionError("Journal sans manifeste d'injection")
+    fin = manifeste.horodatage_fin_injection
+    transitee = premiere_anomalie(journal)
+    statut = etat_a_l_injection(journal, transitee, Champ.statut)
+    alignee = premiere_anomalie(journal, sauf=frozenset({transitee}))
+    gravite = etat_a_l_injection(journal, alignee, Champ.gravite)
+    vers = autre_valeur(Champ.gravite, gravite)
+    creation_manuelle = {
+        "cle_ticket": "DEMO-200000",
+        "type_ticket": TypeTicket.anomalie,
+        "horodatage": fin + timedelta(hours=2),
+        "source": SourceEvenement.jira_cloud,
+    }
+    apres = (
+        transition_jira(
+            transitee, statut, autre_valeur(Champ.statut, statut), fin + timedelta(hours=1)
+        ),
+        Evenement(id_evenement="C-20000", nature=NatureEvenement.creation, **creation_manuelle),
+        Evenement(
+            id_evenement="C-20000-statut",
+            nature=NatureEvenement.modification_champ,
+            champ=Champ.statut,
+            vers="nouvelle",
+            **creation_manuelle,
+        ),
+        Evenement(
+            id_evenement=id_alignement(alignee, Champ.gravite, vers),
+            cle_ticket=alignee,
+            type_ticket=TypeTicket.anomalie,
+            horodatage=fin + timedelta(hours=3),
+            nature=NatureEvenement.alignement,
+            champ=Champ.gravite,
+            de=gravite,
+            vers=vers,
+            source=SourceEvenement.jira_cloud,
+        ),
+    )
+    jira = [apres[-1], *apres[:-1], *injection_simulee(journal)]  # désordre : la source trie
+    attendus = (*journal.evenements(), *apres)
+    return CasSourceTickets(SourceComposite(journal, lambda: jira), attendus)
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("source_en_memoire", fabrique_source_en_memoire),
     ("journal_genere", fabrique_journal_genere),
@@ -164,4 +227,5 @@ FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("journal_correspondance", fabrique_journal_correspondance),
     ("jira_cloud", fabrique_jira_cloud),
     ("jira_dc", fabrique_jira_dc),
+    ("composite", fabrique_composite),
 ]
