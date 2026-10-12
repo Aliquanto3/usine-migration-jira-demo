@@ -8,8 +8,10 @@ from usine.contrats.calcul import SCHEMA_INDICATEUR, SCHEMA_INSTANTANE, SCHEMA_K
 from usine.contrats.llm import SCHEMA_REPARTITION_CAUSES
 from usine.contrats.meteo import MeteoEntite
 from usine.contrats.passage import ManifestePassage
+from usine.contrats.prevision import Prevision, RisqueEntreeRouge
 from usine.contrats.schemas import valider
 from usine.contrats.tickets import SCHEMA_TICKET_ETAT, SCHEMA_TICKET_TEXTE
+from usine.contrats.trace import EntreeTrace
 from usine.ports import Consultation
 
 
@@ -103,7 +105,57 @@ def test_dernier_passage_sans_classification_initiale(cas: CasConsultation) -> N
     assert not sans.classification_initiale
 
 
-@pytest.mark.parametrize("cle", ["DEMO-1"])
+@pytest.mark.parametrize("cle", ["DEMO-1", "DEMO-123"])
 def test_url_ticket(cas: CasConsultation, cle: str) -> None:
+    """`None` en Mode repli, sinon `<url_site>/browse/<cle>`."""
     url = cas.consultation.url_ticket(cle)
-    assert url is None or cle in url
+    if not cas.url_attendue:
+        assert url is None
+        return
+    assert url is not None
+    assert url.startswith("http")
+    assert url.endswith(f"/browse/{cle}")
+    assert "//browse" not in url
+
+
+def test_previsions_et_risques(cas: CasConsultation) -> None:
+    """Tuples typés à la Date d'arrêté ; `()` quand la Prévision n'est pas disponible."""
+    c = cas.consultation
+    date_arrete = c.manifeste().date_arrete
+    previsions = c.previsions()
+    assert isinstance(previsions, tuple)
+    assert all(isinstance(p, Prevision) and p.date_arrete == date_arrete for p in previsions)
+    filtrees = c.previsions(entite=cas.entite)
+    assert filtrees == tuple(p for p in previsions if p.entite == cas.entite)
+    risques = c.risques()
+    assert isinstance(risques, tuple)
+    assert all(isinstance(r, RisqueEntreeRouge) and r.date_arrete == date_arrete for r in risques)
+    assert c.risques(entite=cas.entite) == tuple(r for r in risques if r.entite == cas.entite)
+    if cas.avec_sorties:
+        assert filtrees
+        assert risques
+
+
+def test_traces(cas: CasConsultation) -> None:
+    traces = cas.consultation.traces()
+    assert isinstance(traces, tuple)
+    assert all(isinstance(t, EntreeTrace) for t in traces)
+    if cas.avec_sorties:
+        assert traces
+
+
+def test_palier_1_par_entite(cas: CasConsultation) -> None:
+    """FR-46 : en Palier 1, aucune sortie LLM pour l'Entité, même filtrée."""
+    c = cas.consultation
+    if cas.avec_sorties:
+        assert c.explications(entite=cas.entite)
+        assert c.narrations(entite=cas.entite)
+        assert not c.repartition_causes(entite=cas.entite).is_empty()
+        palier_2 = c.anomalies(entite=cas.entite).anomalies
+        assert any(a.cause_racine_proposee is not None for a in palier_2)
+    assert c.explications(entite=cas.entite, palier=1) == ()
+    assert c.narrations(entite=cas.entite, palier=1) == ()
+    assert c.repartition_causes(entite=cas.entite, palier=1).is_empty()
+    anomalies = c.anomalies(entite=cas.entite, palier=1)
+    assert anomalies.total == c.anomalies(entite=cas.entite).total
+    assert all(a.cause_racine_proposee is None for a in anomalies.anomalies)
