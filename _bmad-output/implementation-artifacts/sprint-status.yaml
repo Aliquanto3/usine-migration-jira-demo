@@ -140,7 +140,7 @@ development_status:
   epic-7: in-progress  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
   7-1-carte-météo-et-navigation: done  # Palier 1 (7.1–7.6) : prérequis 5.2, avant la porte M3
   7-2-détail-d-une-entité-palier-1: done
-  7-3-lancement-de-la-chaîne-et-progression: backlog
+  7-3-lancement-de-la-chaîne-et-progression: done
   7-4-avant-après: backlog
   7-5-écran-ce-qu-il-faut-pour-le-faire-en-vrai: backlog  # prérequis : 8.1
   7-6-mode-repli-sur-un-passage-enregistré: backlog
