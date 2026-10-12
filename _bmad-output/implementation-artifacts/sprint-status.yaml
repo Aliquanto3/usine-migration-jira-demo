@@ -73,7 +73,7 @@ development_status:
   1-2-corpus-de-textes-provisoire-et-outil-de-génération: done
   1-3-génération-reproductible-à-la-volumétrie-cible: done
   1-4-identifiants-sensibles-fictifs: done
-  1-5-scénarios-de-démo-scriptés: backlog
+  1-5-scénarios-de-démo-scriptés: done
   1-6-injection-initiale-dans-jira-cloud-free: backlog  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: backlog
   1-8-calage-des-scénarios-de-démo-au-jour-près: backlog  # prérequis : Epic 3 terminé
