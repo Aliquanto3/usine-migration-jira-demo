@@ -4,6 +4,10 @@ Fonctions pures : Date d'arrêté, Entités, Grille, `version_grille`, Programme
 semaines arrivent en paramètre. Un indicateur que la donnée ou un garde-fou de volume ne permet
 pas d'évaluer est `non_evaluable`, de valeur `0/0`, avec un motif : il ne change pas la Météo.
 `verifier_grille` contrôle la cohérence des seuils entre couleurs (FR-18).
+
+L'évolution de la Météo à J-1 et J-5 (FR-19) n'est pas calculée ici : elle se lit par
+`Consultation.evolution_meteo` sur la Météo de chaque Jour ouvré publiée (D8, dérivation de
+lecture).
 """
 
 from collections.abc import Callable, Iterable, Mapping, Sequence

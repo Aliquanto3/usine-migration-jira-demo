@@ -2,7 +2,9 @@
 
 Stories 0.4, 3.4, 3.5 et 3.6 ; FR-11, FR-15, FR-16, FR-17, FR-18. Story 3.6 : pire couleur
 des indicateurs évalués, sans état d'un jour à l'autre ; toutes les Règles de la couleur
-retenue ; tickets en cause par type de règle (FR-17).
+retenue ; tickets en cause par type de règle (FR-17). Story 3.7 (FR-19) : évolution de la
+Météo à J-1 et J-5 en Jours ouvrés, lue par `ConsultationPassage.evolution_meteo` sur la Météo
+de chaque Jour ouvré calculée par le domaine (D8 : dérivation de lecture, pas de calcul).
 """
 
 import hashlib
@@ -17,9 +19,12 @@ import polars as pl
 import pytest
 import yaml
 
+from tests.unit.chaine.environnement import DATE_ARRETE, horloge_figee, preparer_racine
 from tests.unit.domaine.constructeur import Flux
 from usine.adaptateurs.journal import SourceJournal
+from usine.composition import lancer_rapport
 from usine.config import charger_yaml
+from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calcul import SCHEMA_INDICATEUR, StatutIndicateur
 from usine.contrats.calendrier import (
     fenetre_glissante,
@@ -30,7 +35,13 @@ from usine.contrats.calendrier import (
 from usine.contrats.config import ConfigProgramme, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement
-from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite, Operateur
+from usine.contrats.meteo import CodeIndicateur, Couleur, EvolutionMeteo, MeteoEntite, Operateur
+from usine.contrats.passage import (
+    CHEMIN_JOURNAL,
+    FICHIERS_PASSAGE,
+    EnveloppeFichier,
+    former_passage_id,
+)
 from usine.contrats.schemas import valider
 from usine.contrats.tickets import (
     SCHEMA_TICKET_ETAT,
@@ -1090,3 +1101,137 @@ def test_egalite_de_couleurs(grille_livree: GrilleMeteo) -> None:
     ]
     table = _calculer_indicateurs(_etats(flux), LUNDI, ["ENT-A"], grille_livree)
     assert table.filter(pl.col("code") == "IND-3")["couleur"].item() == "jaune"
+
+
+# --- Évolution de la Météo à J-1 et J-5 (Story 3.7) ---
+
+PREMIER_JOUR = date(2026, 9, 28)
+"""Premier Jour ouvré de l'historique de la trajectoire (lundi)."""
+TRAJECTOIRE = jours_ouvres(PREMIER_JOUR, LUNDI)
+"""Du lundi 2026-09-28 au lundi 2026-10-05 (6 Jours ouvrés)."""
+
+
+def _passage_trajectoire(repertoire: Path, grille: GrilleMeteo) -> ConsultationPassage:
+    """Météo de chaque Jour ouvré de la trajectoire, publiée dans `meteo.json`.
+
+    ENT-A (IND-1 seul) : 28/09 vert, 29/09 orange (1 bloquante), 30/09 et 01/10 rouge (3),
+    02/10 et 05/10 orange (2 fermées le 02/10). ENT-B : aucun ticket, vert tout du long.
+    """
+    flux = Flux()
+    flux.anomalie("DEMO-1", _a(date(2026, 9, 29)))
+    for cle in ("DEMO-2", "DEMO-3"):
+        flux.anomalie(cle, _a(date(2026, 9, 30)))
+        flux.transition(cle, _a(VENDREDI, 10), "nouvelle", "fermee")
+    etats = tickets_etats(flux.evenements, TRAJECTOIRE)
+    meteos = tuple(
+        m for jour in TRAJECTOIRE for m in _calculer_meteo(etats, jour, ["ENT-A", "ENT-B"], grille)
+    )
+    passage_id = former_passage_id(datetime(2026, 10, 5, 18, tzinfo=UTC), "aaaaaa")
+    enveloppe = EnveloppeFichier[tuple[MeteoEntite, ...]](
+        passage_id=passage_id, date_arrete=LUNDI, contenu=meteos
+    )
+    (repertoire / FICHIERS_PASSAGE["meteo"]).write_bytes(
+        enveloppe.model_dump_json(indent=2).encode("utf-8")
+    )
+    return ConsultationPassage(repertoire, date_arrete=LUNDI)
+
+
+def _evolution(consultation: ConsultationPassage, d: date, entite: str) -> EvolutionMeteo:
+    trouvees = [e for e in consultation.evolution_meteo(d) if e.entite == entite]
+    assert len(trouvees) == 1, f"{entite} au {d.isoformat()} : {len(trouvees)} évolution(s)"
+    return trouvees[0]
+
+
+def test_trajectoire_publiee(tmp_path: Path, grille: GrilleMeteo) -> None:
+    consultation = _passage_trajectoire(tmp_path, grille)
+    assert consultation.dates_disponibles() == TRAJECTOIRE
+    couleurs = [consultation.meteo(jour, "ENT-A")[0].couleur for jour in TRAJECTOIRE]
+    assert couleurs == [
+        Couleur.vert,
+        Couleur.orange,
+        Couleur.rouge,
+        Couleur.rouge,
+        Couleur.orange,
+        Couleur.orange,
+    ]
+
+
+def test_j1_inchange_j5_change(tmp_path: Path, grille: GrilleMeteo) -> None:
+    evolution = _evolution(_passage_trajectoire(tmp_path, grille), LUNDI, "ENT-A")
+    assert evolution.couleur is Couleur.orange
+    assert (evolution.date_j1, evolution.couleur_j1) == (VENDREDI, Couleur.orange)
+    assert evolution.change_depuis_j1 is False
+    assert (evolution.date_j5, evolution.couleur_j5) == (PREMIER_JOUR, Couleur.vert)
+    assert evolution.change_depuis_j5 is True
+
+
+def test_j1_change_j5_hors_historique(tmp_path: Path, grille: GrilleMeteo) -> None:
+    evolution = _evolution(_passage_trajectoire(tmp_path, grille), VENDREDI, "ENT-A")
+    assert evolution.couleur is Couleur.orange
+    assert (evolution.date_j1, evolution.couleur_j1) == (date(2026, 10, 1), Couleur.rouge)
+    assert evolution.change_depuis_j1 is True
+    assert evolution.date_j5 == date(2026, 9, 25)
+    assert evolution.couleur_j5 is None
+    assert evolution.change_depuis_j5 is False
+
+
+def test_premier_jour_ouvre_j1_absent(tmp_path: Path, grille: GrilleMeteo) -> None:
+    consultation = _passage_trajectoire(tmp_path, grille)
+    for entite in ("ENT-A", "ENT-B"):
+        evolution = _evolution(consultation, PREMIER_JOUR, entite)
+        assert evolution.couleur is Couleur.vert
+        assert evolution.date_j1 == date(2026, 9, 25)
+        assert evolution.couleur_j1 is None  # et non une couleur par défaut (vert)
+        assert evolution.change_depuis_j1 is False
+        assert evolution.date_j5 == date(2026, 9, 21)
+        assert evolution.couleur_j5 is None
+        assert evolution.change_depuis_j5 is False
+
+
+def test_entite_stable(tmp_path: Path, grille: GrilleMeteo) -> None:
+    evolution = _evolution(_passage_trajectoire(tmp_path, grille), LUNDI, "ENT-B")
+    assert (evolution.couleur, evolution.couleur_j1, evolution.couleur_j5) == (
+        Couleur.vert,
+        Couleur.vert,
+        Couleur.vert,
+    )
+    assert not evolution.change_depuis_j1
+    assert not evolution.change_depuis_j5
+
+
+def test_evolution_sur_le_passage_du_mini_jeu(tmp_path: Path) -> None:
+    racine = preparer_racine(tmp_path / "racine")
+    lance = lancer_rapport(racine, DATE_ARRETE, horloge_figee(), lambda: "aaaaaa")
+    premier_jour = SourceJournal(racine / CHEMIN_JOURNAL).entete.ancrage_semaines
+    consultation = ConsultationPassage(lance.repertoire)
+    jours = jours_ouvres(premier_jour, DATE_ARRETE)
+    assert consultation.dates_disponibles() == jours
+    entites = [e.code for e in PROGRAMME.entites]
+    couleurs: dict[tuple[date, str], Couleur] = {}
+    for jour in jours:
+        meteos = consultation.meteo(jour)
+        assert [m.entite for m in meteos] == entites, jour
+        couleurs.update({(jour, m.entite): m.couleur for m in meteos})
+    changements = 0
+    j5_connus = 0
+    for jour in jours:
+        evolutions = consultation.evolution_meteo(jour)
+        assert [e.entite for e in evolutions] == entites, jour
+        for evolution in evolutions:
+            j1, j5 = jour_ouvre_precedent(jour, 1), jour_ouvre_precedent(jour, 5)
+            assert (evolution.date_j1, evolution.date_j5) == (j1, j5)
+            assert evolution.couleur is couleurs[(jour, evolution.entite)]
+            assert evolution.couleur_j1 is couleurs.get((j1, evolution.entite))
+            assert evolution.couleur_j5 is couleurs.get((j5, evolution.entite))
+            assert (evolution.couleur_j1 is None) == (j1 < premier_jour)
+            assert (evolution.couleur_j5 is None) == (j5 < premier_jour)
+            assert evolution.change_depuis_j1 == (
+                evolution.couleur_j1 is not None and evolution.couleur_j1 is not evolution.couleur
+            )
+            assert evolution.change_depuis_j5 == (
+                evolution.couleur_j5 is not None and evolution.couleur_j5 is not evolution.couleur
+            )
+            changements += evolution.change_depuis_j1
+            j5_connus += evolution.couleur_j5 is not None
+    assert changements > 0  # le mini-jeu fait changer la Météo au moins une fois
+    assert j5_connus > 0  # les assertions sur J-5 portent sur au moins une couleur connue
