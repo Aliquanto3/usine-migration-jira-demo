@@ -40,6 +40,7 @@ from usine.contrats.prevision import (
     StatutPrevision,
 )
 from usine.contrats.schemas import valider
+from usine.domaine.prevision.commun import avancer, declenche
 
 STOCK = "stock"
 ENTREES = "entrees"
@@ -131,8 +132,7 @@ def prevoir_sortie(
 
     regle = next(r for r in meteo.regles if r.code is CodeIndicateur.ind_1)
     seuil = Fraction(regle.seuil_numerateur, regle.seuil_denominateur)
-    rouge = stock >= seuil if regle.operateur is Operateur.superieur_ou_egal else stock > seuil
-    if not rouge:
+    if not declenche(Fraction(stock), regle.operateur, seuil):
         raise UsineErreur(
             f"Baseline {entite} : stock {stock} à {meteo.date_arrete.isoformat()} ne déclenche"
             f" pas la règle IND-1 rouge {regle.operateur} {seuil}"
@@ -152,7 +152,7 @@ def prevoir_sortie(
         return prevision(StatutPrevision.pas_de_sortie_projetee, probabilite)
 
     def date_pour(w: Fraction) -> date:
-        return _avancer(meteo.date_arrete, jours_a_la_sortie(w))
+        return avancer(meteo.date_arrete, jours_a_la_sortie(w))
 
     triees = sorted(velocites)
     optimiste = max(_centile(triees, Fraction(3, 4)), velocite)
@@ -218,13 +218,6 @@ def _jours_a_la_sortie(stock: int, seuil: Fraction, operateur: Operateur, w: Fra
     ecart = (stock - seuil) / w
     t = math.floor(ecart) + 1 if operateur is Operateur.superieur_ou_egal else math.ceil(ecart)
     return max(t, 1)
-
-
-def _avancer(jour: date, n: int) -> date:
-    """`jour` avancé de `n` Jours ouvrés."""
-    for _ in range(n):
-        jour = jour_ouvre_suivant(jour)
-    return jour
 
 
 def _centile(triees: Sequence[Fraction], p: Fraction) -> Fraction:
