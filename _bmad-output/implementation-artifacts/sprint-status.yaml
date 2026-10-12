@@ -142,7 +142,7 @@ development_status:
   7-2-détail-d-une-entité-palier-1: done
   7-3-lancement-de-la-chaîne-et-progression: done
   7-4-avant-après: done
-  7-5-écran-ce-qu-il-faut-pour-le-faire-en-vrai: backlog  # prérequis : 8.1
+  7-5-écran-ce-qu-il-faut-pour-le-faire-en-vrai: done  # prérequis : 8.1
   7-6-mode-repli-sur-un-passage-enregistré: backlog
   7-7-explication-sourcée-à-l-écran-et-comparaison-des-paliers: backlog  # Palier 2 (7.7–7.12) : après l Epic 6
   7-8-outils-de-consultation-de-l-agent: backlog
