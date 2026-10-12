@@ -10,7 +10,9 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from tests.unit.chaine.environnement import DATE_ARRETE
 from tests.unit.rendu.conftest import REGLE_JAUNE, REGLE_ROUGE
+from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
+from usine.contrats.config import ConfigJira
 from usine.contrats.meteo import CodeIndicateur, Couleur, Operateur, RegleDeclenchante
 from usine.rendu.commun import formater_regle, tickets_en_cause
 from usine.rendu.excel import EN_TETES, NOM_ONGLET, rendre_excel
@@ -83,7 +85,11 @@ def test_couleurs_des_cellules(passage_jaune_rouge: ConsultationPassage) -> None
 
 
 def test_liens_jira(passage: Path) -> None:
-    consultation = ConsultationPassage(passage, url_jira="https://jira.example.invalid")
+    # Le Passage est publié avec `config/jira.yaml` du dépôt : ses liens suivent `url_site`.
+    url_site = charger_yaml(
+        Path(__file__).resolve().parents[3] / "config" / "jira.yaml", ConfigJira
+    ).url_site
+    consultation = ConsultationPassage(passage, url_jira=url_site)
     lignes = _lignes((passage / NOM).read_bytes())
     rouges = [m for m in consultation.meteo() if m.couleur is Couleur.rouge]
     assert rouges, "le jeu graine 42 doit avoir une Entité rouge (Scénarios de la Story 1.5)"
@@ -95,7 +101,7 @@ def test_liens_jira(passage: Path) -> None:
         for cle, lien in cellules:
             assert isinstance(cle, str)
             assert lien == consultation.url_ticket(cle)
-            assert lien == f"https://jira.example.invalid/browse/{cle}"
+            assert lien == f"{url_site}/browse/{cle}"
             vus += 1
     assert vus > 0
 

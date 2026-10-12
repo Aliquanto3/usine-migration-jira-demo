@@ -12,6 +12,7 @@ from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import CHEMIN_JOURNAL
 from usine.generateur.corpus import CHEMIN_CORPUS, charger_corpus
+from usine.generateur.injecteur.cli import commande_injecter
 from usine.generateur.journal import NOM_IDENTIFIANTS, ecrire_journal
 from usine.generateur.journal import generer as generer_journal
 from usine.generateur.scenarios import AUCUN_SCENARIO
@@ -102,3 +103,6 @@ def generer(
         f" ({len(generation.identifiants)} identifiants fictifs)"
     )
     typer.echo(f"Scénarios appliqués : {generation.scenarios.resume()}")
+
+
+app.command("injecter")(commande_injecter)

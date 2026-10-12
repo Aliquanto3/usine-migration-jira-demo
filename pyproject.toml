@@ -251,7 +251,10 @@ forbidden_modules = [
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
-ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
+ignore_imports = [
+    "usine.*.cli -> usine.**", "usine.generateur.injecteur.cli -> usine.**",
+    "usine.*.cli -> typer", "usine.generateur.injecteur.cli -> typer",
+]
 unmatched_ignore_imports_alerting = "none"
 allow_indirect_imports = true
 
