@@ -1,0 +1,178 @@
+{
+  "expand": "names,schema",
+  "startAt": 0,
+  "maxResults": 2,
+  "total": 4,
+  "issues": [
+    {
+      "id": "10001",
+      "key": "DEMO-1",
+      "self": "https://jira.example.invalid/rest/api/2/issue/10001",
+      "fields": {
+        "status": {
+          "name": "En correction"
+        },
+        "customfield_10001": {
+          "value": "ENT-A",
+          "id": "11001"
+        },
+        "customfield_10002": {
+          "value": "V1",
+          "id": "11011"
+        },
+        "customfield_10003": {
+          "value": "Comptabilité",
+          "id": "11021"
+        },
+        "customfield_10004": {
+          "value": "Majeure",
+          "id": "11032"
+        },
+        "customfield_10005": {
+          "value": "Recette",
+          "id": "11042"
+        },
+        "summary": "Écart de solde après reprise",
+        "description": "Le solde du compte diffère.\nÉcart constaté en recette.",
+        "customfield_10006": null,
+        "customfield_10007": null,
+        "issuetype": {
+          "name": "Anomalie"
+        },
+        "created": "2026-09-01T09:00:00.000+0000"
+      },
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 3,
+        "total": 3,
+        "histories": [
+          {
+            "id": "20001",
+            "created": "2026-09-02T10:00:00.000+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "from": "1",
+                "fromString": "Nouvelle",
+                "to": "2",
+                "toString": "En analyse"
+              },
+              {
+                "field": "assignee",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "abc",
+                "toString": "Analyste fictif"
+              },
+              {
+                "field": "Gravité",
+                "fieldtype": "custom",
+                "from": "11031",
+                "fromString": "Bloquante",
+                "to": "11032",
+                "toString": "Majeure"
+              }
+            ]
+          },
+          {
+            "id": "20002",
+            "created": "2026-09-03T14:30:00.000+0000",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "from": "2",
+                "fromString": "En analyse",
+                "to": "3",
+                "toString": "En correction"
+              }
+            ]
+          },
+          {
+            "id": "20003",
+            "created": "2026-09-04T09:15:00.000+0000",
+            "items": [
+              {
+                "field": "summary",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": "Écart de solde",
+                "to": null,
+                "toString": "Écart de solde après reprise"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "10002",
+      "key": "DEMO-2",
+      "self": "https://jira.example.invalid/rest/api/2/issue/10002",
+      "fields": {
+        "status": {
+          "name": "À faire"
+        },
+        "customfield_10001": {
+          "value": "ENT-A",
+          "id": "11001"
+        },
+        "customfield_10002": {
+          "value": "V1",
+          "id": "11011"
+        },
+        "customfield_10003": {
+          "value": "Comptabilité",
+          "id": "11021"
+        },
+        "customfield_10004": null,
+        "customfield_10005": {
+          "value": "Recette",
+          "id": "11042"
+        },
+        "summary": "Contrôle des soldes repris",
+        "description": null,
+        "customfield_10006": {
+          "value": "KO",
+          "id": "11052"
+        },
+        "customfield_10007": null,
+        "issuetype": {
+          "name": "Cas de test"
+        },
+        "created": "2026-09-01T11:00:00.000+0000"
+      },
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 1,
+        "total": 1,
+        "histories": [
+          {
+            "id": "20004",
+            "created": "2026-09-05T16:00:00.000+0000",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "from": "10",
+                "fromString": "À faire",
+                "to": "11",
+                "toString": "Terminé"
+              },
+              {
+                "field": "Statut du test",
+                "fieldtype": "custom",
+                "from": "11053",
+                "fromString": "Non exécuté",
+                "to": "11052",
+                "toString": "KO"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

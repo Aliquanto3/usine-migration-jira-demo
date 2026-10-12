@@ -1,0 +1,110 @@
+{
+  "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+  "id": "10003",
+  "key": "DEMO-3",
+  "self": "https://jira.example.invalid/rest/api/2/issue/10003",
+  "fields": {
+    "status": {
+      "name": "Fermée"
+    },
+    "customfield_10001": {
+      "value": "ENT-B",
+      "id": "11002"
+    },
+    "customfield_10002": {
+      "value": "V2",
+      "id": "11012"
+    },
+    "customfield_10003": {
+      "value": "Paie",
+      "id": "11022"
+    },
+    "customfield_10004": {
+      "value": "Mineure",
+      "id": "11033"
+    },
+    "customfield_10005": {
+      "value": "Migration à blanc",
+      "id": "11041"
+    },
+    "summary": "Rubrique de paie absente",
+    "description": "La rubrique 1200 est absente après migration.",
+    "customfield_10006": null,
+    "customfield_10007": null,
+    "issuetype": {
+      "name": "Anomalie"
+    },
+    "created": "2026-09-02T09:00:00.000+0000"
+  },
+  "changelog": {
+    "startAt": 0,
+    "maxResults": 4,
+    "total": 4,
+    "histories": [
+      {
+        "id": "20005",
+        "created": "2026-09-03T08:00:00.000+0000",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "from": "1",
+            "fromString": "Nouvelle",
+            "to": "2",
+            "toString": "En analyse"
+          }
+        ]
+      },
+      {
+        "id": "20006",
+        "created": "2026-09-04T08:00:00.000+0000",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "from": "2",
+            "fromString": "En analyse",
+            "to": "3",
+            "toString": "En correction"
+          }
+        ]
+      },
+      {
+        "id": "20007",
+        "created": "2026-09-08T08:00:00.000+0000",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "from": "3",
+            "fromString": "En correction",
+            "to": "4",
+            "toString": "À retester"
+          },
+          {
+            "field": "Gravité",
+            "fieldtype": "custom",
+            "from": "11032",
+            "fromString": "Majeure",
+            "to": "11033",
+            "toString": "Mineure"
+          }
+        ]
+      },
+      {
+        "id": "20008",
+        "created": "2026-09-09T08:00:00.000+0000",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "from": "4",
+            "fromString": "À retester",
+            "to": "5",
+            "toString": "Fermée"
+          }
+        ]
+      }
+    ]
+  }
+}

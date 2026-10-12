@@ -49,10 +49,12 @@ def minutes_depuis(depuis: datetime, maintenant: datetime) -> int:
     return max(1, -((depuis - maintenant) // timedelta(minutes=1)))
 
 
-def requete_jql(config: ConfigJira, minutes: int | None = None) -> str:
+def requete_jql(config: ConfigJira, minutes: int | None = None, apres: str | None = None) -> str:
     """JQL des tickets du Programme : projet et types Jira de la table, par clé croissante.
 
     Avec `minutes`, seuls les tickets modifiés depuis `minutes` minutes (`updated >= "-<n>m"`).
+    Avec `apres`, seuls les tickets de clé postérieure (`key > "<apres>"`) : tranche suivante
+    d'une recherche Data Center bornée par sa fenêtre de résultats.
     """
     types = ", ".join(_chaine_jql(nom) for nom in config.types_tickets)
     filtre = f"project = {_chaine_jql(config.cle_projet)} AND issuetype in ({types})"
@@ -60,6 +62,10 @@ def requete_jql(config: ConfigJira, minutes: int | None = None) -> str:
         if minutes < 1:
             raise UsineErreur(f"Jira : restriction « updated » d'au moins 1 minute, pas {minutes}")
         filtre += f' AND updated >= "-{minutes}m"'
+    if apres is not None:
+        if not apres.strip():
+            raise UsineErreur("Jira : restriction « key > » sur une clé vide")
+        filtre += f" AND key > {_chaine_jql(apres)}"
     return f"{filtre} ORDER BY key ASC"
 
 

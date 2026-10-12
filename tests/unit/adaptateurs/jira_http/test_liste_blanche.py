@@ -138,6 +138,8 @@ def test_requete_interdite_jamais_envoyee(
         with pytest.raises(RequeteJiraInterdite) as exc:
             client.requete(methode, chemin, corps={"fields": {}})
         with pytest.raises(RequeteJiraInterdite):
+            client.requete_liste(methode, chemin)
+        with pytest.raises(RequeteJiraInterdite):
             client.paginer_par_jeton(methode, chemin, "issues")
         if methode == "GET":
             with pytest.raises(RequeteJiraInterdite):

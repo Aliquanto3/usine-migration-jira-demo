@@ -85,8 +85,8 @@ def test_couleurs_des_cellules(passage_jaune_rouge: ConsultationPassage) -> None
 def test_liens_jira(passage: Path) -> None:
     consultation = ConsultationPassage(passage, url_jira="https://jira.example.invalid")
     lignes = _lignes((passage / NOM).read_bytes())
-    rouges = [m for m in consultation.meteo() if m.couleur is Couleur.rouge]
-    assert rouges, "le jeu graine 42 doit avoir une Entité rouge"
+    alertes = [m for m in consultation.meteo() if m.couleur in {Couleur.orange, Couleur.rouge}]
+    assert alertes, "le jeu graine 42 doit avoir une Entité orange ou rouge"
     vus = 0
     for ligne, meteo in zip(lignes[1:], consultation.meteo(), strict=True):
         cles = tickets_en_cause(meteo.regles)

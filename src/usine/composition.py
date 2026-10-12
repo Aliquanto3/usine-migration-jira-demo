@@ -8,18 +8,31 @@ autres étapes LLM restent sautées. Sans pseudonymiseur injecté, elle construi
 `PseudonymiseurHmac` sur la clé `USINE_CLE_PSEUDO`, les motifs de
 `config/pseudonymisation.yaml` (ou `MOTIFS_PAR_DEFAUT`) et la table
 `donnees/pseudonymes.sqlite`. Les secrets passent par `charger_secrets` (erreur nommant la
-variable) ; l'URL Jira se résout dans `url_jira` seulement. Les services de l'UI vivent dans
+variable) ; l'URL Jira se résout dans `url_jira` seulement.
+
+L'étape `extraction` verse Jira dans `donnees/entrepot.duckdb` (`EtapeExtraction`) quand
+`config/jira.yaml` existe, hors Mode repli, et que le secret de lecture de sa plateforme est
+présent (`mode: cloud` : `JIRA_TOKEN_LECTURE`, puis `JIRA_EMAIL` exigé ; `mode: dc` :
+`JIRA_DC_PAT`) ; l'adaptateur (`SourceJiraCloud` ou `SourceJiraDC`) suit `mode`. Sinon elle
+reste un bouchon et le Journal est la seule source. `instantanes` lit toujours le Journal
+(source composite : Story 2.6). Les services de l'UI vivent dans
 `ui/cli.py`, l'écriture du Journal dans `generateur.journal.ecrire_journal`.
 """
 
 import secrets
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+from pydantic import SecretStr
+
+from usine.adaptateurs.entrepot_duckdb import CHEMIN_ENTREPOT, EtapeExtraction
+from usine.adaptateurs.jira_cloud import SourceJiraCloud
+from usine.adaptateurs.jira_dc import SourceJiraDC
+from usine.adaptateurs.jira_http import construire_client_lecture
 from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import (
     MOTIFS_PAR_DEFAUT,
@@ -198,6 +211,47 @@ def _url_jira(mode_repli: bool, jira: ConfigJira | None) -> str | None:
     return None if mode_repli or jira is None else jira.url_site
 
 
+def _secret_present(valeur: SecretStr | None) -> bool:
+    return valeur is not None and bool(valeur.get_secret_value().strip())
+
+
+def _etape_extraction(
+    racine: Path,
+    jira: ConfigJira | None,
+    secrets_usine: Secrets,
+    horloge: Callable[[], datetime],
+) -> PortEtape:
+    """Étape `extraction` : Jira (`mode` de `config/jira.yaml`) vers l'entrepôt, ou bouchon.
+
+    Bouchon sans `config/jira.yaml`, en Mode repli (pas d'extraction automatique) ou sans le
+    secret de lecture de la plateforme. En Cloud, `JIRA_TOKEN_LECTURE` sans `JIRA_EMAIL` lève
+    une `UsineErreur` qui nomme `JIRA_EMAIL`. Le client Jira est fermé après l'étape.
+    """
+    if jira is None or secrets_usine.usine_mode_repli:
+        return EtapeBouchon()
+    secret = secrets_usine.jira_token_lecture if jira.mode == "cloud" else secrets_usine.jira_dc_pat
+    if not _secret_present(secret):
+        return EtapeBouchon()
+    client = construire_client_lecture(
+        jira,
+        email=secrets_usine.jira_email,
+        jeton_lecture=secrets_usine.jira_token_lecture,
+        pat=secrets_usine.jira_dc_pat,
+    )
+    source = (
+        SourceJiraCloud(client, jira, horloge)
+        if jira.mode == "cloud"
+        else SourceJiraDC(client, jira, horloge)
+    )
+    return EtapeExtraction(
+        source,
+        racine / CHEMIN_ENTREPOT,
+        timedelta(minutes=jira.marge_extraction_minutes),
+        horloge,
+        fermer=client.fermer,
+    )
+
+
 def construire_rapport(
     racine: Path,
     fournisseur: FournisseurLLM | None = None,
@@ -208,7 +262,8 @@ def construire_rapport(
 
     En Palier 2, `fournisseur` est obligatoire ; sans `pseudonymiseur`, `PseudonymiseurHmac`
     est construit et exige `USINE_CLE_PSEUDO`. Toute absence lève une `UsineErreur` avant tout
-    Passage. `horloge` date les traces LLM.
+    Passage. `horloge` date les traces LLM et l'extraction Jira (repère, restriction
+    `updated`).
     """
     repertoire_config = racine / "config"
     chaine = charger_yaml(repertoire_config / "chaine.yaml", ConfigChaine)
@@ -256,6 +311,8 @@ def construire_rapport(
             fournisseur, pseudonymiseur, CacheLLMSqlite(racine / CHEMIN_CACHE_LLM), horloge
         )
         registre[Etape.explications] = EtapeExplications(passerelle, empreinte_donnees)
+    # En dernier : le client Jira n'est ouvert qu'une fois tout le reste validé.
+    registre[Etape.extraction] = _etape_extraction(racine, jira, secrets_usine, horloge)
     return Rapport(
         configuration=configuration,
         registre=MappingProxyType({etape: registre[etape] for etape in Etape}),

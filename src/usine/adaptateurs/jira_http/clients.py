@@ -115,6 +115,18 @@ class _ClientJira:
         self._verifier(methode, chemin)
         return self._transport.requete(methode, chemin, params=params, corps=corps)
 
+    def requete_liste(
+        self,
+        methode: str,
+        chemin: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        corps: Mapping[str, Any] | None = None,
+    ) -> list[Any]:
+        """Envoie une requête et rend le tableau JSON de la réponse (ex. `/field`)."""
+        self._verifier(methode, chemin)
+        return self._transport.requete_liste(methode, chemin, params=params, corps=corps)
+
     def paginer_par_jeton(
         self,
         methode: str,
