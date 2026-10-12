@@ -1,4 +1,30 @@
 # Configuration de la Chaîne de reporting, lue par la composition seulement (AD-8).
+# `prevision` et `decalage_comparaison` (contrats 1.1.0) sont optionnels : absents, ils
+# prennent les valeurs ci-dessous. Chaque paramètre est un entier ≥ 1, en Jours ouvrés.
+# La composition les transmet à la Chaîne (Story 5.4) ; le décalage d'IND-8 dans le domaine
+# reste toutefois la constante `DECALAGE_IND8` (5), seule la taille d'historique en dépend.
 
 # Palier de la Chaîne : 1 = calculs déterministes seuls, 2 = avec la couche LLM.
 palier: 1
+
+# Paramètres des Prévisions (FR-20, FR-21).
+prevision:
+  # Baseline de sortie du rouge (H-7).
+  baseline:
+    # Fenêtre de la vélocité nette (Sorties − Entrées), en Jours ouvrés.
+    fenetre_velocite: 10
+    # Horizon de la Prévision de sortie du rouge, en Jours ouvrés.
+    horizon: 10
+    # Fenêtre des vélocités glissantes qui bornent la fourchette, en Jours ouvrés.
+    fenetre_fourchette: 5
+    # Profondeur d'historique parcourue pour la fourchette, en Jours ouvrés.
+    profondeur_fourchette: 20
+  # Risque d'entrée en rouge (H-8).
+  risque:
+    # Fenêtre de la tendance projetée, en Jours ouvrés.
+    fenetre: 10
+    # Horizon de projection (« la semaine prochaine »), en Jours ouvrés.
+    horizon: 5
+
+# Décalage de la comparaison de Météo et d'IND-8 (J-5 au lieu de J-7, H-19), en Jours ouvrés.
+decalage_comparaison: 5

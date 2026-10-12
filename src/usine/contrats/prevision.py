@@ -6,10 +6,10 @@ facteurs sont des fractions entières.
 
 from datetime import date
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
 import polars as pl
-from pydantic import Field, model_validator
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 from usine.contrats.meteo import CodeIndicateur
 from usine.contrats.modele import Enregistrement
@@ -116,6 +116,12 @@ class RisqueEntreeRouge(Enregistrement):
     seuil_numerateur: int
     seuil_denominateur: int = Field(gt=0)
     version_grille: str = Field(min_length=1)
+    valeur_projetee_numerateur: int | None = None
+    """Numérateur de la valeur projetée de l'indicateur au franchissement (contrats 1.1.0,
+    H-26) ; renseigné avec le dénominateur ou pas du tout."""
+    valeur_projetee_denominateur: int | None = Field(default=None, gt=0)
+    """Dénominateur (> 0) de la valeur projetée ; `None` avec le numérateur : Risque v1.0,
+    et les deux clés sont alors omises du JSON (forme 1.0.0 inchangée)."""
 
     @model_validator(mode="after")
     def _indicateur(self) -> Self:
@@ -124,7 +130,20 @@ class RisqueEntreeRouge(Enregistrement):
             raise ValueError(f"{self.indicateur} n'est pas projeté (IND-1, IND-3, IND-4)")
         if self.date_franchissement_estimee <= self.date_arrete:
             raise ValueError("date de franchissement non postérieure à la Date d'arrêté")
+        if (self.valeur_projetee_numerateur is None) != (self.valeur_projetee_denominateur is None):
+            raise ValueError(
+                "valeur projetée incomplète : numérateur et dénominateur vont ensemble"
+            )
         return self
+
+    @model_serializer(mode="wrap")
+    def _sans_valeur_projetee_vide(self, suite: SerializerFunctionWrapHandler) -> Any:
+        """Omet les deux clés de valeur projetée quand elles sont `None` (lisible en 1.0.0)."""
+        donnees = suite(self)
+        if self.valeur_projetee_numerateur is None and isinstance(donnees, dict):
+            donnees.pop("valeur_projetee_numerateur", None)
+            donnees.pop("valeur_projetee_denominateur", None)
+        return donnees
 
 
 class ContenuPrevisions(Enregistrement):

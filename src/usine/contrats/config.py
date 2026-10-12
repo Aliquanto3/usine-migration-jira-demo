@@ -1,6 +1,8 @@
 """Modèles de configuration validant les fichiers `config/*.yaml` (AD-19).
 
-Amorce de la Story 0.1, complétée par la Story 0.2.
+Amorce de la Story 0.1, complétée par la Story 0.2. Contrats 1.1.0 : Scénarios de démo de
+`ConfigProgramme`, paramètres de Prévision et décalage de comparaison de `ConfigChaine`, tous
+optionnels (un YAML v1.0 se valide toujours).
 """
 
 import re
@@ -22,7 +24,13 @@ from pydantic import (
 from usine.contrats.llm import MOTIF_TYPE_JETON, Tache
 from usine.contrats.meteo import CodeIndicateur, Couleur, Operateur
 from usine.contrats.modele import MappingFige
-from usine.contrats.tickets import DOMAINES_CANONIQUES, Champ, Phase, TypeTicket
+from usine.contrats.tickets import (
+    DOMAINES_CANONIQUES,
+    Champ,
+    Phase,
+    StatutCertification,
+    TypeTicket,
+)
 
 
 def _entier_exact(valeur: object) -> object:
@@ -36,12 +44,68 @@ def _entier_exact(valeur: object) -> object:
     return valeur
 
 
+EntierPositif = Annotated[int, BeforeValidator(_entier_exact), Field(ge=1)]
+"""Entier ≥ 1, ni `bool` ni `float` (paramètres en Jours ouvrés de la Chaîne)."""
+
+
+class ConfigBaseline(BaseModel):
+    """Paramètres H-7 de la Baseline (FR-20), en Jours ouvrés (contrats 1.1.0).
+
+    Mêmes champs et mêmes défauts que `domaine.prevision.baseline.ParametresBaseline`, que la
+    composition construira à partir d'eux.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+    fenetre_velocite: EntierPositif = 10
+    """Jours ouvrés de la vélocité nette."""
+    horizon: EntierPositif = 10
+    """Horizon de la Prévision de sortie du rouge."""
+    fenetre_fourchette: EntierPositif = 5
+    """Jours ouvrés des vélocités glissantes de la fourchette."""
+    profondeur_fourchette: EntierPositif = 20
+    """Jours ouvrés d'historique parcourus pour la fourchette."""
+
+
+class ConfigRisque(BaseModel):
+    """Paramètres H-8 du Risque d'entrée en rouge (FR-21), en Jours ouvrés (contrats 1.1.0).
+
+    Mêmes champs et mêmes défauts que `domaine.prevision.risque.ParametresRisque`.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+    fenetre: EntierPositif = 10
+    """Jours ouvrés de la tendance projetée."""
+    horizon: EntierPositif = 5
+    """Horizon de projection (« la semaine prochaine »)."""
+
+
+class ConfigPrevision(BaseModel):
+    """Paramètres des Prévisions de la Chaîne (contrats 1.1.0)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+    baseline: ConfigBaseline = Field(default_factory=ConfigBaseline)
+    """Paramètres de la Baseline (H-7)."""
+    risque: ConfigRisque = Field(default_factory=ConfigRisque)
+    """Paramètres du Risque d'entrée en rouge (H-8)."""
+
+
 class ConfigChaine(BaseModel):
-    """Configuration de la Chaîne de reporting (`config/chaine.yaml`)."""
+    """Configuration de la Chaîne de reporting (`config/chaine.yaml`).
+
+    `prevision` et `decalage_comparaison` (contrats 1.1.0) sont optionnels : un `chaine.yaml`
+    v1.0 (`palier` seul) prend les défauts H-7, H-8 et H-19.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
     palier: Annotated[Literal[1, 2], BeforeValidator(_entier_exact)]
+    prevision: ConfigPrevision = Field(default_factory=ConfigPrevision)
+    """Paramètres de la Baseline et du Risque d'entrée en rouge (H-7, H-8)."""
+    decalage_comparaison: EntierPositif = 5
+    """Décalage en Jours ouvrés de la comparaison de Météo et d'IND-8 (J-5, H-19)."""
 
 
 class _ModeleConfig(BaseModel):
@@ -103,8 +167,105 @@ class VolumetrieProgramme(_ModeleConfig):
         return self
 
 
+SemaineScenario = Annotated[int, Field(strict=True, ge=1)]
+"""Semaine du Programme d'un Scénario (1 = semaine de l'ancrage)."""
+NombreScenario = Annotated[int, Field(strict=True, ge=0)]
+"""Nombre entier ≥ 0 d'un Scénario."""
+PoidsScenario = Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)]
+"""Poids d'une Entité dans le tirage des créations (Entité normale : 1)."""
+TauxScenario = Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
+"""Part ou taux dans [0, 1]."""
+
+
+class ConfigScenarioSortie(_ModeleConfig):
+    """Scénario A, « sortie de crise » (FR-3), miroir de `generateur.scenarios.ScenarioSortie`.
+
+    Tous les champs sont requis : les valeurs de la démo vivent dans `config/programme.yaml`.
+    """
+
+    entite: str = Field(pattern=r"^ENT-[A-Z0-9]+$")
+    semaine_vague: SemaineScenario
+    bloquantes_bascule: NombreScenario
+    poids_vague: PoidsScenario
+    part_bloquantes_vague: TauxScenario
+    poids_decrue: PoidsScenario
+    statut_certification: StatutCertification
+    semaine_certification: SemaineScenario
+
+
+class ConfigScenarioEnlisement(_ModeleConfig):
+    """Scénario B, « enlisement » (FR-3), miroir de `generateur.scenarios.ScenarioEnlisement`."""
+
+    entite: str = Field(pattern=r"^ENT-[A-Z0-9]+$")
+    semaine_debut: SemaineScenario
+    bloquantes_bascule: NombreScenario
+    poids: PoidsScenario
+    part_bloquantes: TauxScenario
+    part_majeures: TauxScenario
+    statut_certification: StatutCertification
+    semaine_certification: SemaineScenario
+
+    @model_validator(mode="after")
+    def _parts(self) -> Self:
+        if self.part_bloquantes + self.part_majeures > 1:
+            raise ValueError(
+                f"part_bloquantes + part_majeures = {self.part_bloquantes}"
+                f" + {self.part_majeures} > 1"
+            )
+        return self
+
+
+class ConfigScenarioMenace(_ModeleConfig):
+    """Scénario C, « menace » (FR-3), miroir de `generateur.scenarios.ScenarioMenace`."""
+
+    entite: str = Field(pattern=r"^ENT-[A-Z0-9]+$")
+    cas_de_test_par_semaine: Annotated[int, Field(strict=True, ge=1)]
+    taux_ko_initial: TauxScenario
+    semaine_hausse: SemaineScenario
+    taux_ko_hausse: tuple[TauxScenario, ...] = Field(min_length=1)
+    semaine_certification: SemaineScenario
+
+
+ConfigScenario = ConfigScenarioSortie | ConfigScenarioEnlisement | ConfigScenarioMenace
+"""Un Scénario de démo configuré."""
+
+
+class ConfigScenarios(_ModeleConfig):
+    """Scénarios de démo A, B et C (FR-3, contrats 1.1.0) ; absent ou `null` : désactivé.
+
+    Contrôlés au chargement : Entités distinctes, connues du Programme (`ConfigProgramme`),
+    semaines ≥ 1. Une semaine au-delà de `nb_semaines` n'est pas refusée : le générateur
+    ignore ce Scénario, comme un Scénario par défaut, ce qui garde valide une copie raccourcie
+    du Programme livré.
+    """
+
+    sortie: ConfigScenarioSortie | None = None
+    """Scénario A."""
+    enlisement: ConfigScenarioEnlisement | None = None
+    """Scénario B."""
+    menace: ConfigScenarioMenace | None = None
+    """Scénario C."""
+
+    def actifs(self) -> tuple[tuple[str, ConfigScenario], ...]:
+        """Scénarios non désactivés, nommés par leur clé, dans l'ordre A, B, C."""
+        candidats: tuple[tuple[str, ConfigScenario | None], ...] = (
+            ("sortie", self.sortie),
+            ("enlisement", self.enlisement),
+            ("menace", self.menace),
+        )
+        return tuple((nom, s) for nom, s in candidats if s is not None)
+
+    @model_validator(mode="after")
+    def _entites_distinctes(self) -> Self:
+        entites = [scenario.entite for _, scenario in self.actifs()]
+        doublons = sorted({e for e in entites if entites.count(e) > 1})
+        if doublons:
+            raise ValueError(f"Entité portée par plusieurs Scénarios : {', '.join(doublons)}")
+        return self
+
+
 class ConfigProgramme(_ModeleConfig):
-    """Programme fictif : Entités, Vagues, Domaines, Phases, volumétrie."""
+    """Programme fictif : Entités, Vagues, Domaines, Phases, volumétrie, Scénarios de démo."""
 
     nom: str = Field(min_length=1)
     graine: int
@@ -113,6 +274,8 @@ class ConfigProgramme(_ModeleConfig):
     vagues: tuple[VagueProgramme, ...] = Field(min_length=1)
     domaines: tuple[str, ...] = Field(min_length=1)
     volumetrie: VolumetrieProgramme
+    scenarios: ConfigScenarios | None = None
+    """Scénarios de démo (contrats 1.1.0) ; clé absente : Scénarios par défaut du générateur."""
 
     @model_validator(mode="after")
     def _references(self) -> Self:
@@ -135,6 +298,11 @@ class ConfigProgramme(_ModeleConfig):
                         f"Vague {vague.code} : Phase {periode.phase} au-delà de la semaine"
                         f" {self.nb_semaines}"
                     )
+        if self.scenarios is not None:
+            entites = {e.code for e in self.entites}
+            for nom, scenario in self.scenarios.actifs():
+                if scenario.entite not in entites:
+                    raise ValueError(f"scenarios.{nom} : Entité inconnue {scenario.entite!r}")
         return self
 
 

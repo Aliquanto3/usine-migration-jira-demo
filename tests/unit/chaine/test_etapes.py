@@ -1,4 +1,4 @@
-"""Étapes déterministes `EtapeKpi` et `EtapePrevision` (Story 5.1)."""
+"""Étapes déterministes `EtapeKpi`, `EtapePrevision` (Story 5.1) et `prevision_du_passage` (5.3)."""
 
 import json
 from datetime import UTC, date, datetime
@@ -7,18 +7,30 @@ from typing import cast
 import polars as pl
 import pytest
 
-from tests.unit.chaine.environnement import INSTANT, contenu_previsions, horloge_pas_a_pas
+from tests.unit.chaine.environnement import (
+    INSTANT,
+    PROGRAMME_REDUIT,
+    RACINE_DEPOT,
+    contenu_previsions,
+    horloge_pas_a_pas,
+)
 from tests.unit.domaine.constructeur import Flux
-from usine.chaine.etapes import EtapeKpi, EtapePrevision
+from usine.chaine.etapes import EtapeKpi, EtapeMeteo, EtapePrevision, prevision_du_passage
+from usine.config import charger_yaml
 from usine.contrats.calcul import SCHEMA_KPI, SCHEMA_TENDANCE
-from usine.contrats.calendrier import jours_ouvres
-from usine.contrats.config import ConfigChaine, ConfigUsine
+from usine.contrats.calendrier import TAILLE_FENETRE_GLISSANTE, jours_ouvres
+from usine.contrats.config import ConfigChaine, ConfigProgramme, ConfigUsine, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import ContextePassage, StatutEtape
-from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.prevision import ContenuPrevisions, StatutPrevision
 from usine.contrats.trace import TypeTrace
 from usine.domaine.instantanes import tickets_etats
 from usine.domaine.kpi import kpi, tendances
+from usine.domaine.meteo import DECALAGE_IND8, indicateurs, meteo
+from usine.domaine.prevision.baseline import ParametresBaseline, prevoir_sortie
+from usine.domaine.prevision.risque import ParametresRisque, risques_entree_rouge
+from usine.domaine.prevision.serie import series_stock
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
@@ -169,3 +181,142 @@ def test_prevision_d_un_autre_type() -> None:
     etape = EtapePrevision(prevoir, VERSION_DONNEES, horloge_pas_a_pas())
     with pytest.raises(UsineErreur, match=r"tuple.*ContenuPrevisions"):
         etape.executer(_ctx(object()))
+
+
+# --- prevision_du_passage (Story 5.3) ---
+
+
+class ConsultationPrevision:
+    """Consultation réduite à `tickets_etats`, `indicateurs` et `meteo` d'un jour, fixés."""
+
+    def __init__(
+        self, etats: pl.DataFrame, tables: pl.DataFrame, meteos: tuple[MeteoEntite, ...]
+    ) -> None:
+        self._etats = etats
+        self._tables = tables
+        self._meteos = meteos
+
+    def tickets_etats(self, date_arrete: date | None = None) -> pl.DataFrame:
+        return self._etats.filter(pl.col("date") == date_arrete)
+
+    def indicateurs(
+        self, date_arrete: date | None = None, entite: str | None = None
+    ) -> pl.DataFrame:
+        return self._tables.filter(pl.col("date") == date_arrete)
+
+    def meteo(
+        self, date_arrete: date | None = None, entite: str | None = None
+    ) -> tuple[MeteoEntite, ...]:
+        return tuple(m for m in self._meteos if m.date_arrete == date_arrete)
+
+
+def _grille_et_programme() -> tuple[GrilleMeteo, ConfigProgramme]:
+    grille = charger_yaml(RACINE_DEPOT / "config" / "grille_meteo.yaml", GrilleMeteo)
+    return grille, charger_yaml(PROGRAMME_REDUIT, ConfigProgramme)
+
+
+def _passage_a_risque() -> tuple[pl.DataFrame, pl.DataFrame, tuple[MeteoEntite, ...]]:
+    """ENT-A rouge par IND-1 puis orange ; ENT-B orange, bloquantes en hausse (Risque)."""
+    flux = Flux()
+    for cle in ("DEMO-1", "DEMO-2", "DEMO-3"):
+        flux.anomalie(cle, datetime(2026, 9, 28, 9, tzinfo=UTC))
+    flux.anomalie("DEMO-4", datetime(2026, 10, 1, 9, tzinfo=UTC))
+    flux.transition("DEMO-1", datetime(2026, 10, 5, 9, tzinfo=UTC), "nouvelle", "fermee")
+    flux.transition("DEMO-2", datetime(2026, 10, 7, 9, tzinfo=UTC), "nouvelle", "fermee")
+    flux.transition("DEMO-3", datetime(2026, 10, 7, 10, tzinfo=UTC), "nouvelle", "fermee")
+    flux.anomalie("DEMO-10", datetime(2026, 10, 5, 9, tzinfo=UTC), entite="ENT-B")
+    flux.anomalie("DEMO-11", datetime(2026, 10, 7, 9, tzinfo=UTC), entite="ENT-B")
+    jours = jours_ouvres(PREMIER_JOUR, DATE_ARRETE)
+    etats = tickets_etats(flux.evenements, jours)
+    grille, programme = _grille_et_programme()
+    tables: list[pl.DataFrame] = []
+    meteos: list[MeteoEntite] = []
+    for jour in jours:
+        jusque = etats.filter(pl.col("date") <= jour)
+        tables.append(
+            indicateurs(jusque, jour, ENTITES, grille, programme=programme, ancrage=PREMIER_JOUR)
+        )
+        meteos.extend(
+            meteo(
+                jusque, jour, ENTITES, grille, "grille", programme=programme, ancrage=PREMIER_JOUR
+            )
+        )
+    return etats, pl.concat(tables, how="vertical"), tuple(meteos)
+
+
+def test_prevision_du_passage_egale_le_domaine() -> None:
+    etats, tables, meteos = _passage_a_risque()
+    grille, _ = _grille_et_programme()
+    prevoir = prevision_du_passage(grille, ENTITES, PREMIER_JOUR)
+    contenu = prevoir(_ctx(ConsultationPrevision(etats, tables, meteos)))
+
+    jours = jours_ouvres(PREMIER_JOUR, DATE_ARRETE)
+    series = series_stock(etats, ENTITES, jours)
+    previsions = tuple(prevoir_sortie(series, m) for m in meteos if m.couleur is Couleur.rouge)
+    risques = tuple(
+        projete.risque
+        for m in meteos
+        if m.couleur is not Couleur.rouge
+        for projete in risques_entree_rouge(tables, m, grille).risques
+    )
+    assert contenu == ContenuPrevisions(previsions=previsions, risques=risques)
+    # Une Prévision par Entité rouge et par Jour ouvré, des Risques pour ENT-B.
+    rouges = [(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge]
+    assert rouges
+    assert {entite for _, entite in rouges} == {"ENT-A"}
+    assert [(p.date_arrete, p.entite) for p in contenu.previsions] == rouges
+    assert {p.statut for p in contenu.previsions} <= {
+        StatutPrevision.sortie_projetee,
+        StatutPrevision.pas_de_sortie_projetee,
+    }
+    assert contenu.risques
+    assert {r.entite for r in contenu.risques} == {"ENT-B"}
+    dates = [r.date_arrete for r in contenu.risques]
+    assert dates == sorted(dates)
+
+
+def test_prevision_du_passage_parametres_injectes() -> None:
+    """Story 5.4 : les paramètres H-7 et H-8 reçus (de `chaine.yaml`) vont au domaine."""
+    etats, tables, meteos = _passage_a_risque()
+    grille, _ = _grille_et_programme()
+    baseline = ParametresBaseline(horizon=7)
+    risque = ParametresRisque(fenetre=6, horizon=3)
+    prevoir = prevision_du_passage(grille, ENTITES, PREMIER_JOUR, baseline=baseline, risque=risque)
+    contenu = prevoir(_ctx(ConsultationPrevision(etats, tables, meteos)))
+
+    series = series_stock(etats, ENTITES, jours_ouvres(PREMIER_JOUR, DATE_ARRETE))
+    previsions = tuple(
+        prevoir_sortie(series, m, baseline) for m in meteos if m.couleur is Couleur.rouge
+    )
+    risques = tuple(
+        projete.risque
+        for m in meteos
+        if m.couleur is not Couleur.rouge
+        for projete in risques_entree_rouge(tables, m, grille, risque).risques
+    )
+    assert contenu == ContenuPrevisions(previsions=previsions, risques=risques)
+    assert {p.horizon_jours_ouvres for p in contenu.previsions} == {7}
+    assert contenu.risques
+    assert {r.horizon_jours_ouvres for r in contenu.risques} == {3}
+
+
+@pytest.mark.parametrize(
+    ("decalage", "taille"),
+    [(None, max(DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1), (7, 8), (1, 6)],
+)
+def test_etape_meteo_taille_historique(decalage: int | None, taille: int) -> None:
+    """Le tampon d'`EtapeMeteo` couvre `max(décalage, DECALAGE_IND8, Fenêtre) + 1` jours."""
+    grille, programme = _grille_et_programme()
+    if decalage is None:
+        etape = EtapeMeteo(grille, "grille", ENTITES, PREMIER_JOUR, programme)
+    else:
+        etape = EtapeMeteo(grille, "grille", ENTITES, PREMIER_JOUR, programme, decalage=decalage)
+    assert etape.taille_historique == taille
+
+
+def test_prevision_du_passage_date_anterieure() -> None:
+    etats, tables, meteos = _passage_a_risque()
+    grille, _ = _grille_et_programme()
+    prevoir = prevision_du_passage(grille, ENTITES, PREMIER_JOUR)
+    with pytest.raises(UsineErreur, match="2026-09-25"):
+        prevoir(_ctx(ConsultationPrevision(etats, tables, meteos), date(2026, 9, 25)))

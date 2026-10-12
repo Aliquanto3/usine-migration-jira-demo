@@ -1,14 +1,56 @@
-"""Passages publiés pour les tests du rendu : normal et en Mode repli (graine 42, 2026-10-09)."""
+"""Passages pour les tests du rendu (graine 42, 2026-10-09).
 
+Publiés par `lancer_rapport` : normal, en Mode repli, sans `config/jira.yaml`. Fixture Palier 2 :
+copie du Passage normal, manifeste en Palier 2, complétée de `llm/*.json`,
+`repartition_causes.parquet` et `trace/llm.jsonl` écrits par les modèles de contrats.
+"""
+
+import json
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
+import polars as pl
 import pytest
 
-from tests.unit.chaine.environnement import DATE_ARRETE, horloge_figee, preparer_racine
+from tests.unit.chaine.environnement import (
+    DATE_ARRETE,
+    RACINE_DEPOT,
+    horloge_figee,
+    preparer_racine,
+)
 from usine.composition import lancer_rapport
+from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
+from usine.contrats.config import GrilleMeteo
+from usine.contrats.llm import (
+    SCHEMA_REPARTITION_CAUSES,
+    SortieClassification,
+    SortieExplication,
+    SortieNarration,
+    StatutControle,
+    Tache,
+)
 from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite, Operateur, RegleDeclenchante
-from usine.contrats.passage import EnveloppeFichier
+from usine.contrats.passage import EnveloppeFichier, ManifestePassage
+from usine.contrats.tickets import CauseRacine, Gravite
+from usine.contrats.trace import EntreeTrace, TypeTrace
+from usine.contrats.versions import CLE_VERSION, CONTRATS_VERSION
+from usine.rendu.commun import ContexteRendu
+
+URL_JIRA = "https://jira.example.invalid"
+"""URL du site Jira de `config/jira.yaml` (fictive)."""
+
+GRILLE = charger_yaml(RACINE_DEPOT / "config" / "grille_meteo.yaml", GrilleMeteo)
+"""Grille livrée, celle des Passages d'essai."""
+
+CONTEXTE_FICTIF = ContexteRendu(
+    palier=1, source="journal", version_grille="abc", version_donnees="def", grille=GRILLE
+)
+"""Contexte d'un rendu hors Passage publié (Passage réduit ou vide)."""
+
+VERSION_PROMPT = "a" * 64
+VERSION_MODELE = "factice:modele-1"
 
 
 def _publier(
@@ -102,3 +144,97 @@ def passage_jaune_rouge(tmp_path: Path) -> ConsultationPassage:
     )
     (tmp_path / "meteo.json").write_text(enveloppe.model_dump_json(), encoding="utf-8")
     return ConsultationPassage(tmp_path, date_arrete=DATE_ARRETE)
+
+
+def _ecrire_json[T](chemin: Path, manifeste: ManifestePassage, contenu: T) -> None:
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    enveloppe = EnveloppeFichier[T](
+        passage_id=manifeste.passage_id, date_arrete=manifeste.date_arrete, contenu=contenu
+    )
+    chemin.write_text(enveloppe.model_dump_json(), encoding="utf-8")
+
+
+def completer_palier_2(repertoire: Path) -> None:
+    """Manifeste en Palier 2 ; Explications, classification, répartition et trace LLM écrites.
+
+    ENT-A et ENT-B reçoivent une Explication citant leurs deux premières Anomalies ouvertes ;
+    la première bloquante ouverte de ENT-A est classée « paramétrage » ; ENT-B n'a pas de
+    Brouillon.
+    """
+    chemin_manifeste = repertoire / "manifeste.json"
+    donnees = json.loads(chemin_manifeste.read_text(encoding="utf-8"))
+    donnees["palier"] = 2
+    chemin_manifeste.write_text(json.dumps(donnees), encoding="utf-8")
+    manifeste = ManifestePassage.model_validate(donnees)
+    jour = manifeste.date_arrete
+    lecteur = ConsultationPassage(repertoire)
+    explications = []
+    for entite, brouillon in (("ENT-A", "Relancer l'équipe paramétrage."), ("ENT-B", "")):
+        cles = tuple(a.cle_ticket for a in lecteur.anomalies(entite=entite).anomalies[:2])
+        assert cles, f"aucune Anomalie ouverte {entite} dans le Passage d'essai"
+        explications.append(
+            SortieExplication(
+                date_arrete=jour,
+                entite=entite,
+                texte=f"{cles[0]} bloque la recette de {entite}.",
+                citations=cles,
+                brouillon_commentaire=brouillon,
+                statut_controle=StatutControle.conforme,
+            )
+        )
+    classee = lecteur.anomalies(entite="ENT-A", gravite=Gravite.bloquante).anomalies[0]
+    _ecrire_json(repertoire / "llm" / "explications.json", manifeste, tuple(explications))
+    _ecrire_json(
+        repertoire / "llm" / "classification.json",
+        manifeste,
+        (
+            SortieClassification(
+                cle_ticket=classee.cle_ticket, cause_racine=CauseRacine.parametrage
+            ),
+        ),
+    )
+    _ecrire_json(
+        repertoire / "llm" / "narrations.json",
+        manifeste,
+        (SortieNarration(date_arrete=jour, entite="ENT-A", texte="Narration."),),
+    )
+    pl.DataFrame(
+        {
+            "date": [jour, jour],
+            "entite": ["ENT-A", "ENT-B"],
+            "cause_racine": ["parametrage", "reprise_donnees"],
+            "nombre": [1, 1234],
+        },
+        schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
+    ).write_parquet(
+        repertoire / "repartition_causes.parquet", metadata={CLE_VERSION: CONTRATS_VERSION}
+    )
+    trace = EntreeTrace(
+        type_trace=TypeTrace.llm,
+        horodatage=datetime(2026, 10, 12, 7, 30, tzinfo=UTC),
+        passage_id=manifeste.passage_id,
+        date_arrete=jour,
+        entite="ENT-A",
+        tache=Tache.explication,
+        cible="ENT-A",
+        fournisseur="factice",
+        version_prompt=VERSION_PROMPT,
+        version_modele=VERSION_MODELE,
+        version_grille=manifeste.version_grille,
+        version_donnees=manifeste.version_donnees,
+        entree_pseudonymisee="entrée",
+        sortie="sortie",
+        statut_controle=StatutControle.conforme,
+    )
+    (repertoire / "trace" / "llm.jsonl").write_text(
+        trace.model_dump_json() + "\n", encoding="utf-8"
+    )
+
+
+@pytest.fixture(scope="module")
+def passage_palier_2(passage: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Copie du Passage publié, complétée en Palier 2 (fixtures de contrats)."""
+    cible = tmp_path_factory.mktemp("palier-2") / "passages" / passage.parent.name / passage.name
+    shutil.copytree(passage, cible)
+    completer_palier_2(cible)
+    return cible

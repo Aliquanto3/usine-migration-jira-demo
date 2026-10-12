@@ -2,9 +2,12 @@
 
 Trois Scénarios, chacun porté par une Entité, impriment au Journal une trajectoire visible
 avec la Grille par défaut ; les autres Entités suivent le profil « normal » du générateur
-(vert ou jaune). Les paramètres sont typés et validés ici, puis passés à `generer` :
-`ConfigProgramme` (contrats gelés, `extra="forbid"`) n'accepte pas encore de clé
-`scenarios` dans `config/programme.yaml` (report : prochaine version des contrats).
+(vert ou jaune). Les paramètres sont typés et validés ici, puis passés à `generer`.
+
+Depuis les contrats 1.1.0, ils se lisent dans la clé `scenarios` de `config/programme.yaml`
+(`ConfigScenarios`, validée au chargement, convertie par `scenarios_de_config`) ; la
+configuration livrée reprend `SCENARIOS_PAR_DEFAUT`, qui reste le repli d'une configuration
+sans cette clé.
 
 Les Scénarios ne changent pas la volumétrie : ils répartissent autrement, entre Entités, les
 créations d'Anomalies d'une semaine (tirage de l'Entité par poids, bloquantes de bascule
@@ -23,6 +26,12 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import ClassVar, Protocol
 
+from usine.contrats.config import (
+    ConfigScenarioEnlisement,
+    ConfigScenarioMenace,
+    ConfigScenarios,
+    ConfigScenarioSortie,
+)
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.tickets import StatutCertification
 
@@ -313,4 +322,56 @@ SCENARIOS_PAR_DEFAUT = Scenarios(
 )
 """Scénarios A (`ENT-A`), B (`ENT-B`) et C (`ENT-C`) de la démo, calés au jour près sur le
 calendrier de la Vague V1 livré (migration à blanc 1-2, recette 3-5, TNR 6-8) ; `generer` les
-applique par défaut, réduits à ceux qui tiennent dans l'historique (`scenarios_applicables`)."""
+applique par défaut quand la configuration ne porte pas de clé `scenarios`, réduits à ceux qui
+tiennent dans l'historique (`scenarios_applicables`). `config/programme.yaml` en reprend les
+valeurs."""
+
+
+def _sortie(config: ConfigScenarioSortie) -> ScenarioSortie:
+    return ScenarioSortie(
+        entite=config.entite,
+        semaine_vague=config.semaine_vague,
+        bloquantes_bascule=config.bloquantes_bascule,
+        poids_vague=config.poids_vague,
+        part_bloquantes_vague=config.part_bloquantes_vague,
+        poids_decrue=config.poids_decrue,
+        statut_certification=config.statut_certification,
+        semaine_certification=config.semaine_certification,
+    )
+
+
+def _enlisement(config: ConfigScenarioEnlisement) -> ScenarioEnlisement:
+    return ScenarioEnlisement(
+        entite=config.entite,
+        semaine_debut=config.semaine_debut,
+        bloquantes_bascule=config.bloquantes_bascule,
+        poids=config.poids,
+        part_bloquantes=config.part_bloquantes,
+        part_majeures=config.part_majeures,
+        statut_certification=config.statut_certification,
+        semaine_certification=config.semaine_certification,
+    )
+
+
+def _menace(config: ConfigScenarioMenace) -> ScenarioMenace:
+    return ScenarioMenace(
+        entite=config.entite,
+        cas_de_test_par_semaine=config.cas_de_test_par_semaine,
+        taux_ko_initial=config.taux_ko_initial,
+        semaine_hausse=config.semaine_hausse,
+        taux_ko_hausse=tuple(config.taux_ko_hausse),
+        semaine_certification=config.semaine_certification,
+    )
+
+
+def scenarios_de_config(config: ConfigScenarios) -> Scenarios:
+    """Scénarios du générateur à partir de la clé `scenarios` de `config/programme.yaml`.
+
+    Un Scénario absent de la configuration est désactivé. Les contrôles de `ConfigScenarios`
+    (au chargement) et ceux des dataclasses portent sur les mêmes règles.
+    """
+    return Scenarios(
+        sortie=None if config.sortie is None else _sortie(config.sortie),
+        enlisement=None if config.enlisement is None else _enlisement(config.enlisement),
+        menace=None if config.menace is None else _menace(config.menace),
+    )

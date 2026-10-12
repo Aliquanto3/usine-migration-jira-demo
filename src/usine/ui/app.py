@@ -1,4 +1,8 @@
-"""Page Streamlit minimale : bandeau Mode repli, carte météo, lancement et suivi de la Chaîne.
+"""Page Streamlit de la démo : bandeau Mode repli, navigation latérale et écrans.
+
+La carte météo est l'écran par défaut ; chaque autre écran (détail d'une Entité, lancement et
+suivi de la Chaîne, avant / après, Agent, outillage) est à un clic, depuis la navigation
+latérale ou, pour le détail, depuis le bouton de chaque Entité sous la carte.
 
 La page lit le dernier Passage publié via `Consultation` seulement, et la progression d'un
 Passage lancé dans `sorties/progression/`. Elle n'écrit rien sous `sorties/` et n'exécute
@@ -9,13 +13,15 @@ repli et `Consultation` viennent des services de `ui/cli.py` (racine de composit
 
 import subprocess
 from pathlib import Path
-from typing import IO
+from typing import IO, Protocol
 
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
-from usine.ui import carte, lancement, progression
+from usine.ui import carte, detail, lancement, navigation, progression
 from usine.ui.cli import consultation_dernier_passage, mode_repli, racine_ui
+from usine.ui.liens import echapper_markdown
+from usine.ui.navigation import Ecran
 
 # Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
 INTERVALLE_SONDAGE = 1.0  # secondes entre deux lectures de la progression, Chaîne en cours
@@ -46,30 +52,103 @@ def afficher_bandeau(racine: Path) -> None:
         )
 
 
-def afficher_carte(racine: Path) -> None:
-    """Carte météo du dernier Passage publié, ou message explicite sans Passage."""
-    st.subheader("Carte météo du dernier Passage")
+class _Lecture(carte.LectureCarte, detail.LectureDetail, Protocol):
+    """Lectures de la `Consultation` utilisées par la carte et par le détail."""
+
+
+def _lecture(racine: Path) -> _Lecture | None:
+    """`Consultation` du dernier Passage publié, ou `None` après un message explicite."""
     if not racine.is_dir():
         st.error(
             f"Racine introuvable : {racine} (variable USINE_RACINE ou répertoire courant) ;"
             " aucun Passage ne peut être lu ni lancé"
         )
-        return
+        return None
     try:
         consultation = consultation_dernier_passage(racine)
-        if consultation is None:
-            st.info("Aucun Passage publié : lancer la Chaîne pour produire une carte météo.")
-            return
+    except UsineErreur as exc:
+        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        return None
+    if consultation is None:
+        st.info("Aucun Passage publié : lancer la Chaîne pour produire une carte météo.")
+    return consultation
+
+
+def afficher_carte(racine: Path) -> None:
+    """Carte météo du dernier Passage publié : tableau, légende et un bouton Détail par Entité."""
+    st.subheader("Carte météo du dernier Passage")
+    consultation = _lecture(racine)
+    if consultation is None:
+        return
+    try:
         date_arrete = carte.date_carte(consultation)
         lignes = carte.lignes_carte(consultation)
+        entites = [meteo.entite for meteo in consultation.meteo()]
     except UsineErreur as exc:
         st.error(f"Lecture du dernier Passage impossible : {exc}")
         return
     st.caption(f"Date d'arrêté : {date_arrete}")
-    if lignes:
-        st.table(lignes)
-    else:
+    if not lignes:
         st.info("Ce Passage ne contient aucune Météo.")
+        return
+    st.markdown(carte.tableau_markdown(lignes))
+    st.caption(carte.LEGENDE)
+    colonnes = st.columns(len(entites))
+    for colonne, entite in zip(colonnes, entites, strict=True):
+        colonne.button(
+            f"Détail {echapper_markdown(entite)}",
+            key=f"detail_{entite}",
+            on_click=navigation.ouvrir_detail,
+            args=(st.session_state, entite),
+        )
+
+
+def _bloc(titre: str, contenu: str) -> None:
+    """Sous-titre d'un bloc du détail, puis son contenu Markdown."""
+    st.markdown(f"#### {titre}")
+    st.markdown(contenu)
+
+
+def afficher_detail(racine: Path) -> None:
+    """Détail d'une Entité (Palier 1) : Météo, Règles, KPI clés, Prévision, Risque, Explication."""
+    st.subheader(Ecran.detail.value)
+    consultation = _lecture(racine)
+    if consultation is None:
+        return
+    try:
+        meteos = {meteo.entite: meteo for meteo in consultation.meteo()}
+    except UsineErreur as exc:
+        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        return
+    if not meteos:
+        st.info("Ce Passage ne contient aucune Météo.")
+        return
+    if st.session_state.get(navigation.CLE_ENTITE) not in meteos:
+        st.session_state.pop(navigation.CLE_ENTITE, None)  # Entité absente de ce Passage
+    entite = st.selectbox("Entité", list(meteos), key=navigation.CLE_ENTITE)
+    meteo = meteos[entite]
+    try:
+        manifeste = consultation.manifeste()
+        regles = detail.lignes_regles(meteo, consultation.url_ticket)
+        kpi = detail.lignes_kpi(consultation.kpi(entite=entite))
+        calculees = detail.previsions_calculees(manifeste)
+        previsions = consultation.previsions(entite=entite)
+        risques = consultation.risques(entite=entite)
+    except UsineErreur as exc:
+        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        return
+    st.markdown(f"**Météo** : {carte.libelle_meteo(meteo.couleur)}")
+    _bloc("Règles déclenchantes", carte.tableau_markdown(regles) or detail.AUCUNE_REGLE)
+    _bloc("KPI clés", carte.tableau_markdown(kpi) or detail.AUCUN_KPI)
+    _bloc("Prévision de sortie du rouge", detail.texte_prevision(meteo, previsions, calculees))
+    _bloc("Risque d'entrée en rouge", detail.texte_risques(meteo, risques, calculees))
+    _bloc("Explication", detail.texte_explication(manifeste.palier))
+
+
+def afficher_a_venir(ecran: Ecran) -> None:
+    """Emplacement nommé d'un écran livré par une story suivante."""
+    st.subheader(ecran.value)
+    st.info(f"Écran livré par la Story {navigation.STORY_A_VENIR[ecran]}.")
 
 
 def _en_cours() -> bool:
@@ -172,7 +251,7 @@ def afficher_lancement(racine: Path) -> None:
 
 
 def principal() -> None:
-    """Page entière ; le bandeau Mode repli vient en premier, à chaque exécution."""
+    """Page entière ; le bandeau Mode repli vient en premier, à chaque exécution, sur tout écran."""
     st.set_page_config(page_title="Usine de migration", layout="wide")
     try:
         racine = racine_ui()
@@ -180,9 +259,16 @@ def principal() -> None:
         st.error(str(exc))
         racine = Path.cwd()  # la page reste utilisable : carte et lancement s'affichent
     afficher_bandeau(racine)
+    ecran = Ecran(st.sidebar.radio("Écran", navigation.libelles_ecrans(), key=navigation.CLE_ECRAN))
     st.title("Usine de migration")
-    afficher_carte(racine)
-    afficher_lancement(racine)
+    if ecran is Ecran.carte:
+        afficher_carte(racine)
+    elif ecran is Ecran.detail:
+        afficher_detail(racine)
+    elif ecran is Ecran.lancement:
+        afficher_lancement(racine)
+    else:
+        afficher_a_venir(ecran)
 
 
 principal()

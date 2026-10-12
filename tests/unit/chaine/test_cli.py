@@ -112,13 +112,25 @@ def test_passage_publie_et_rejeu(
     assert premier.name != second.name
     assert not (racine / VERROU).exists()
     assert not list((racine / "sorties" / "passages").glob(".en-cours-*"))
-    for nom in ("meteo", "manifeste"):
+    for nom in ("meteo", "manifeste", "previsions"):
         a, b = (
             json.loads((p / FICHIERS_PASSAGE[nom]).read_text(encoding="utf-8"))
             for p in (premier, second)
         )
         assert a != b, nom  # le passage_id diffère : l'exclusion est nécessaire
         assert sans_exclusions(nom, a) == sans_exclusions(nom, b), nom
+    traces = [
+        [
+            sans_exclusions("trace_previsions", json.loads(ligne))
+            for ligne in (p / FICHIERS_PASSAGE["trace_previsions"])
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if ligne.strip()
+        ]
+        for p in (premier, second)
+    ]
+    assert traces[0]
+    assert traces[0] == traces[1]
     for nom in ("tickets_etats.parquet", "instantanes.parquet", "indicateurs.parquet"):
         assert pl.read_parquet(premier / nom).equals(pl.read_parquet(second / nom)), nom
     xlsx, pptx = "rapport-2026-10-09.xlsx", "rapport-2026-10-09.pptx"

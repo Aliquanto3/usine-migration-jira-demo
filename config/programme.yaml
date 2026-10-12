@@ -2,10 +2,10 @@
 # Tout est fictif : aucun nom réel d'entreprise ni de personne.
 #
 # Scénarios de démo A, B et C (Story 1.5, FR-3) : portés par ENT-A, ENT-B et ENT-C (Vague V1),
-# leurs paramètres sont typés dans `src/usine/generateur/scenarios.py`
-# (`SCENARIOS_PAR_DEFAUT`) et passés au générateur. Les contrats de configuration sont gelés
-# (`ConfigProgramme` refuse toute clé inconnue) : une clé `scenarios` ici attend la prochaine
-# version des contrats. Changer les Entités ou le calendrier de V1 décale les Scénarios.
+# leurs paramètres sont lus dans la clé `scenarios` en fin de fichier (contrats 1.1.0). Ses
+# valeurs sont celles de `SCENARIOS_PAR_DEFAUT` (`src/usine/generateur/scenarios.py`), repli
+# du générateur quand la clé est absente. Changer les Entités ou le calendrier de V1 décale
+# les Scénarios ; `usine donnees generer --sans-scenarios` les désactive tous.
 
 # Nom du Programme de migration.
 nom: Banque Exemple — migration SI cœur
@@ -165,13 +165,71 @@ domaines:
 volumetrie:
   # Nombre minimal d'Anomalies générées, toutes Entités confondues.
   anomalies_min: 3000
-  # Nombre maximal d'Anomalies générées. Chaque Anomalie compte au moins une Entrée (sa
-  # création) : le générateur tire dans l'intersection avec `nb_semaines` × bornes d'Entrées
-  # par semaine (ici 3 000 à 4 000), proratisées pour une dernière semaine partielle. Il
-  # réserve aussi 10 % du maximum hebdomadaire aux réouvertures (au plus 450 créations par
-  # semaine), d'où environ 3 000 à 3 600 Anomalies ; 5 000 reste le majorant de la mesure NFR-2.
-  anomalies_max: 5000
+  # Nombre maximal d'Anomalies générées (H-2, modifiée le 12/10/2026 : 3 000 à 4 000).
+  # Chaque Anomalie compte au moins une Entrée (sa création) : le générateur tire dans
+  # l'intersection avec `nb_semaines` × bornes d'Entrées par semaine (1 600 à 4 000, d'où ici
+  # 3 000 à 4 000), proratisées pour une dernière semaine partielle. Il réserve aussi 10 % du maximum
+  # hebdomadaire aux réouvertures (au plus 450 créations par semaine), d'où environ 3 000 à
+  # 3 600 Anomalies. La mesure NFR-2 garde son propre majorant de 5 000 (`outils/`).
+  anomalies_max: 4000
   # Nombre minimal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
   entrees_semaine_min: 200
   # Nombre maximal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
   entrees_semaine_max: 500
+
+# Scénarios de démo (FR-3, contrats 1.1.0), calés au jour près sur le calendrier de V1 avec la
+# Grille livrée (Story 1.8). Clé `scenarios` absente ou vide (`null`) : Scénarios par défaut
+# du générateur ; `scenarios: {}` les désactive tous. Sous la clé, un Scénario absent (ou
+# `null`) est désactivé. Chacun vise une Entité du Programme, distincte de celles des autres ;
+# le générateur ignore un Scénario dont une semaine dépasse l'historique généré.
+scenarios:
+  # Scénario A, « sortie de crise » : vague de bloquantes de reprise de données, puis décrue.
+  sortie:
+    # Entité portant le Scénario A.
+    entite: ENT-A
+    # Semaine du Programme de la vague de bloquantes (bascule au rouge son premier Jour ouvré).
+    semaine_vague: 6
+    # Bloquantes lentes créées le premier Jour ouvré de la vague (prises sur la semaine).
+    bloquantes_bascule: 3
+    # Poids de l'Entité dans le tirage des créations pendant la vague (Entité normale : 1).
+    poids_vague: 1.5
+    # Part des créations tirées de la vague qui sont des bloquantes de reprise de données.
+    part_bloquantes_vague: 0.4
+    # Poids de l'Entité dans le tirage des créations après la vague (décrue).
+    poids_decrue: 0.25
+    # Statut de la Certification de l'Entité (accordee, reservee ou refusee).
+    statut_certification: accordee
+    # Semaine de création de la Certification (premier Jour ouvré).
+    semaine_certification: 3
+  # Scénario B, « enlisement » : bloquantes et majeures qui s'accumulent jusqu'à la fin.
+  enlisement:
+    # Entité portant le Scénario B.
+    entite: ENT-B
+    # Première semaine de l'enlisement (bascule au rouge son premier Jour ouvré).
+    semaine_debut: 2
+    # Bloquantes lentes créées le premier Jour ouvré de `semaine_debut` (prises sur la semaine).
+    bloquantes_bascule: 3
+    # Poids de l'Entité dans le tirage des créations dès `semaine_debut` (Entité normale : 1).
+    poids: 3.0
+    # Part des créations enlisées tirées qui sont bloquantes.
+    part_bloquantes: 0.06
+    # Part des créations enlisées tirées qui sont majeures (le reste : mineures).
+    part_majeures: 0.3
+    # Statut de la Certification de l'Entité (accordee, reservee ou refusee).
+    statut_certification: refusee
+    # Semaine de création de la Certification (premier Jour ouvré).
+    semaine_certification: 4
+  # Scénario C, « menace » : Cas de test nombreux dont le taux de KO monte (orange en fin).
+  menace:
+    # Entité portant le Scénario C.
+    entite: ENT-C
+    # Cas de test d'une semaine pleine, créés et exécutés chaque Jour ouvré.
+    cas_de_test_par_semaine: 30
+    # Taux de KO cumulé visé dans la Phase avant `semaine_hausse`.
+    taux_ko_initial: 0.03
+    # Première semaine de la hausse du taux de KO visé.
+    semaine_hausse: 4
+    # Taux de KO cumulés visés semaine après semaine dès `semaine_hausse` (le dernier se répète).
+    taux_ko_hausse: [0.045, 0.065, 0.07, 0.14, 0.17]
+    # Semaine de création de la Certification, réservée (premier Jour ouvré).
+    semaine_certification: 4
