@@ -70,7 +70,7 @@ development_status:
 
   epic-1: in-progress  # lane L1 Données
   1-1-configuration-complète-du-programme: done
-  1-2-corpus-de-textes-provisoire-et-outil-de-génération: backlog
+  1-2-corpus-de-textes-provisoire-et-outil-de-génération: done
   1-3-génération-reproductible-à-la-volumétrie-cible: backlog
   1-4-identifiants-sensibles-fictifs: backlog
   1-5-scénarios-de-démo-scriptés: backlog
