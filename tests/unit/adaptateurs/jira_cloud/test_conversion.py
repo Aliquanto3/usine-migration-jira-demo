@@ -61,10 +61,10 @@ def test_creation_puis_attributs_initiaux_non_vides_au_meme_horodatage() -> None
             status={"name": "Nouvelle"},
             summary="Titre",
             description=None,
-            customfield_10001={"value": "ENT-A"},
-            customfield_10004={"value": "Bloquante"},
-            customfield_10002=None,
-            customfield_10003={"value": "  "},
+            customfield_10043={"value": "ENT-A"},
+            customfield_10046={"value": "Bloquante"},
+            customfield_10044=None,
+            customfield_10045={"value": "  "},
         )
     )
     instant = datetime(2026, 9, 1, 9, tzinfo=UTC)
@@ -85,7 +85,7 @@ def test_creation_puis_attributs_initiaux_non_vides_au_meme_horodatage() -> None
 def test_valeur_initiale_issue_du_premier_item_du_champ() -> None:
     evenements = _par_id(
         _convertir(
-            _ticket(status={"name": "Fermée"}, customfield_10004={"value": "Mineure"}),
+            _ticket(status={"name": "Fermée"}, customfield_10046={"value": "Mineure"}),
             _historique(
                 "30002",
                 "2026-09-03T09:00:00.000+0000",
@@ -105,9 +105,9 @@ def test_valeur_initiale_issue_du_premier_item_du_champ() -> None:
 def test_valeur_initiale_vide_dans_le_premier_item_non_emise() -> None:
     evenements = _par_id(
         _convertir(
-            _ticket(status={"name": "Nouvelle"}, customfield_10001={"value": "ENT-A"}),
+            _ticket(status={"name": "Nouvelle"}, customfield_10043={"value": "ENT-A"}),
             _historique(
-                "30001", "2026-09-02T09:00:00.000+0000", _item("customfield_10001", None, "ENT-A")
+                "30001", "2026-09-02T09:00:00.000+0000", _item("customfield_10043", None, "ENT-A")
             ),
         )
     )
@@ -146,7 +146,7 @@ def test_champ_hors_type_et_champ_non_mappe_ignores_le_rang_compte() -> None:
                 "2026-09-05T16:00:00.000+0000",
                 _item("status", "À faire", "In Progress"),
                 _item("assignee", None, "Quelqu'un"),
-                _item("customfield_10006", "Non exécuté", "OK"),
+                _item("customfield_10048", "Non exécuté", "OK"),
             ),
         )
     )
@@ -281,7 +281,7 @@ def test_type_sans_correspondance() -> None:
 
 def test_valeur_courante_sans_correspondance() -> None:
     with pytest.raises(UsineErreur, match=r"valeurs\.gravite : .*'Critique'.*DEMO-1"):
-        _convertir(_ticket(customfield_10004={"value": "Critique"}))
+        _convertir(_ticket(customfield_10046={"value": "Critique"}))
 
 
 # --- Valeurs ---

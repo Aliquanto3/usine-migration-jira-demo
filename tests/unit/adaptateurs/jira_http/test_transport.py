@@ -258,7 +258,7 @@ def test_reponse_sans_contenu() -> None:
 
 
 def test_requete_liste_rend_le_tableau() -> None:
-    champs = [{"id": "customfield_10004", "name": "Gravité", "custom": True}]
+    champs = [{"id": "customfield_10046", "name": "Gravité", "custom": True}]
     serveur = ServeurSimule(httpx.Response(200, json=champs))
     assert _transport(serveur).requete_liste("GET", "/rest/api/2/field") == champs
     (requete,) = serveur.requetes

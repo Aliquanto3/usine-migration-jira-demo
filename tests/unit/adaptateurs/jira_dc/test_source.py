@@ -36,8 +36,8 @@ from usine.ports import SourceTickets
 
 JQL = 'project = "DEMO" AND issuetype in ("Anomalie", "Cas de test", "Certification")'
 CHAMPS = (
-    "status,customfield_10001,customfield_10002,customfield_10003,customfield_10004,"
-    "customfield_10005,summary,description,customfield_10006,customfield_10007,issuetype,created"
+    "status,customfield_10043,customfield_10044,customfield_10045,customfield_10046,"
+    "customfield_10047,summary,description,customfield_10048,customfield_10049,issuetype,created"
 )
 
 
@@ -211,13 +211,13 @@ def test_champ_ambigu_nomme_le_nom() -> None:
     serveur = ServeurFixturesDC()
     champs = copy.deepcopy(serveur.reponses["champs"])
     for champ in champs:
-        if champ["id"] == "customfield_10005":
+        if champ["id"] == "customfield_10047":
             champ["name"] = "Gravité"
     serveur.reponses["champs"] = champs
     with pytest.raises(UsineErreur, match="« Gravité » ambigu") as erreur:
         list(source_fixtures_dc(serveur).evenements())
-    assert "customfield_10004" in str(erreur.value)
-    assert "customfield_10005" in str(erreur.value)
+    assert "customfield_10046" in str(erreur.value)
+    assert "customfield_10047" in str(erreur.value)
 
 
 def test_homonyme_non_configure_rend_le_nom_ambigu() -> None:
@@ -268,12 +268,12 @@ def test_item_personnalise_au_nom_d_un_champ_systeme_ignore() -> None:
 
 
 def test_identifiant_present_prevaut_sur_le_nom() -> None:
-    par_nom = {"Gravité": ["customfield_10004", "customfield_10005"]}
+    par_nom = {"Gravité": ["customfield_10046", "customfield_10047"]}
     historiques = [
         {
             "id": "1",
             "items": [
-                {"field": "Gravité", "fieldtype": "custom", "fieldId": "customfield_10004"},
+                {"field": "Gravité", "fieldtype": "custom", "fieldId": "customfield_10046"},
                 {"field": "status", "fieldtype": "jira"},
             ],
         }
@@ -283,8 +283,8 @@ def test_identifiant_present_prevaut_sur_le_nom() -> None:
 
 def test_identifiants_par_nom_ne_retient_que_les_champs_personnalises() -> None:
     champs = [
-        {"id": "customfield_10004", "name": "Gravité"},
-        {"id": "customfield_10004", "name": "Gravité"},
+        {"id": "customfield_10046", "name": "Gravité"},
+        {"id": "customfield_10046", "name": "Gravité"},
         {"id": "customfield_19999", "name": "Gravité"},
         {"id": "customfield_20001", "name": "Équipe"},
         {"id": "customfield_20002", "name": "Équipe"},
@@ -293,7 +293,7 @@ def test_identifiants_par_nom_ne_retient_que_les_champs_personnalises() -> None:
         {"id": "assignee", "name": "Responsable"},
     ]
     assert identifiants_par_nom(champs, config_jira("dc")) == {
-        "Gravité": ["customfield_10004", "customfield_19999"],
+        "Gravité": ["customfield_10046", "customfield_19999"],
         "Équipe": ["customfield_20001"],
         "Externe": ["cf-externe"],
     }

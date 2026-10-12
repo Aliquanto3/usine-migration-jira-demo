@@ -1,4 +1,4 @@
-"""Injection des tickets : ordre, état final, manifeste, refus et interruption (Story 1.6)."""
+"""Injection des tickets : ordre, état final, manifeste et interruption (Stories 1.6, 1.7)."""
 
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -15,7 +15,6 @@ from tests.unit.generateur.injecteur.test_site import verifier_sans_import
 from usine.adaptateurs.jira_cloud.conversion import texte_adf
 from usine.adaptateurs.journal import SourceJournal
 from usine.contrats.config import ConfigJira
-from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import ManifesteInjection
 from usine.contrats.tickets import DOMAINES_CANONIQUES, Champ, TypeTicket
 from usine.generateur.injecteur.injection import InjectionInterrompue, injecter
@@ -46,8 +45,8 @@ def _injecter(
 ) -> tuple[SiteDemo, ManifesteInjection]:
     client = fabrique(faux)
     site = preparer_site(client, config, plan.valeurs_libres)
-    manifeste = injecter(client, plan, site, config, lambda: horloge, limiter or Compteur())
-    return site, manifeste
+    bilan = injecter(client, plan, site, config, lambda: horloge, limiter or Compteur())
+    return site, bilan.manifeste
 
 
 def _etat_jira(faux: FauxJira, cle: str, site: SiteDemo, config: ConfigJira) -> dict[Champ, str]:
@@ -128,20 +127,6 @@ def test_limiteur_appele_avant_chaque_requete(
     compteur = Compteur()
     injecter(client, plan, site, config, lambda: HORLOGE, compteur)
     assert compteur.appels == len(faux.requetes) - avant
-
-
-def test_projet_non_vide_refuse(
-    fabrique_client: FabriqueClient, config: ConfigJira, plan: PlanInjection
-) -> None:
-    faux = FauxJira()
-    _injecter(faux, fabrique_client, config, plan)
-    client = fabrique_client(faux)
-    site = preparer_site(client, config, plan.valeurs_libres)
-    faux.requetes.clear()
-    with pytest.raises(UsineErreur, match=r"Story 1.7") as erreur:
-        injecter(client, plan, site, config, lambda: HORLOGE, Compteur())
-    assert not isinstance(erreur.value, InjectionInterrompue)
-    assert [r.chemin for r in faux.requetes] == [f"{API}/search/approximate-count"]
 
 
 def test_reprise_sur_429(

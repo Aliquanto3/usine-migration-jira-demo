@@ -10,7 +10,7 @@
       "created": "2026-09-08T08:00:00.000+0000",
       "items": [
         {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "3", "fromString": "En correction", "to": "4", "toString": "À retester"},
-        {"field": "Gravité", "fieldtype": "custom", "fieldId": "customfield_10004", "from": "11032", "fromString": "Majeure", "to": "11033", "toString": "Mineure"}
+        {"field": "Gravité", "fieldtype": "custom", "fieldId": "customfield_10046", "from": "11032", "fromString": "Majeure", "to": "11033", "toString": "Mineure"}
       ]
     },
     {

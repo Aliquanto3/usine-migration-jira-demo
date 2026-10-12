@@ -12,30 +12,30 @@
         "status": {
           "name": "Fermée"
         },
-        "customfield_10001": {
+        "customfield_10043": {
           "value": "ENT-B",
           "id": "11002"
         },
-        "customfield_10002": {
+        "customfield_10044": {
           "value": "V2",
           "id": "11012"
         },
-        "customfield_10003": {
+        "customfield_10045": {
           "value": "Paie",
           "id": "11022"
         },
-        "customfield_10004": {
+        "customfield_10046": {
           "value": "Mineure",
           "id": "11033"
         },
-        "customfield_10005": {
+        "customfield_10047": {
           "value": "Migration à blanc",
           "id": "11041"
         },
         "summary": "Rubrique de paie absente",
         "description": "La rubrique 1200 est absente après migration.",
-        "customfield_10006": null,
-        "customfield_10007": null,
+        "customfield_10048": null,
+        "customfield_10049": null,
         "issuetype": {
           "name": "Anomalie"
         },
@@ -85,24 +85,24 @@
         "status": {
           "name": "Ouvert"
         },
-        "customfield_10001": {
+        "customfield_10043": {
           "value": "ENT-A",
           "id": "11001"
         },
-        "customfield_10002": {
+        "customfield_10044": {
           "value": "V1",
           "id": "11011"
         },
-        "customfield_10003": {
+        "customfield_10045": {
           "value": "Paie",
           "id": "11022"
         },
-        "customfield_10004": null,
-        "customfield_10005": null,
+        "customfield_10046": null,
+        "customfield_10047": null,
         "summary": "Certification ENT-A, vague V1",
         "description": null,
-        "customfield_10006": null,
-        "customfield_10007": {
+        "customfield_10048": null,
+        "customfield_10049": {
           "value": "Accordée",
           "id": "11061"
         },

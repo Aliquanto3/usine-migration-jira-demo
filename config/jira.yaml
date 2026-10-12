@@ -1,6 +1,6 @@
 # Site Jira et correspondance Jira → vocabulaire canonique (AD-5, AD-6, AD-23).
 # Site réel (Jira Cloud Free de la démo) ; projet et tickets fictifs. Les identifiants de
-# `champs` restent fictifs (fixtures L2) : les réels sont dans donnees/injection/site_jira.json.
+# `champs` sont ceux du site réel, relevés dans donnees/injection/site_jira.json (Story 1.7).
 
 # URL du site Jira ; les liens des rapports pointent vers <url_site>/browse/<clé>.
 url_site: https://anaelyahi.atlassian.net
@@ -16,15 +16,15 @@ tentatives_max: 5
 # Identifiant Jira de chaque champ canonique (un identifiant par champ).
 champs:
   statut: status  # Statut du workflow des Anomalies (champ standard Jira).
-  entite: customfield_10001  # Entité pilotée.
-  vague: customfield_10002  # Vague de migration.
-  domaine: customfield_10003  # Domaine fonctionnel.
-  gravite: customfield_10004  # Gravité de l'Anomalie.
-  phase: customfield_10005  # Phase de test.
+  entite: customfield_10043  # Entité pilotée.
+  vague: customfield_10044  # Vague de migration.
+  domaine: customfield_10045  # Domaine fonctionnel.
+  gravite: customfield_10046  # Gravité de l'Anomalie.
+  phase: customfield_10047  # Phase de test.
   titre: summary  # Titre du ticket (champ standard Jira).
   description: description  # Description du ticket (champ standard Jira).
-  statut_test: customfield_10006  # Statut d'exécution d'un Cas de test.
-  statut_certification: customfield_10007  # Statut d'une Certification.
+  statut_test: customfield_10048  # Statut d'exécution d'un Cas de test.
+  statut_certification: customfield_10049  # Statut d'une Certification.
 
 # Type de ticket Jira → type canonique.
 types_tickets:

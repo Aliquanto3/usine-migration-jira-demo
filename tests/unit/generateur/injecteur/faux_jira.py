@@ -50,6 +50,8 @@ class FauxJira:
     """État d'un site Jira Cloud simulé."""
 
     taille_page: int = 2
+    premier_numero: int = 1
+    """Numéro de la première clé de ticket d'un projet (numérotation décalée : plus de 1)."""
     types: list[dict[str, Any]] = field(default_factory=list)
     champs: dict[str, dict[str, Any]] = field(default_factory=dict)
     contextes: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
@@ -67,9 +69,12 @@ class FauxJira:
     tickets: dict[str, Ticket] = field(default_factory=dict)
     requetes: list[Requete] = field(default_factory=list)
     avant: Callable[[Requete], httpx.Response | None] | None = None
-    _suivant: int = 20000
+    premier_id: int = 20000
+    """Base des identifiants attribués (un autre site : une autre base)."""
+    _suivant: int = 0
 
     def __post_init__(self) -> None:
+        self._suivant = self.premier_id
         self.types.append({"id": "10001", "name": "Tâche"})
         self.types.append({"id": "10002", "name": "Anomalie", "scope": {"type": "PROJECT"}})
         for nom in STATUTS_DEFAUT:
@@ -135,7 +140,7 @@ class FauxJira:
             ("POST", r"/project", self._post_projet),
             ("GET", r"/issue/createmeta/([A-Z0-9]+)/issuetypes", self._get_meta_types),
             ("GET", r"/issue/createmeta/([A-Z0-9]+)/issuetypes/(\d+)", self._get_meta_champs),
-            ("POST", r"/search/approximate-count", self._post_compte),
+            ("POST", r"/search/jql", self._post_recherche),
             ("POST", r"/issue", self._post_ticket),
             ("GET", r"/issue/([A-Z0-9]+-\d+)/transitions", self._get_transitions),
             ("POST", r"/issue/([A-Z0-9]+-\d+)/transitions", self._post_transition),
@@ -362,16 +367,36 @@ class FauxJira:
 
     # --- Tickets ---
 
-    def _post_compte(self, requete: Requete) -> httpx.Response:
-        jql = requete.corps["jql"]
-        cle = re.search(r'project = "([A-Z0-9]+)"', jql)
-        types = re.search(r"issuetype in \(([^)]*)\)", jql)
-        assert cle and types
-        ids = {t.strip() for t in types.group(1).split(",")}
-        compte = sum(
-            1 for t in self.tickets.values() if t.projet == cle.group(1) and t.type_id in ids
+    def _post_recherche(self, requete: Requete) -> httpx.Response:
+        """`search/jql` : tickets du projet par numéro de clé, pages par `nextPageToken`."""
+        corps = requete.corps
+        cle = re.fullmatch(r'project = "([A-Z0-9]+)" ORDER BY key ASC', corps["jql"])
+        assert cle, corps["jql"]
+        assert set(corps["fields"]) == {"summary", "issuetype", "status"}
+        tickets = sorted(
+            (t for t in self.tickets.values() if t.projet == cle.group(1)),
+            key=lambda t: int(t.cle.rpartition("-")[2]),
         )
-        return httpx.Response(200, json={"count": compte})
+        debut = int(corps.get("nextPageToken", "0"))
+        taille = min(int(corps.get("maxResults", 50)), self.taille_page)
+        page = tickets[debut : debut + taille]
+        noms_types = {t["id"]: t["name"] for t in self.types}
+        issues = [
+            {
+                "id": t.id,
+                "key": t.cle,
+                "fields": {
+                    "summary": t.champs.get("summary"),
+                    "issuetype": {"id": t.type_id, "name": noms_types.get(t.type_id)},
+                    "status": {"id": "0", "name": t.statut},
+                },
+            }
+            for t in page
+        ]
+        contenu: dict[str, Any] = {"issues": issues, "isLast": debut + taille >= len(tickets)}
+        if not contenu["isLast"]:
+            contenu["nextPageToken"] = str(debut + taille)
+        return httpx.Response(200, json=contenu)
 
     def _post_ticket(self, requete: Requete) -> httpx.Response:
         champs = dict(requete.corps["fields"])
@@ -389,7 +414,9 @@ class FauxJira:
                     return self._refus(f"option inconnue {valeur['value']!r}")
         if not champs.get("summary"):
             return self._refus("summary requis")
-        numero = 1 + sum(1 for t in self.tickets.values() if t.projet == projet["key"])
+        numero = self.premier_numero + sum(
+            1 for t in self.tickets.values() if t.projet == projet["key"]
+        )
         cle = f"{projet['key']}-{numero}"
         workflow = self._workflow_du_type(projet, type_id)
         initial = next(v for _, de, v in self._transitions(workflow) if de is None)
@@ -422,7 +449,18 @@ class FauxJira:
     def ecritures(self) -> list[Requete]:
         """Requêtes d'écriture reçues (tout sauf GET et lectures POST)."""
         return [
-            r
-            for r in self.requetes
-            if r.methode != "GET" and not r.chemin.endswith("/search/approximate-count")
+            r for r in self.requetes if r.methode != "GET" and not r.chemin.endswith("/search/jql")
         ]
+
+    def ecritures_tickets(self) -> list[Requete]:
+        """Créations de tickets et transitions reçues."""
+        return [
+            r
+            for r in self.ecritures()
+            if r.chemin == f"{API}/issue" or r.chemin.endswith("/transitions")
+        ]
+
+    def ajouter_ticket(self, cle: str, type_id: str, resume: str, statut: str) -> None:
+        """Ticket posé directement dans le projet de `cle` (ticket étranger, aide des tests)."""
+        projet = cle.rpartition("-")[0]
+        self.tickets[cle] = Ticket(self._id(), cle, projet, type_id, {"summary": resume}, statut)

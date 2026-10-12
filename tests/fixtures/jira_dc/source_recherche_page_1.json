@@ -12,30 +12,30 @@
         "status": {
           "name": "En correction"
         },
-        "customfield_10001": {
+        "customfield_10043": {
           "value": "ENT-A",
           "id": "11001"
         },
-        "customfield_10002": {
+        "customfield_10044": {
           "value": "V1",
           "id": "11011"
         },
-        "customfield_10003": {
+        "customfield_10045": {
           "value": "Comptabilité",
           "id": "11021"
         },
-        "customfield_10004": {
+        "customfield_10046": {
           "value": "Majeure",
           "id": "11032"
         },
-        "customfield_10005": {
+        "customfield_10047": {
           "value": "Recette",
           "id": "11042"
         },
         "summary": "Écart de solde après reprise",
         "description": "Le solde du compte diffère.\nÉcart constaté en recette.",
-        "customfield_10006": null,
-        "customfield_10007": null,
+        "customfield_10048": null,
+        "customfield_10049": null,
         "issuetype": {
           "name": "Anomalie"
         },
@@ -115,30 +115,30 @@
         "status": {
           "name": "À faire"
         },
-        "customfield_10001": {
+        "customfield_10043": {
           "value": "ENT-A",
           "id": "11001"
         },
-        "customfield_10002": {
+        "customfield_10044": {
           "value": "V1",
           "id": "11011"
         },
-        "customfield_10003": {
+        "customfield_10045": {
           "value": "Comptabilité",
           "id": "11021"
         },
-        "customfield_10004": null,
-        "customfield_10005": {
+        "customfield_10046": null,
+        "customfield_10047": {
           "value": "Recette",
           "id": "11042"
         },
         "summary": "Contrôle des soldes repris",
         "description": null,
-        "customfield_10006": {
+        "customfield_10048": {
           "value": "KO",
           "id": "11052"
         },
-        "customfield_10007": null,
+        "customfield_10049": null,
         "issuetype": {
           "name": "Cas de test"
         },

@@ -22,7 +22,7 @@ _CHEMINS_PERMIS = re.compile(
     r"/rest/api/3/(issuetype|field(/search|/[^/]+/context(/[^/]+/option)?)?|workflows/search"
     r"|workflows/create|statuses/search|workflowscheme|issuetypescheme|screens(/\d+/tabs"
     r"(/\d+/fields)?)?|screenscheme|issuetypescreenscheme|project(/search)?|myself"
-    r"|issue/createmeta/[A-Z0-9]+/issuetypes(/\d+)?|search/approximate-count|issue"
+    r"|issue/createmeta/[A-Z0-9]+/issuetypes(/\d+)?|search/jql|issue"
     r"|issue/[A-Z0-9]+-\d+/transitions|serverInfo)"
 )
 """Points d'accès REST du spike : aucun import CSV ou JSON, aucune opération en masse."""

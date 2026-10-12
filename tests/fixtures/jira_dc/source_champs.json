@@ -62,7 +62,7 @@
     ]
   },
   {
-    "id": "customfield_10001",
+    "id": "customfield_10043",
     "name": "Entité",
     "custom": true,
     "navigable": true,
@@ -73,7 +73,7 @@
     ]
   },
   {
-    "id": "customfield_10002",
+    "id": "customfield_10044",
     "name": "Vague",
     "custom": true,
     "navigable": true,
@@ -84,7 +84,7 @@
     ]
   },
   {
-    "id": "customfield_10003",
+    "id": "customfield_10045",
     "name": "Domaine",
     "custom": true,
     "navigable": true,
@@ -95,7 +95,7 @@
     ]
   },
   {
-    "id": "customfield_10004",
+    "id": "customfield_10046",
     "name": "Gravité",
     "custom": true,
     "navigable": true,
@@ -106,7 +106,7 @@
     ]
   },
   {
-    "id": "customfield_10005",
+    "id": "customfield_10047",
     "name": "Phase",
     "custom": true,
     "navigable": true,
@@ -117,7 +117,7 @@
     ]
   },
   {
-    "id": "customfield_10006",
+    "id": "customfield_10048",
     "name": "Statut du test",
     "custom": true,
     "navigable": true,
@@ -128,7 +128,7 @@
     ]
   },
   {
-    "id": "customfield_10007",
+    "id": "customfield_10049",
     "name": "Statut de certification",
     "custom": true,
     "navigable": true,
