@@ -5,12 +5,14 @@ l'anonymise avant toute écriture :
 
 - l'hôte du site devient `https://jira.example.invalid` ;
 - tout objet utilisateur (porteur d'`accountId`) devient le compte fictif `COMPTE_FICTIF` ;
-- les items de changelog d'un champ utilisateur perdent leurs identifiants et noms réels ;
+- les items de changelog d'un champ utilisateur et les mentions ADF perdent leurs
+  identifiants et noms réels ;
 - `emailAddress` est supprimé, `nextPageToken` retiré (la page devient la dernière).
 
-`verifier_sans_secret` contrôle ensuite le texte : hôte réel, adresse e-mail ou préfixe de
-jeton Atlassian (`ATATT`) lèvent une `UsineErreur` qui nomme le motif, jamais la valeur, et
-aucun fichier n'est écrit. Les fixtures écrites sont `direct_*` : les fixtures construites
+`verifier_sans_secret` contrôle ensuite le texte : hôte réel, adresse e-mail, identifiant de
+compte Atlassian (`712020:<uuid>`) ou préfixe de jeton (`ATATT`) lèvent une `UsineErreur`
+qui nomme le motif, jamais la valeur, et aucun fichier n'est écrit. Les fixtures écrites sont
+`direct_*` : les fixtures construites
 (`source_*`, `recherche_*`, `bulkfetch_*`) ne sont jamais écrasées.
 """
 
@@ -37,6 +39,8 @@ _CLES_SUPPRIMEES = frozenset({"emailAddress", "nextPageToken"})
 _CHAMPS_UTILISATEUR = frozenset({"assignee", "reporter", "creator"})
 _COURRIEL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _PREFIXE_JETON = "ATATT"
+_IDENTIFIANT_COMPTE = re.compile(r"\b\d{6}:[0-9a-fA-F]{8}-[0-9a-fA-F-]{27}\b")
+"""Identifiant de compte Atlassian (`712020:<uuid>`)."""
 
 
 def _hote(url_site: str) -> str:
@@ -82,6 +86,9 @@ def anonymiser(objet: Any, url_site: str) -> Any:
     if isinstance(objet, Mapping):
         if "accountId" in objet:
             return dict(COMPTE_FICTIF)
+        if objet.get("type") == "mention":  # mention ADF : identifiant et nom réels
+            texte = "@" + COMPTE_FICTIF["displayName"]
+            return {"type": "mention", "attrs": {"id": COMPTE_FICTIF["accountId"], "text": texte}}
         if _item_utilisateur(objet):
             return _anonymiser_item(objet, url_site)
         resultat = {
@@ -105,6 +112,8 @@ def verifier_sans_secret(texte: str, url_site: str) -> None:
         motifs.append("hôte du site Jira réel")
     if _COURRIEL.search(texte):
         motifs.append("adresse e-mail")
+    if _IDENTIFIANT_COMPTE.search(texte):
+        motifs.append("identifiant de compte Atlassian")
     if _PREFIXE_JETON in texte:
         motifs.append(f"préfixe de jeton Atlassian ({_PREFIXE_JETON})")
     if motifs:
@@ -130,6 +139,10 @@ def rafraichir_fixtures(
         "maxResults": nb_tickets,
     }
     page = client.requete("POST", CHEMIN_RECHERCHE, corps=corps)
+    if not page.get("issues"):
+        raise UsineErreur(
+            f"Jira POST {CHEMIN_RECHERCHE} : recherche sans ticket ; fixture non écrite"
+        )
     texte = json.dumps(anonymiser(page, config.url_site), ensure_ascii=False, indent=2) + "\n"
     verifier_sans_secret(texte, config.url_site)
     chemin = sortie / FICHIER_RECHERCHE

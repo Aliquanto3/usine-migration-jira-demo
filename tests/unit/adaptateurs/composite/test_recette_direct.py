@@ -111,6 +111,8 @@ def recette(monkeypatch: pytest.MonkeyPatch) -> Iterator[Recette]:
     jeton = secrets_usine.jira_token_lecture
     if jeton is None or not jeton.get_secret_value().strip():
         pytest.skip("recette sans secret de lecture : JIRA_TOKEN_LECTURE absent")
+    if not (secrets_usine.jira_email or "").strip():
+        pytest.skip("recette sans compte de lecture : JIRA_EMAIL absent")
     yield Recette(racine, config, secrets_usine)
 
 

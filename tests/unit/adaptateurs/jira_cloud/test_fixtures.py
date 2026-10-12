@@ -136,6 +136,36 @@ def test_anonymisation_hote_sans_schema_et_casse() -> None:
     assert texte == "voir jira.example.invalid/browse/DEMO-1"
 
 
+@pytest.mark.parametrize("champ", ["assignee", "reporter", "creator"])
+def test_anonymisation_item_utilisateur_sans_tmp_account_id(champ: str) -> None:
+    item = {
+        "field": champ,
+        "fieldtype": "jira",
+        "from": "712020:0a1b2c3d-0000-4000-8000-000000000001",
+        "fromString": "Personne Réelle",
+        "to": "712020:0a1b2c3d-0000-4000-8000-000000000002",
+        "toString": "Autre Personne",
+    }
+    resultat = anonymiser(item, URL_REELLE)
+    assert resultat["from"] == resultat["to"] == "compte-fictif"
+    assert resultat["fromString"] == resultat["toString"] == "Compte fictif"
+
+
+def test_anonymisation_mention_adf() -> None:
+    description = {
+        "type": "paragraph",
+        "content": [
+            {
+                "type": "mention",
+                "attrs": {"id": "712020:0a1b2c3d-0000-4000-8000-000000000001", "text": "@Réel"},
+            }
+        ],
+    }
+    texte = json.dumps(anonymiser(description, URL_REELLE), ensure_ascii=False)
+    assert "Réel" not in texte and "0a1b2c3d" not in texte
+    verifier_sans_secret(texte, URL_REELLE)
+
+
 # --- Résidu sensible ---------------------------------------------------------------------
 
 
@@ -145,6 +175,10 @@ def test_anonymisation_hote_sans_schema_et_casse() -> None:
         ('{"self": "https://site-reel.atlassian.net/x"}', "hôte du site Jira réel"),
         ('{"note": "écrire à quelqu.un@exemple.fr"}', "adresse e-mail"),
         ('{"note": "ATATT3xFfGF0-valeur-secrete"}', "préfixe de jeton Atlassian"),
+        (
+            '{"from": "712020:0a1b2c3d-0000-4000-8000-000000000abc"}',
+            "identifiant de compte Atlassian",
+        ),
     ],
 )
 def test_residu_sensible_refuse_sans_citer_la_valeur(texte: str, motif: str) -> None:
@@ -183,6 +217,13 @@ def test_rafraichissement_une_requete_et_fichier_ecrit(tmp_path: Path) -> None:
     texte = chemin.read_text(encoding="utf-8")
     verifier_sans_secret(texte, URL_REELLE)
     assert json.loads(texte)["issues"][0]["key"] == "DEMO-1"
+
+
+def test_rafraichissement_recherche_vide_rien_ecrit(tmp_path: Path) -> None:
+    serveur = ServeurSimule(httpx.Response(200, json={"issues": [], "isLast": True}))
+    with pytest.raises(UsineErreur, match="sans ticket"):
+        rafraichir_fixtures(_client(serveur, _config()), _config(), tmp_path / "f", 3)
+    assert not (tmp_path / "f").exists()
 
 
 def test_rafraichissement_nb_tickets_invalide(tmp_path: Path) -> None:
