@@ -125,6 +125,6 @@ Status: done
 
 **Revue (mode économique, Edge Case Hunter seul) :** 8 constats ; 5 patchés (2 high, 3 medium, regroupés en 3 causes) ; 3 rejetés (false, voir Review Triage Log) ; rien de différé. Correctifs du parent avant revue : entier sans décimale jamais accepté comme arrondi d'une valeur non entière hors pourcentage, libellés français des statuts et méthodes. Revue de suivi faite (Edge Case Hunter ciblé) : 8 constats, 7 patchés (formes de nombres et de dates qui échappaient au contrôle), 1 low rejeté. Pas d'autre passe : le mode économique n'en prévoit qu'une.
 
-**Vérification :** `ruff check`, `ruff format --check`, `mypy` (304 fichiers), `lint-imports` (14 contrats) verts ; `pytest -q` : 2533 passés après fusion de main (6.4, 6.5), 1 ignoré, 38 désélectionnés ; 1 ignoré, 38 désélectionnés.
+**Vérification :** `ruff check`, `ruff format --check`, `mypy` (304 fichiers), `lint-imports` (14 contrats) verts ; `pytest -q` : 2533 passés après fusion de main (6.4, 6.5), 1 ignoré, 38 désélectionnés.
 
 **Risques résiduels :** `rendu/` ne lit pas encore les narrations (interdit à l'epic) : elles sont publiées dans `llm/narrations.json` pour l'UI Palier 2 (Epic 7). Contrôle volontairement strict : nombres en toutes lettres non contrôlés ; une suite de chiffres séparés par des espaces est lue comme un nombre à milliers ; un nombre accolé à des lettres (`S3`) est contrôlé et peut faire rejeter une phrase. Merge avec la 6.4 : `composition.py` (ligne voisine du câblage) et la fin de `ia/controles.py` peuvent entrer en conflit trivial.
