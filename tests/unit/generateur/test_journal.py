@@ -1,4 +1,4 @@
-"""Générateur déterministe du Journal (Stories 0.3 et 1.1)."""
+"""Générateur déterministe du Journal (Stories 0.3, 1.1 et 1.2)."""
 
 import json
 import re
@@ -23,6 +23,7 @@ from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
 from usine.contrats.tickets import CHAMPS_PAR_TYPE, CauseRacine, Champ, StatutTest, TypeTicket
+from usine.generateur.corpus import Corpus, TextesDomaine, TexteTicket
 from usine.generateur.journal import (
     Generation,
     ecrire_journal,
@@ -31,6 +32,7 @@ from usine.generateur.journal import (
     serialiser_journal,
     serialiser_verite,
 )
+from usine.generateur.textes import corpus_provisoire
 
 RACINE = Path(__file__).resolve().parents[3]
 PROGRAMME_LIVRE = RACINE / "config" / "programme.yaml"
@@ -77,8 +79,8 @@ def test_entete(generation: Generation, graine: int) -> None:
     assert entete.date_generation == DATE_GENERATION
     assert entete.date_injection == date(2026, 10, 9)
     assert entete.ancrage_semaines == date(2026, 8, 17)
-    assert entete.version_corpus == "mini-e0"
-    assert entete.modele_corpus == "aucun"
+    assert entete.version_corpus == "provisoire-1"
+    assert entete.modele_corpus == "gabarits-provisoires"
 
 
 @pytest.mark.parametrize(
@@ -563,3 +565,90 @@ def test_cle_projet(config: ConfigProgramme) -> None:
 def test_cle_projet_invalide(config: ConfigProgramme, cle: str) -> None:
     with pytest.raises(UsineErreur, match="clé de projet invalide"):
         generer(config, 42, DATE_GENERATION, cle_projet=cle)
+
+
+# --- Story 1.2 : textes tirés du Corpus ---
+
+
+def _titres_attendus(corpus: Corpus, domaine: str, cause: CauseRacine, entite: str) -> set[str]:
+    case = corpus.textes_domaine(domaine).anomalies[cause]
+    return {texte.remplir(entite, domaine)[0] for texte in case}
+
+
+def _verifier_titres_des_anomalies(corpus: Corpus, generation: Generation) -> int:
+    """Le titre de chaque Anomalie appartient à la case (Domaine, Cause racine) du Corpus."""
+    attributs = _attributs(generation)
+    for cle, cause in generation.verite_terrain.items():
+        valeurs = attributs[cle]
+        attendus = _titres_attendus(corpus, valeurs[Champ.domaine], cause, valeurs[Champ.entite])
+        assert valeurs[Champ.titre] in attendus, (cle, cause, valeurs[Champ.titre])
+    return len(generation.verite_terrain)
+
+
+def test_titres_dans_la_case_domaine_cause(config: ConfigProgramme, generation: Generation) -> None:
+    """Config réduite : `comptabilite` livré, `achats` et `paie` tirés dans `generique`."""
+    assert _verifier_titres_des_anomalies(corpus_provisoire(config.domaines), generation)
+
+
+def test_titres_dans_la_case_config_livree(
+    config_livree: ConfigProgramme, generation_livree: Generation
+) -> None:
+    corpus = corpus_provisoire(config_livree.domaines)
+    assert set(corpus.domaines) == set(config_livree.domaines)
+    assert _verifier_titres_des_anomalies(corpus, generation_livree) >= 3000
+
+
+def test_domaine_absent_tire_dans_generique(config: ConfigProgramme) -> None:
+    generation = generer(config, 42, DATE_GENERATION)
+    attributs = _attributs(generation).values()
+    for domaine in ("achats", "paie"):
+        textes = [v for v in attributs if v.get(Champ.domaine) == domaine]
+        assert textes, domaine
+        for valeurs in textes:
+            assert f"domaine {domaine}" in valeurs[Champ.titre] + valeurs[Champ.description]
+    contenu = serialiser_journal(generation).decode("utf-8")
+    assert "{domaine}" not in contenu
+    assert "{entite}" not in contenu
+
+
+def _corpus_unique(version: str, modele: str) -> Corpus:
+    """Corpus minimal : une seule paire par case, marquée par sa case."""
+
+    def case(nom: str) -> tuple[TexteTicket, ...]:
+        return (TexteTicket(titre=f"{nom} {{domaine}}", description=f"{nom} pour {{entite}}"),)
+
+    def section(prefixe: str) -> TextesDomaine:
+        return TextesDomaine(
+            anomalies={c: case(f"{prefixe}-{c.name}") for c in CauseRacine},
+            cas_de_test=case(f"{prefixe}-test"),
+        )
+
+    return Corpus(
+        version_corpus=version,
+        modele_corpus=modele,
+        domaines={"comptabilite": section("compta")},
+        generique=section("gen"),
+        certifications=(TexteTicket(titre="Certif {entite}", description="Avis {entite}"),),
+    )
+
+
+def test_corpus_passe_en_parametre(config: ConfigProgramme) -> None:
+    corpus = _corpus_unique("essai-7", "factice:modele")
+    generation = generer(config, 42, DATE_GENERATION, corpus=corpus)
+    assert generation.entete.version_corpus == "essai-7"
+    assert generation.entete.modele_corpus == "factice:modele"
+    attributs = _attributs(generation)
+    for cle, cause in generation.verite_terrain.items():
+        valeurs = attributs[cle]
+        prefixe = "compta" if valeurs[Champ.domaine] == "comptabilite" else "gen"
+        assert valeurs[Champ.titre] == f"{prefixe}-{cause.name} {valeurs[Champ.domaine]}"
+        assert valeurs[Champ.description] == f"{prefixe}-{cause.name} pour {valeurs[Champ.entite]}"
+    certifications = [v for v in attributs.values() if Champ.statut_certification in v]
+    assert {v[Champ.titre] for v in certifications} == {"Certif ENT-A", "Certif ENT-B"}
+    # Même graine, même Corpus : même Journal ; autre Corpus : autres textes.
+    assert serialiser_journal(generer(config, 42, DATE_GENERATION, corpus=corpus)) == (
+        serialiser_journal(generation)
+    )
+    assert serialiser_journal(generer(config, 42, DATE_GENERATION)) != serialiser_journal(
+        generation
+    )

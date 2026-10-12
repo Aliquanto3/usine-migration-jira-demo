@@ -11,6 +11,7 @@ from usine.contrats.calendrier import analyser_date_iso, jour_local
 from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import CHEMIN_JOURNAL
+from usine.generateur.corpus import CHEMIN_CORPUS, charger_corpus
 from usine.generateur.journal import ecrire_journal
 from usine.generateur.journal import generer as generer_journal
 
@@ -57,19 +58,25 @@ def generer(
     sortie: Annotated[
         Path, typer.Option(help="Répertoire où écrire le Journal et la vérité terrain.")
     ] = CHEMIN_JOURNAL.parent,
+    corpus: Annotated[
+        Path, typer.Option(help="Corpus de textes versionné (titres et descriptions).")
+    ] = CHEMIN_CORPUS,
 ) -> None:
     """Génère le Journal d'événements du Programme fictif et sa vérité terrain.
 
     Les clés de tickets sont `<cle_projet>-<n>`, avec la clé de projet de `--config-jira`.
+    Les textes viennent du Corpus `--corpus`, déjà écrit : aucun appel LLM.
     """
     jour = jour_local(datetime.now(UTC)) if date_generation is None else _date(date_generation)
     programme = charger_yaml(config, ConfigProgramme)
     jira = charger_yaml(config_jira, ConfigJira)
+    textes = charger_corpus(corpus)
     generation = generer_journal(
         programme,
         programme.graine if graine is None else graine,
         jour,
         cle_projet=jira.cle_projet,
+        corpus=textes,
     )
     journal = ecrire_journal(generation, sortie)
     typer.echo(
