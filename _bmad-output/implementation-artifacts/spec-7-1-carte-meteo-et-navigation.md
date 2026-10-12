@@ -2,7 +2,8 @@
 title: 'Story 7.1 : Carte météo et navigation'
 type: 'feature'
 created: '2026-10-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '77b443aefb4bbf6db5cab500c79db074f3cb7d3a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -117,6 +118,39 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-12 — Review pass
+- verdicts: 29 findings — high 0, medium 0, low 22, false 6, maybe-false 1
+- findings:
+  - `[low]` `[reject]` (blind) Suivi de la Chaîne interrompu hors de l'écran Lancement — au retour sur l'écran, le fragment reprend, affiche la fin et ferme le fichier d'erreurs ; la carte relit le dernier Passage à chaque exécution. Le suivi transverse relève de la 7.3 (consigné).
+  - `[low]` `[reject]` (blind) Nouvelle carte invisible depuis l'écran Lancement après succès — un clic ; « la carte affiche le nouveau Passage » est un critère de la 7.3 (consigné).
+  - `[low]` `[patch]` (blind) `formater_regle` recopié de `rendu` sans test de parité — `test_formater_regle_identique_au_rendu` (4 variantes).
+  - `[false]` `[reject]` (blind) `_SYMBOLES` incomplet pour `Operateur` — `Operateur` (contrat gelé v1) n'a que `>=` et `>`, tous deux couverts.
+  - `[false]` `[reject]` (blind) `∞` pour 0/0 ou pour le seuil — `RegleDeclenchante` refuse 0/0 et impose `seuil_denominateur > 0`.
+  - `[low]` `[patch]` (blind) Libellé du bouton Détail non échappé, clés en double, colonnes trop nombreuses — libellé passé par `echapper_markdown` ; doublons impossibles (une Météo par Entité, `domaine/meteo.py`) ; Programme à quelques Entités.
+  - `[low]` `[reject]` (blind) Entité choisie oubliée après un détour par un autre écran — le bouton `Détail ENT-x` la rétablit en un clic ; la persistance relève de l'écran complet (7.2).
+  - `[low]` `[reject]` (blind) Test de bout en bout sans marqueur `lent` — il dure environ 5 s, et la spec l'exige dans `pytest -q`.
+  - `[low]` `[patch]` (blind) `—` à deux sens dans la carte — la légende couvre désormais « aucune règle ou aucun ticket ».
+  - `[low]` `[reject]` (blind) `_DESTINATION` laisse passer le saut de ligne et ne contrôle pas le schéma — l'URL vient de `config/jira.yaml` validé ; improbable.
+  - `[low]` `[reject]` (blind) Tests fondés sur des indices de position — cosmétique.
+  - `[low]` `[reject]` (blind) Second `except UsineErreur` d'`afficher_carte` non testé — même message que la branche testée ; garde de robustesse.
+  - `[low]` `[patch]` (verification-gap) Parité `ui` / `rendu` de `formater_regle` non vérifiée — même correctif que la ligne blind.
+  - `[low]` `[patch]` (verification-gap) Échappement de la cellule Entité non testé — `test_entite_echappee` (`ENT_*A$`).
+  - `[low]` `[reject]` (verification-gap, autre) `pop` de l'Entité absente sans effet observable sous Streamlit 1.65 — redondant mais inoffensif.
+  - `[low]` `[reject]` (edge) Pas de sondage hors de l'écran Lancement — même raison que la première ligne blind.
+  - `[false]` `[reject]` (edge) Deux Météo pour une même Entité — `domaine/meteo.py` produit une `MeteoEntite` par Entité.
+  - `[low]` `[patch]` (edge) Libellé de bouton interprété en Markdown — même correctif que la ligne blind.
+  - `[maybe-false]` `[reject]` (edge) Exception autre qu'`UsineErreur` dans `lignes_carte` — `Consultation` traduit ses erreurs de lecture en `UsineErreur` (revue 0.8) ; à confirmer par une lecture corrompue d'`evolution_meteo`. Au pire `low`.
+  - `[low]` `[reject]` (edge) `:` et `&` non échappés — clés `DEMO-n` et Entités `ENT-x` ; improbable.
+  - `[low]` `[reject]` (edge) Saut de ligne dans l'URL — même raison que la ligne blind.
+  - `[false]` `[reject]` (edge) Tickets en double dans une Règle — `tickets_en_cause` vient des mesures du domaine, sans doublon.
+  - `[low]` `[reject]` (edge) Boutons serrés avec des dizaines d'Entités — le Programme de démo en compte quelques-unes.
+  - `[false]` `[reject]` (edge) `KeyError` si un `Ecran` n'a pas d'entrée dans `STORY_A_VENIR` — `test_stories_a_venir` impose la couverture.
+  - `[low]` `[reject]` (intention) AC3 vérifié sur la chaîne Markdown, pas dans un navigateur — aucun navigateur disponible ; `AppTest` est la surface prévue.
+  - `[low]` `[reject]` (intention) Quatre écrans sont des emplacements — leur contenu appartient aux stories 7.2, 7.4, 7.5 et 7.9.
+  - `[low]` `[reject]` (intention) Règle principale prise dans l'ordre de la Grille — choix motivé dans les Design Notes (aucun ratio calculé dans l'UI).
+  - `[false]` `[reject]` (intention) Nom `LectureMeteo` des artefacts devenu `LectureCarte` — seul le nom change ; l'alignement sur `Consultation` est testé.
+  - `[low]` `[reject]` (intention) Étape `publication` inexistante dans `Etape` — le correctif serait une édition de la spec ; le test vérifie la dernière étape (`rendu`) réussie et le Passage publié.
+
 ## Design Notes
 
 **Règle principale = première Règle.** Classer les Règles par dépassement du seuil demanderait de calculer des ratios dans l'UI, ce qui est interdit (aucun chiffre dérivé hors du domaine). L'ordre de la Grille est déterministe et c'est celui du rendu. Le détail complet (7.2) liste toutes les Règles.
@@ -132,3 +166,37 @@ deferred: []
 - `uv run mypy` -- expected: aucune erreur.
 - `uv run lint-imports` -- expected: tous les contrats KEPT.
 - `uv run pytest -q` -- expected: tout vert, test de bout en bout compris.
+
+## Auto Run Result
+
+Status: done
+
+**Résumé.** La page Streamlit propose une navigation latérale à six écrans. La carte météo est l'écran par défaut et montre, par Entité :
+- la Météo ;
+- la tendance J-1 / J-5, en flèches avec une légende ;
+- la Règle déclenchante principale, au format du rendu ;
+- les tickets en cause, en liens Jira via `url_ticket` (texte simple en Mode repli).
+
+Un bouton `Détail ENT-x` ouvre le détail de l'Entité en un clic. Détail, avant / après, Agent et outillage sont des emplacements qui nomment leur story. L'écran Lancement reprend la 0.8. Le bandeau Mode repli reste en tête sur chaque écran.
+
+**Fichiers.**
+- `src/usine/ui/liens.py` : rendu unique d'une clé de ticket (lien ou texte), avec échappement Markdown.
+- `src/usine/ui/navigation.py` : écrans, ordre, stories à venir, rappel du bouton Détail.
+- `src/usine/ui/carte.py` : `LectureCarte`, flèches, Règle principale, tickets, tableau Markdown.
+- `src/usine/ui/app.py` : navigation et écrans.
+- `tests/unit/ui/test_carte.py`, `test_liens.py`, `test_navigation.py`, `test_app.py` : matrice I/O, alignement sur `Consultation`, parité avec `rendu`.
+- `tests/unit/ui/test_bout_en_bout.py` : vrai `usine rapport` lancé depuis la page. Il ferme le constat 23 de la rétro E0 et dure environ 5 s.
+
+**Revue.** 29 findings : 0 high, 0 medium, 22 low, 6 false, 1 maybe-false.
+- **Correctifs.** 7 lignes `patch` (low) ont donné 4 correctifs : test de parité de `formater_regle`, libellé du bouton échappé, légende de `—`, test d'échappement de l'Entité.
+- **Différés.** Aucun.
+- **Rejets.** Les autres findings sont rejetés, chacun avec sa raison dans le journal de tri.
+
+**Revue de suivi.** `false` : aucun correctif high ou medium.
+
+**Vérification.** ruff, ruff format, mypy, lint-imports (13 contrats KEPT) et pytest : 1881 passés, 1 ignoré.
+
+**Écarts et risques résiduels (à reprendre en 7.3).**
+- Si l'utilisateur quitte l'écran Lancement pendant un run, le suivi s'interrompt. Il reprend au retour sur l'écran.
+- Après un succès, la nouvelle carte demande un clic sur « Carte météo ». Le critère « la carte affiche le nouveau Passage » appartient à la 7.3.
+- La spec mentionne une étape `publication`, qui n'existe pas dans `Etape`. Le test de bout en bout vérifie plutôt la dernière étape (`rendu`) réussie, le Passage publié et la carte.
