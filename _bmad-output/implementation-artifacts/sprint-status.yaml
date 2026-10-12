@@ -86,7 +86,7 @@ development_status:
   2-3-entrepôt-duckdb-et-extraction-incrémentale: done
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: done
   2-5-source-journal-à-l-échelle-et-correspondance-des-clés: done
-  2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
+  2-6-source-composite-et-cohérence-à-la-date-d-injection: done
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
 
