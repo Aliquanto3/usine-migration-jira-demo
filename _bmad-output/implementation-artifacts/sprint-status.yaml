@@ -76,7 +76,7 @@ development_status:
   1-5-scénarios-de-démo-scriptés: done
   1-6-injection-initiale-dans-jira-cloud-free: backlog  # prérequis : 2.1
   1-7-réinjection-idempotente-et-clés-stables: backlog
-  1-8-calage-des-scénarios-de-démo-au-jour-près: backlog  # prérequis : Epic 3 terminé
+  1-8-calage-des-scénarios-de-démo-au-jour-près: done  # prérequis : Epic 3 terminé
   1-9-corpus-de-textes-définitif-par-llm: backlog  # prérequis : 6.1 (après la porte M3)
   epic-1-retrospective: optional
 
