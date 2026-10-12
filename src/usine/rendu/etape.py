@@ -27,11 +27,12 @@ class EtapeRendu:
         self._horodatage_extraction = horodatage_extraction
 
     def contexte(self, ctx: ContextePassage[Consultation]) -> ContexteRendu:
-        """Contexte du rendu : Palier et Grille du Passage, identité des données.
+        """Contexte du rendu : Palier, Grille et nom du Programme du Passage, identité des données.
 
         `previsions_calculees` est vrai : l'étape `prevision` précède le rendu et son échec
         arrête le Passage (AD-8).
         """
+        programme = ctx.configuration.programme
         return ContexteRendu(
             palier=ctx.palier,
             source=self._donnees.source,
@@ -40,14 +41,18 @@ class EtapeRendu:
             horodatage_extraction=self._horodatage_extraction,
             grille=ctx.configuration.grille_meteo,
             previsions_calculees=True,
+            programme="" if programme is None else programme.nom,
         )
 
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
         """Sorties `rapport_xlsx` et `rapport_pptx`, lues via `ctx.consultation` seulement."""
+        contexte = self.contexte(ctx)
         return ResultatEtape(
             StatutEtape.reussie,
             {
-                "rapport_xlsx": rendre_excel(ctx.consultation, ctx.date_arrete, self.contexte(ctx)),
-                "rapport_pptx": rendre_powerpoint(ctx.consultation, self._gabarit, ctx.date_arrete),
+                "rapport_xlsx": rendre_excel(ctx.consultation, ctx.date_arrete, contexte),
+                "rapport_pptx": rendre_powerpoint(
+                    ctx.consultation, self._gabarit, ctx.date_arrete, contexte
+                ),
             },
         )

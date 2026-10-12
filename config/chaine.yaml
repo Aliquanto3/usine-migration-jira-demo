@@ -1,8 +1,8 @@
 # Configuration de la Chaîne de reporting, lue par la composition seulement (AD-8).
 # `prevision` et `decalage_comparaison` (contrats 1.1.0) sont optionnels : absents, ils
 # prennent les valeurs ci-dessous. Chaque paramètre est un entier ≥ 1, en Jours ouvrés.
-# Ces clés sont validées (contrats 1.1.0) mais pas encore lues par la Chaîne, dont le code
-# garde les mêmes valeurs tant qu'elles n'y sont pas branchées.
+# La composition les transmet à la Chaîne (Story 5.4) ; le décalage d'IND-8 dans le domaine
+# reste toutefois la constante `DECALAGE_IND8` (5), seule la taille d'historique en dépend.
 
 # Palier de la Chaîne : 1 = calculs déterministes seuls, 2 = avec la couche LLM.
 palier: 1

@@ -31,8 +31,10 @@ aussi ancrage des semaines ; `kpi` (KPI et Tendances), chaque Jour ouvré du pre
 ticket existe à la Date d'arrêté, aucun avant. `prevision` est une `EtapePrevision` sur
 `prevision_du_passage` : chaque Jour ouvré, la Baseline (`domaine.prevision.baseline`) pour les
 Entités rouges et les Risques d'entrée en rouge (`domaine.prevision.risque`) pour les autres,
-avec les paramètres par défaut du domaine (H-7, H-8), sur la `SerieStock` que construit
-`domaine.prevision.serie`. `rendu` reçoit l'identité des données (source, versions) et
+avec les paramètres H-7 et H-8 de `ConfigChaine.prevision` (défauts du domaine si absents de
+`chaine.yaml`), sur la `SerieStock` que construit `domaine.prevision.serie`. `meteo` reçoit
+`ConfigChaine.decalage_comparaison` (H-19), qui dimensionne l'historique transmis au domaine.
+`rendu` reçoit l'identité des données (source, versions) et
 l'instant d'extraction, affichés dans l'onglet Traçabilité.
 
 Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
@@ -102,6 +104,8 @@ from usine.contrats.passage import (
 )
 from usine.contrats.versions import version_donnees, version_grille
 from usine.domaine.meteo import verifier_grille
+from usine.domaine.prevision.baseline import ParametresBaseline
+from usine.domaine.prevision.risque import ParametresRisque
 from usine.generateur.corpus import (
     VERSION_CORPUS_LLM,
     VERSION_CORPUS_PROVISOIRE,
@@ -360,9 +364,24 @@ def construire_rapport(
         Etape.extraction: EtapeBouchon(),
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
         Etape.kpi: EtapeKpi(entites, premier_jour),
-        Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
+        Etape.meteo: EtapeMeteo(
+            grille,
+            empreinte_grille,
+            entites,
+            premier_jour,
+            programme,
+            decalage=chaine.decalage_comparaison,
+        ),
         Etape.prevision: EtapePrevision(
-            prevision_du_passage(grille, entites, premier_jour), empreinte_donnees, horloge
+            prevision_du_passage(
+                grille,
+                entites,
+                premier_jour,
+                baseline=ParametresBaseline(**chaine.prevision.baseline.model_dump()),
+                risque=ParametresRisque(**chaine.prevision.risque.model_dump()),
+            ),
+            empreinte_donnees,
+            horloge,
         ),
         Etape.rendu: EtapeRendu(gabarit, donnees, horodatage_extraction),
     }

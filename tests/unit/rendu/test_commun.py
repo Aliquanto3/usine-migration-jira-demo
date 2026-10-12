@@ -168,3 +168,25 @@ def test_formater_risque() -> None:
         "Risque d'entrée en rouge IND-1 : franchissement estimé le 15/10/2026 (valeur 2,"
         " seuil rouge 3, horizon 5 Jours ouvrés)"
     )
+
+
+def test_formater_risque_valeur_projetee() -> None:
+    """Story 5.4 : valeur projetée (contrats 1.1.0) affichée seulement si présente."""
+    risque = RisqueEntreeRouge(
+        date_arrete=D,
+        entite="ENT-C",
+        indicateur=CodeIndicateur.ind_4,
+        date_franchissement_estimee=date(2026, 10, 15),
+        horizon_jours_ouvres=5,
+        numerateur=1,
+        denominateur=10,
+        seuil_numerateur=1,
+        seuil_denominateur=5,
+        version_grille="grille",
+        valeur_projetee_numerateur=9,
+        valeur_projetee_denominateur=40,
+    )
+    assert formater_risque(risque) == (
+        f"Risque d'entrée en rouge IND-4 : franchissement estimé le 15/10/2026 (valeur 10{NBSP}%,"
+        f" seuil rouge 20{NBSP}%, horizon 5 Jours ouvrés), valeur projetée 22,5{NBSP}%"
+    )

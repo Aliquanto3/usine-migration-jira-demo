@@ -40,9 +40,10 @@ from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
 from usine.adaptateurs.jira_http import construire_client_lecture
 from usine.adaptateurs.journal import CHEMIN_MANIFESTE_INJECTION, SourceJournal
-from usine.chaine.etapes import EtapeBouchon, EtapePrevision
+from usine.chaine.etapes import EtapeBouchon, EtapeMeteo, EtapePrevision, prevision_du_passage
 from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
+from usine.contrats.calendrier import TAILLE_FENETRE_GLISSANTE
 from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement
@@ -50,6 +51,9 @@ from usine.contrats.meteo import Couleur
 from usine.contrats.passage import Etape
 from usine.contrats.tickets import Champ
 from usine.contrats.versions import version_donnees
+from usine.domaine.meteo import DECALAGE_IND8
+from usine.domaine.prevision.baseline import ParametresBaseline
+from usine.domaine.prevision.risque import ParametresRisque
 from usine.ports.etape import Etape as PortEtape
 from usine.rendu.commun import depuis_manifeste, formater_horodatage
 from usine.rendu.etape import EtapeRendu
@@ -237,6 +241,53 @@ def test_registre_prevision_et_rendu(racine_journal: Path) -> None:
         rapport.donnees.version_donnees,
     )
     assert contexte.previsions_calculees
+
+
+def _capturer_prevision(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    capture: dict[str, Any] = {}
+    origine = prevision_du_passage
+
+    def prevision(*args: Any, **kwargs: Any) -> Any:
+        capture.update(kwargs)
+        return origine(*args, **kwargs)
+
+    monkeypatch.setattr(composition, "prevision_du_passage", prevision)
+    return capture
+
+
+def test_parametres_de_chaine_yaml(racine_journal: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Story 5.4 : la Prévision reçoit `prevision` de `chaine.yaml`, `EtapeMeteo` le décalage."""
+    (racine_journal / "config" / "chaine.yaml").write_text(
+        "palier: 1\n"
+        "prevision:\n"
+        "  baseline:\n"
+        "    horizon: 7\n"
+        "    fenetre_velocite: 8\n"
+        "  risque:\n"
+        "    fenetre: 6\n"
+        "    horizon: 3\n"
+        "decalage_comparaison: 12\n",
+        encoding="utf-8",
+    )
+    capture = _capturer_prevision(monkeypatch)
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    assert capture["baseline"] == ParametresBaseline(horizon=7, fenetre_velocite=8)
+    assert capture["risque"] == ParametresRisque(fenetre=6, horizon=3)
+    meteo = rapport.registre[Etape.meteo]
+    assert isinstance(meteo, EtapeMeteo)
+    assert meteo.taille_historique == max(12, DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1
+
+
+def test_parametres_par_defaut(racine_journal: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un `chaine.yaml` réduit à `palier` donne les défauts du domaine (Passage inchangé)."""
+    (racine_journal / "config" / "chaine.yaml").write_text("palier: 1\n", encoding="utf-8")
+    capture = _capturer_prevision(monkeypatch)
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    assert capture["baseline"] == ParametresBaseline()
+    assert capture["risque"] == ParametresRisque()
+    meteo = rapport.registre[Etape.meteo]
+    assert isinstance(meteo, EtapeMeteo)
+    assert meteo.taille_historique == max(DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1
 
 
 # --- Journal lu aux clés Jira (Story 2.5) ---

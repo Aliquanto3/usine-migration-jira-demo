@@ -76,6 +76,8 @@ class EtapeMeteo:
     """Indicateurs et Météo par Entité, pour chaque Jour ouvré de l'historique.
 
     `premier_jour` est aussi l'ancrage des semaines du Programme (Phase en cours, IND-8).
+    `decalage` est le décalage de comparaison de `ConfigChaine` (H-19), lu par la composition :
+    il élargit seulement l'historique transmis au domaine, où IND-8 reste à `DECALAGE_IND8`.
     """
 
     def __init__(
@@ -85,24 +87,29 @@ class EtapeMeteo:
         entites: Sequence[str],
         premier_jour: date,
         programme: ConfigProgramme,
+        decalage: int = DECALAGE_IND8,
     ) -> None:
         self._grille = grille
         self._version_grille = version_grille
         self._entites = tuple(entites)
         self._premier_jour = premier_jour
         self._programme = programme
+        self._decalage = decalage
+
+    @property
+    def taille_historique(self) -> int:
+        """Jours ouvrés d'état transmis au domaine : `max(décalage, IND-8, Fenêtre) + 1`."""
+        return max(self._decalage, DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1
 
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
         """Sorties `indicateurs` et `meteo`, lues depuis `tickets_etats` du Passage.
 
-        Chaque jour reçoit l'état des tickets de J-5 au jour (Fenêtre glissante d'IND-7,
-        comparaison d'IND-8 à J-5).
+        Chaque jour reçoit l'état des tickets des `taille_historique` derniers Jours ouvrés,
+        jour compris (Fenêtre glissante d'IND-7, comparaison d'IND-8 à J-5).
         """
         tables: list[pl.DataFrame] = []
         meteos: list[MeteoEntite] = []
-        historique: deque[pl.DataFrame] = deque(
-            maxlen=max(DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1
-        )
+        historique: deque[pl.DataFrame] = deque(maxlen=self.taille_historique)
         for jour in jours_du_passage(self._premier_jour, ctx.date_arrete):
             historique.append(ctx.consultation.tickets_etats(jour))
             etats = pl.concat(historique, how="vertical")
@@ -168,20 +175,22 @@ class EtapeKpi:
 
 
 def prevision_du_passage(
-    grille: GrilleMeteo, entites: Sequence[str], premier_jour: date
+    grille: GrilleMeteo,
+    entites: Sequence[str],
+    premier_jour: date,
+    baseline: ParametresBaseline = ParametresBaseline(),  # noqa: B008 (dataclass gelée)
+    risque: ParametresRisque = ParametresRisque(),  # noqa: B008 (dataclass gelée)
 ) -> Prevoir:
     """Prévision d'un Passage, à injecter dans `EtapePrevision` (FR-20, FR-21, AD-7).
 
     Pour chaque Jour ouvré de `premier_jour` à la Date d'arrêté, dans l'ordre, puis pour chaque
     Entité dans l'ordre de `meteo.json` : une Entité rouge reçoit la Prévision de la Baseline
     (`prevoir_sortie`) sur sa `SerieStock`, une autre ses Risques d'entrée en rouge
-    (`risques_entree_rouge`) sur ses Indicateurs. Les paramètres sont ceux du domaine par
-    défaut (H-7, H-8). La série vient de `series_stock` sur l'état des tickets du Passage :
-    aucun calcul ici.
+    (`risques_entree_rouge`) sur ses Indicateurs. `baseline` et `risque` (H-7, H-8) sont lus de
+    `ConfigChaine.prevision` par la composition ; par défaut, ceux du domaine. La série vient de
+    `series_stock` sur l'état des tickets du Passage : aucun calcul ici.
     """
     entites = tuple(entites)
-    baseline = ParametresBaseline()
-    risque = ParametresRisque()
 
     def prevoir(ctx: ContextePassage[Consultation]) -> ContenuPrevisions:
         consultation = ctx.consultation

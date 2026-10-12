@@ -31,8 +31,6 @@ from usine.contrats.calcul import StatutIndicateur
 from usine.contrats.format import formater_date, formater_entier
 from usine.contrats.meteo import CodeIndicateur, Couleur
 from usine.contrats.tickets import Gravite, StatutCertification, StatutTest, TypeTicket
-from usine.contrats.trace import TypeTrace
-from usine.contrats.versions import CONTRATS_VERSION
 from usine.ports.consultation import Consultation
 from usine.rendu.commun import (
     AUTEUR,
@@ -44,7 +42,6 @@ from usine.rendu.commun import (
     TEXTES_COULEURS,
     ContexteRendu,
     archive_deterministe,
-    formater_horodatage,
     formater_indicateur,
     formater_kpi,
     formater_regle,
@@ -55,6 +52,7 @@ from usine.rendu.commun import (
     libelle_indicateur,
     libelle_kpi,
     libelle_perimetre,
+    lignes_tracabilite,
     texte_prevision,
     tickets_en_cause,
     titre_document,
@@ -120,28 +118,13 @@ EN_TETES_EXPLICATIONS = ("Entité", "Explication", "Brouillon de commentaire", "
 TITRE_REPARTITION = "Répartition des Causes racines"
 EN_TETES_REPARTITION = ("Entité", "Cause racine", "Anomalies ouvertes")
 EN_TETES_TRACABILITE = ("Libellé", "Valeur")
-LIBELLES_TRACABILITE = (
-    "Date d'arrêté",
-    "Palier",
-    "Source",
-    "Horodatage d'extraction",
-    "Nombre de tickets",
-    "Version de la Grille",
-    "Version des données",
-    "Version du prompt",
-    "Version du modèle",
-    "Version des contrats",
-)
-"""Lignes fixes de l'onglet Traçabilité (ligne 2 et suivantes, valeur en colonne B).
+# Onglet Traçabilité : en-têtes en ligne 1, puis une ligne par entrée de
+# `rendu.commun.LIBELLES_TRACABILITE`, dans son ordre, à partir de la ligne 2 (valeur en
+# colonne B). Le 4e libellé (« Horodatage d'extraction ») tombe donc en `Traçabilité!B5` et le
+# 7e (« Version des données ») en `Traçabilité!B8` : deux champs exclus du Rejeu au manifeste, à
+# déclarer sous `EXCLUSIONS_REJEU["rapport_xlsx"]` (Story 5.5). Réordonner
+# `LIBELLES_TRACABILITE` déplace ces cellules.
 
-`Traçabilité!B5` (horodatage d'extraction) et `Traçabilité!B8` (version des données) affichent
-des champs exclus du Rejeu au manifeste ; leur déclaration sous
-`EXCLUSIONS_REJEU["rapport_xlsx"]` exige les contrats v1.1 (Story 5.5).
-"""
-
-SANS_EXTRACTION = "sans extraction Jira"
-SANS_LLM_PALIER_1 = "sans objet (Palier 1)"
-AUCUN_APPEL_LLM = "aucun appel LLM"
 NON_EVALUABLE = "non évaluable"
 NON_PROPOSEE = "non proposée"
 LIBELLES_STATUTS_INDICATEUR = {
@@ -442,38 +425,12 @@ def _commentaires(onglet: Worksheet, consultation: Consultation, contexte: Conte
     _largeurs(onglet, (14, 60, 48, 14))
 
 
-def _versions_llm(consultation: Consultation, contexte: ContexteRendu) -> tuple[str, str]:
-    """Versions de prompt et de modèle des traces LLM du Passage, sans doublon, triées."""
-    if contexte.palier == 1:
-        return SANS_LLM_PALIER_1, SANS_LLM_PALIER_1
-    traces = [t for t in consultation.traces() if t.type_trace is TypeTrace.llm]
-    prompts = sorted({t.version_prompt for t in traces if t.version_prompt is not None})
-    modeles = sorted({t.version_modele for t in traces if t.version_modele is not None})
-    return ", ".join(prompts) or AUCUN_APPEL_LLM, ", ".join(modeles) or AUCUN_APPEL_LLM
-
-
 def _tracabilite(
     onglet: Worksheet, consultation: Consultation, jour: date, contexte: ContexteRendu
 ) -> None:
     _en_tetes(onglet, 1, EN_TETES_TRACABILITE)
-    prompt, modele = _versions_llm(consultation, contexte)
-    extraction = contexte.horodatage_extraction
-    valeurs = (
-        formater_date(jour),
-        f"Palier {contexte.palier}",
-        contexte.source,
-        SANS_EXTRACTION if extraction is None else formater_horodatage(extraction),
-        formater_entier(consultation.tickets_etats(jour).height),
-        contexte.version_grille,
-        contexte.version_donnees,
-        prompt,
-        modele,
-        CONTRATS_VERSION,
-    )
-    for ligne, (libelle_ligne, valeur) in enumerate(
-        zip(LIBELLES_TRACABILITE, valeurs, strict=True), start=2
-    ):
-        _ligne(onglet, ligne, (libelle_ligne, valeur))
+    for ligne, valeurs in enumerate(lignes_tracabilite(consultation, jour, contexte), start=2):
+        _ligne(onglet, ligne, valeurs)
     _largeurs(onglet, (26, 70))
 
 

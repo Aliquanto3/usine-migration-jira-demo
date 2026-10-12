@@ -34,6 +34,8 @@ from usine.contrats.meteo import (
 from usine.contrats.passage import ManifestePassage
 from usine.contrats.prevision import Prevision, RisqueEntreeRouge, StatutPrevision
 from usine.contrats.tickets import LIBELLES
+from usine.contrats.trace import TypeTrace
+from usine.contrats.versions import CONTRATS_VERSION
 from usine.ports.consultation import Consultation, Palier
 
 AUTEUR = "Usine de migration (démonstrateur)"
@@ -101,6 +103,8 @@ class ContexteRendu:
     grille: GrilleMeteo | None = None
     previsions_calculees: bool = True
     """L'étape `prevision` a réussi (toujours vrai pendant le rendu, qui la suit, AD-8)."""
+    programme: str = ""
+    """Nom du Programme (`config/programme.yaml`) ; `""` s'il n'est pas connu."""
 
 
 def depuis_manifeste(manifeste: ManifestePassage, grille: GrilleMeteo | None) -> ContexteRendu:
@@ -296,16 +300,25 @@ def formater_prevision(prevision: Prevision) -> str:
 
 
 def formater_risque(risque: RisqueEntreeRouge) -> str:
-    """Risque d'entrée en rouge en une phrase : indicateur, date, valeur courante et seuil."""
+    """Risque d'entrée en rouge en une phrase : indicateur, date, valeur courante et seuil.
+
+    Suivie de « , valeur projetée X » quand le Risque la porte (contrats 1.1.0).
+    """
     valeur = formater_indicateur(risque.indicateur, risque.numerateur, risque.denominateur)
     seuil = formater_indicateur(
         risque.indicateur, risque.seuil_numerateur, risque.seuil_denominateur
     )
-    return (
+    texte = (
         f"Risque d'entrée en rouge {risque.indicateur.value} : franchissement estimé le"
         f" {formater_date(risque.date_franchissement_estimee)} (valeur {valeur}, seuil rouge"
         f" {seuil}, horizon {formater_jours_ouvres(risque.horizon_jours_ouvres)})"
     )
+    numerateur = risque.valeur_projetee_numerateur
+    denominateur = risque.valeur_projetee_denominateur
+    if numerateur is not None and denominateur is not None:
+        projetee = formater_indicateur(risque.indicateur, numerateur, denominateur)
+        texte += f", valeur projetée {projetee}"
+    return texte
 
 
 def texte_prevision(
@@ -321,6 +334,63 @@ def texte_prevision(
     if etat is EtatPrevision.aucun_risque:
         return AUCUN_RISQUE
     return NON_CALCULEE
+
+
+# --- Traçabilité ---
+
+
+LIBELLES_TRACABILITE = (
+    "Date d'arrêté",
+    "Palier",
+    "Source",
+    "Horodatage d'extraction",
+    "Nombre de tickets",
+    "Version de la Grille",
+    "Version des données",
+    "Version du prompt",
+    "Version du modèle",
+    "Version des contrats",
+)
+"""Lignes fixes de la traçabilité (onglet Traçabilité de l'Excel, Annexe méthode du PowerPoint).
+
+L'horodatage d'extraction et la version des données affichent des champs exclus du Rejeu au
+manifeste : à déclarer sous `EXCLUSIONS_REJEU["rapport_xlsx"]` et `["rapport_pptx"]` (5.5).
+"""
+
+SANS_EXTRACTION = "sans extraction Jira"
+SANS_LLM_PALIER_1 = "sans objet (Palier 1)"
+AUCUN_APPEL_LLM = "aucun appel LLM"
+
+
+def versions_llm(consultation: Consultation, contexte: ContexteRendu) -> tuple[str, str]:
+    """Versions de prompt et de modèle des traces LLM du Passage, sans doublon, triées."""
+    if contexte.palier == 1:
+        return SANS_LLM_PALIER_1, SANS_LLM_PALIER_1
+    traces = [t for t in consultation.traces() if t.type_trace is TypeTrace.llm]
+    prompts = sorted({t.version_prompt for t in traces if t.version_prompt is not None})
+    modeles = sorted({t.version_modele for t in traces if t.version_modele is not None})
+    return ", ".join(prompts) or AUCUN_APPEL_LLM, ", ".join(modeles) or AUCUN_APPEL_LLM
+
+
+def lignes_tracabilite(
+    consultation: Consultation, jour: date, contexte: ContexteRendu
+) -> tuple[tuple[str, str], ...]:
+    """Libellé et valeur de chaque ligne de traçabilité, dans l'ordre de `LIBELLES_TRACABILITE`."""
+    prompt, modele = versions_llm(consultation, contexte)
+    extraction = contexte.horodatage_extraction
+    valeurs = (
+        formater_date(jour),
+        f"Palier {contexte.palier}",
+        contexte.source,
+        SANS_EXTRACTION if extraction is None else formater_horodatage(extraction),
+        formater_entier(consultation.tickets_etats(jour).height),
+        contexte.version_grille,
+        contexte.version_donnees,
+        prompt,
+        modele,
+        CONTRATS_VERSION,
+    )
+    return tuple(zip(LIBELLES_TRACABILITE, valeurs, strict=True))
 
 
 # --- Documents ---

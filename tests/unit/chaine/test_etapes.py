@@ -15,10 +15,10 @@ from tests.unit.chaine.environnement import (
     horloge_pas_a_pas,
 )
 from tests.unit.domaine.constructeur import Flux
-from usine.chaine.etapes import EtapeKpi, EtapePrevision, prevision_du_passage
+from usine.chaine.etapes import EtapeKpi, EtapeMeteo, EtapePrevision, prevision_du_passage
 from usine.config import charger_yaml
 from usine.contrats.calcul import SCHEMA_KPI, SCHEMA_TENDANCE
-from usine.contrats.calendrier import jours_ouvres
+from usine.contrats.calendrier import TAILLE_FENETRE_GLISSANTE, jours_ouvres
 from usine.contrats.config import ConfigChaine, ConfigProgramme, ConfigUsine, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.meteo import Couleur, MeteoEntite
@@ -27,9 +27,9 @@ from usine.contrats.prevision import ContenuPrevisions, StatutPrevision
 from usine.contrats.trace import TypeTrace
 from usine.domaine.instantanes import tickets_etats
 from usine.domaine.kpi import kpi, tendances
-from usine.domaine.meteo import indicateurs, meteo
-from usine.domaine.prevision.baseline import prevoir_sortie
-from usine.domaine.prevision.risque import risques_entree_rouge
+from usine.domaine.meteo import DECALAGE_IND8, indicateurs, meteo
+from usine.domaine.prevision.baseline import ParametresBaseline, prevoir_sortie
+from usine.domaine.prevision.risque import ParametresRisque, risques_entree_rouge
 from usine.domaine.prevision.serie import series_stock
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -273,6 +273,45 @@ def test_prevision_du_passage_egale_le_domaine() -> None:
     assert {r.entite for r in contenu.risques} == {"ENT-B"}
     dates = [r.date_arrete for r in contenu.risques]
     assert dates == sorted(dates)
+
+
+def test_prevision_du_passage_parametres_injectes() -> None:
+    """Story 5.4 : les paramètres H-7 et H-8 reçus (de `chaine.yaml`) vont au domaine."""
+    etats, tables, meteos = _passage_a_risque()
+    grille, _ = _grille_et_programme()
+    baseline = ParametresBaseline(horizon=7)
+    risque = ParametresRisque(fenetre=6, horizon=3)
+    prevoir = prevision_du_passage(grille, ENTITES, PREMIER_JOUR, baseline=baseline, risque=risque)
+    contenu = prevoir(_ctx(ConsultationPrevision(etats, tables, meteos)))
+
+    series = series_stock(etats, ENTITES, jours_ouvres(PREMIER_JOUR, DATE_ARRETE))
+    previsions = tuple(
+        prevoir_sortie(series, m, baseline) for m in meteos if m.couleur is Couleur.rouge
+    )
+    risques = tuple(
+        projete.risque
+        for m in meteos
+        if m.couleur is not Couleur.rouge
+        for projete in risques_entree_rouge(tables, m, grille, risque).risques
+    )
+    assert contenu == ContenuPrevisions(previsions=previsions, risques=risques)
+    assert {p.horizon_jours_ouvres for p in contenu.previsions} == {7}
+    assert contenu.risques
+    assert {r.horizon_jours_ouvres for r in contenu.risques} == {3}
+
+
+@pytest.mark.parametrize(
+    ("decalage", "taille"),
+    [(None, max(DECALAGE_IND8, TAILLE_FENETRE_GLISSANTE) + 1), (7, 8), (1, 6)],
+)
+def test_etape_meteo_taille_historique(decalage: int | None, taille: int) -> None:
+    """Le tampon d'`EtapeMeteo` couvre `max(décalage, DECALAGE_IND8, Fenêtre) + 1` jours."""
+    grille, programme = _grille_et_programme()
+    if decalage is None:
+        etape = EtapeMeteo(grille, "grille", ENTITES, PREMIER_JOUR, programme)
+    else:
+        etape = EtapeMeteo(grille, "grille", ENTITES, PREMIER_JOUR, programme, decalage=decalage)
+    assert etape.taille_historique == taille
 
 
 def test_prevision_du_passage_date_anterieure() -> None:
