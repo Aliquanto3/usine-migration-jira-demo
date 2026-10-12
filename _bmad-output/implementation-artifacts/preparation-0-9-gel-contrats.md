@@ -291,3 +291,20 @@ Après le gel, chaque décision reportée coûte une PR sur `main`, un incrémen
 7. Pousser `main` et attendre la CI verte sous Windows et Linux.
 8. Poser l'étiquette `contrats-v1`, puis créer `lane/1-donnees` à `lane/8-portage` depuis l'étiquette, chacune avec son `donnees/` et son `.env` (`epics.md:522-524`).
 9. Mettre à jour le suivi du sprint (story 0.9 `done`, rétrospective de l'Epic 0) et requalifier le verdict de la rétrospective.
+
+## 7. Décisions retenues (2026-10-12)
+
+Anaël a validé l'ensemble des recommandations :
+
+| Décision | Choix |
+| --- | --- |
+| D1 | (b) promouvoir `CacheLLM` seul en port ; `TablePseudonymes` et `LectureMeteo` restent locaux, consignés dans le spine |
+| D2 | (a) déplacer `EnveloppeCache`, `ReponseExplication` (dans `contrats.llm`) et `DonneesPassage` (dans `contrats.passage`) ; un schéma `Reponse<Tache>` par tâche dans `contrats.llm` |
+| D3 | (a) `SchemaTable` porte un ensemble `non_nulles` contrôlé par `valider` |
+| D4 | (a) type annoté commun qui fige les `Mapping` en `MappingProxyType`, avec un test d'aller-retour JSON |
+| D5 | (a) garder les `dataclass` gelées et amender le spine |
+| D6 | (a) passer à `1.0.0` dans le dernier commit de la 0.9 |
+| D7 | (a) `bmad-correct-course` d'abord, exclusions du Rejeu qualifiées par fichier |
+| D8 | (a) ajouter les quatre symboles à `contrats` et migrer les consommateurs dans la même PR. Les dérivations de `Consultation` (âge, J-1/J-5) restent des dérivations de lecture, consignées, puisqu'elles ne changent pas la forme du port |
+| D9 | (a) `dernier_passage(sans_classification_initiale=…)` et filtre `palier` sur `anomalies()` |
+| D10 | (b) `code_kpi` reste un texte libre |
