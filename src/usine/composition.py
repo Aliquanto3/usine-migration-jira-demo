@@ -356,17 +356,23 @@ def lancer_rapport(
     verifier_date_arrete(date_arrete)
     with verrou_exclusif(racine / CHEMIN_VERROU):
         rapport = construire_rapport(racine, fournisseur, pseudonymiseur, horloge)
-        ecrivain = EcrivainPassage(rapport.racine_sorties, horloge)
-        manifeste = executer_passage(
-            rapport.registre,
-            rapport.configuration,
-            date_arrete,
-            ecrivain,
-            rapport.fabrique_consultation(date_arrete),
-            horloge,
-            alea,
-            rapport.donnees,
-        )
+        try:
+            ecrivain = EcrivainPassage(rapport.racine_sorties, horloge)
+            manifeste = executer_passage(
+                rapport.registre,
+                rapport.configuration,
+                date_arrete,
+                ecrivain,
+                rapport.fabrique_consultation(date_arrete),
+                horloge,
+                alea,
+                rapport.donnees,
+            )
+        finally:
+            # Client Jira fermé même si le Passage échoue avant l'étape `extraction`.
+            extraction = rapport.registre[Etape.extraction]
+            if isinstance(extraction, EtapeExtraction):
+                extraction.fermer()
     repertoire = ecrivain.repertoire_publie
     if repertoire is None:  # pragma: no cover - executer_passage publie ou lève
         raise UsineErreur(f"Passage {manifeste.passage_id} non publié")

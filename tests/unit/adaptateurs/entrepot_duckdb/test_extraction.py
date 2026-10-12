@@ -225,3 +225,17 @@ def test_etape_extraction_appelle_fermer_apres_echec(tmp_path: Path) -> None:
     with pytest.raises(UsineErreur):
         etape.executer(_contexte())
     assert fermetures == ["fermé"]
+
+
+def test_etape_extraction_fermer_une_seule_fois(tmp_path: Path) -> None:
+    fermetures: list[str] = []
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()),
+        tmp_path / "entrepot.duckdb",
+        MARGE,
+        lambda: T1,
+        fermer=lambda: fermetures.append("fermé"),
+    )
+    etape.fermer()
+    etape.fermer()
+    assert fermetures == ["fermé"]

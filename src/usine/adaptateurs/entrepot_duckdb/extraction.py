@@ -84,11 +84,16 @@ class EtapeExtraction:
         """Marge de recouvrement retranchée au repère."""
         return self._marge
 
+    def fermer(self) -> None:
+        """Appelle `fermer` du constructeur une seule fois (après l'étape ou en fin de Passage)."""
+        fermer, self._fermer = self._fermer, None
+        if fermer is not None:
+            fermer()
+
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
         """Extrait dans l'entrepôt ; une erreur laisse événements et repère inchangés."""
         try:
             extraire(self._source, EntrepotDuckDB(self._chemin), self._marge, self._horloge)
         finally:
-            if self._fermer is not None:
-                self._fermer()
+            self.fermer()
         return ResultatEtape(StatutEtape.reussie)

@@ -216,3 +216,29 @@ def test_passage_dc_de_bout_en_bout(racine_journal: Path, monkeypatch: pytest.Mo
     entrepot = EntrepotDuckDB(racine_journal / "donnees" / "entrepot.duckdb")
     assert tuple(entrepot.evenements()) == evenements_attendus_dc()
     assert entrepot.repere() == INSTANT
+
+
+def test_client_ferme_si_le_passage_echoue_avant_l_extraction(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _passer_en_dc(racine_journal)
+    monkeypatch.setenv("JIRA_DC_PAT", "pat-fictif")
+    serveur = ServeurFixturesDC()
+    fermetures: list[str] = []
+
+    def construire_simule(*args: Any, **kwargs: Any) -> Any:
+        client = construire_client_lecture(
+            *args, **kwargs, attendre=Attentes(), transport_http=httpx.MockTransport(serveur)
+        )
+        monkeypatch.setattr(client, "fermer", lambda: fermetures.append("fermé"))
+        return client
+
+    def echouer(*args: Any, **kwargs: Any) -> Any:
+        raise UsineErreur("Passage avorté avant l'extraction")
+
+    monkeypatch.setattr(composition, "construire_client_lecture", construire_simule)
+    monkeypatch.setattr(composition, "executer_passage", echouer)
+    with pytest.raises(UsineErreur, match="avorté"):
+        composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+    assert fermetures == ["fermé"]
+    assert serveur.requetes == []
