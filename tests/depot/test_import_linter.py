@@ -23,6 +23,9 @@ CONTRATS_INTERDITS: list[dict[str, Any]] = [
     for c in PYPROJECT["tool"]["importlinter"]["contracts"]
     if c["type"] == "forbidden" and c["name"] != NOM_ISOLATION_LLM
 ]
+NOM_LECTURE_SEULE_AGENT = "ia.agent : lecture seule"
+"""Contrat de sous-paquet (Story 7.8) : ports d'écriture et de Jira interdits à l'Agent."""
+CONTRATS_DES_COUCHES = [c for c in CONTRATS_INTERDITS if c["name"] != NOM_LECTURE_SEULE_AGENT]
 
 # Classement des dépendances directes (groupes compris) : modules importables de chacune.
 MODULES_DES_DEPENDANCES: dict[str, tuple[str, ...]] = {
@@ -186,11 +189,11 @@ def test_chaque_dependance_directe_est_classee() -> None:
 
 
 def test_chaque_couche_a_un_contrat() -> None:
-    sources = {c["source_modules"][0] for c in CONTRATS_INTERDITS}
+    sources = {c["source_modules"][0] for c in CONTRATS_DES_COUCHES}
     assert sources == set(AUTORISATIONS)
 
 
-@pytest.mark.parametrize("contrat", CONTRATS_INTERDITS, ids=lambda c: c["name"])
+@pytest.mark.parametrize("contrat", CONTRATS_DES_COUCHES, ids=lambda c: c["name"])
 def test_interdits_conformes_a_la_liste_blanche(contrat: dict[str, Any]) -> None:
     attendus = _interdits_attendus(contrat["source_modules"][0])
     assert sorted(set(contrat["forbidden_modules"]) ^ attendus) == []
