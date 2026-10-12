@@ -2,7 +2,7 @@
 title: "Story 7.2 : Détail d'une Entité (Palier 1)"
 type: 'feature'
 created: '2026-10-12'
-status: 'in-review'
+status: 'done'
 baseline_revision: '73560cbf6e3da30e1e9666f1521730c5fde95bc9'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -10,7 +10,21 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-7-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-7-1-carte-meteo-et-navigation.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Message AUCUN_KPI jamais rendu par l'app dans un test.
+    evidence: |-
+      Le Passage d'essai a des KPI pour chaque Entité ; seul le texte de la constante est testé.
+    location: >-
+      src/usine/ui/app.py
+    severity: low
+  - summary: >-
+      Aucun Risque réel du Passage n'est rendu par AppTest.
+    evidence: |-
+      Graine 42 : ENT-A et ENT-B rouges, aucun Risque publié. Un Passage d'essai avec une Entité non rouge et un Risque trancherait.
+    location: >-
+      tests/unit/ui/test_app.py
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -104,6 +118,32 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-12 — Review pass
+- verdicts: 22 findings — high 0, medium 2, low 9, false 9, maybe-false 2
+- findings:
+  - `[medium]` `[patch]` (verification-gap) Chemin d'erreur `UsineErreur` des lectures par Entité de `afficher_detail` jamais testé — ajouté `test_detail_lecture_entite_illisible` (doublure dont `previsions` lève, message d'erreur affiché, pas d'exception).
+  - `[medium]` `[patch]` (verification-gap) `AUCUNE_REGLE` jamais rendu par l'app — ajouté `test_detail_entite_verte` (doublure ENT-B verte : Aucune Règle, Prévision sans objet).
+  - `[low]` `[defer]` (verification-gap) `AUCUN_KPI` jamais rendu par l'app — le Passage d'essai a toujours des KPI ; fixture dédiée hors de proportion.
+  - `[false]` `[reject]` (blind) Ordre `calculees` avant couleur dans `texte_prevision`/`texte_risques` — conforme au contrat : Passage non calculé, les deux blocs portent « non calculé ».
+  - `[false]` `[reject]` (blind) Parenthèses vides pour `regle_non_projetable` sans code — le validateur de `Prevision` exige des règles non projetables pour ce statut.
+  - `[low]` `[reject]` (blind) Métadonnées différentes selon le statut de Prévision — le contrat fixe le contenu par statut ; branches non testées (bornes simples de fourchette) rares, pas de défaut observé.
+  - `[maybe-false]` `[reject]` (blind) Indicateurs de taux formatés en fraction dans les Risques — même formatage que `formater_regle` de la Carte ; au pire `low` (cosmétique) : à trancher avec la Grille si un IND projeté est un taux.
+  - `[low]` `[reject]` (blind) Risques ou Prévisions multiples non triés — ordre du Passage (domaine), une ligne par indicateur ; correctif ajoute une règle non demandée.
+  - `[low]` `[reject]` (blind) Message d'erreur non échappé dans `st.error` — motif existant de la 7.1 (`afficher_carte`), texte d'exception interne.
+  - `[low]` `[patch]` (blind) `test_detail_entite_rouge` muet pour `pas_de_sortie_projetee` — branche ajoutée (`PAS_DE_SORTIE` attendu).
+  - `[low]` `[patch]` (blind) Duplication dans `test_detail_prevision_non_calculee` — `_avec_doublure` prend la classe de doublure.
+  - `[low]` `[reject]` (blind) Assertions dépendantes de l'ordre des colonnes — l'ordre des colonnes est le contrat d'affichage.
+  - `[false]` `[reject]` (blind) `texte_explication` sans garde — `palier` est `Literal[1, 2]` (mypy et Pydantic).
+  - `[false]` `[reject]` (blind) `∞` pour `n/0` masquerait une donnée fausse — règle explicite du contrat.
+  - `[false]` `[reject]` (blind) Libellés KPI non vérifiés contre `domaine.kpi` — les libellés sont ceux de l'UI ; les codes sont vérifiés dans le Passage.
+  - `[low]` `[patch]` (edge) `reelle` non vérifiée avant la doublure non calculée — passe désormais par `_avec_doublure` (assert).
+  - `[false]` `[reject]` (edge) KPI `n/0` avec `n < 0` — numérateurs KPI de comptage, d'âge ou de taux jamais négatifs.
+  - `[maybe-false]` `[defer]` (intent) Aucun Risque réel du Passage rendu par `AppTest` — le Passage d'essai (graine 42) n'a que des Entités rouges, donc aucun Risque ; si vrai, `medium` (non vérifié) : un Passage d'essai avec une Entité non rouge le trancherait.
+  - `[false]` `[reject]` (intent) Valeur projetée testée seulement en doublure — aucun Risque dans le Passage d'essai ; la colonne est couverte en fonction pure et en `AppTest`.
+  - `[false]` `[reject]` (intent) Littéraux dans les tests à doublure — valeurs de la doublure elle-même, autorisé par le contrat (« doublure de `Consultation` »).
+  - `[low]` `[reject]` (intent) Vérification faible de la Prévision réelle — renforcée par le patch `pas_de_sortie_projetee` ; facteurs vérifiés.
+  - `[false]` `[reject]` (intent) Injection par `monkeypatch` de `cli.consultation_dernier_passage` — `AppTest` réexécute le script ; les tests à doublure passent et échouent sans elle.
+
 ## Design Notes
 
 **Critère « calculée ».** Depuis la Story 5.3, toute étape `prevision` réussie écrit `previsions.json` et son échec arrête le Passage : le manifeste suffit. Reste indiscernable un Passage publié avec l'ancien bouchon (étape réussie sans fichier), lu comme « aucun Risque » / « non calculée pour cette Entité » ; accepté (même limite que `consultation.prevision`).
@@ -117,3 +157,18 @@ deferred: []
 - `uv run mypy` -- expected: aucune erreur.
 - `uv run lint-imports` -- expected: tous les contrats KEPT.
 - `uv run pytest -q tests/unit/ui` puis `uv run pytest -q` -- expected: tout vert.
+
+## Auto Run Result
+
+Status: done
+
+- **Résumé.** L'écran Détail d'une Entité (Palier 1) affiche Météo, Règles déclenchantes (tous les tickets en liens Jira, texte en Mode repli), KPI clés, Prévision de sortie du rouge et Risque d'entrée en rouge réels du Passage (Story 5.3), valeur projetée du Risque si présente (contrats 1.1), et la zone Explication. État « non calculée » lu dans le manifeste (étape `prevision`).
+- **Fichiers.**
+  - `src/usine/ui/detail.py` — blocs purs du détail, `LectureDetail`, `previsions_calculees(manifeste)`.
+  - `src/usine/ui/app.py` — `afficher_detail` complet, lectures sous `try/except UsineErreur`.
+  - `src/usine/ui/navigation.py` — `Ecran.detail` sort de `STORY_A_VENIR`.
+  - `tests/unit/ui/test_detail.py`, `test_app.py`, `test_navigation.py` — matrice I/O, `AppTest` à valeurs tirées du Passage, doublures (Prévision, Risque, non calculée, verte, illisible).
+- **Revue (une passe, mode économique).** 22 constats : 5 patchs (2 medium, 3 low, tous en tests), 2 différés, 15 rejetés (motifs dans le Triage Log).
+- **Revue de suivi recommandée :** non (aucun `high` patché, patchs `medium` limités aux tests).
+- **Vérification.** `ruff check`, `ruff format --check`, `mypy`, `lint-imports` (13 contrats KEPT), `pytest -q` : tout vert après fusion de `main`.
+- **Risques résiduels.** Le Passage d'essai n'a aucune Entité non rouge : le rendu d'un Risque réel n'est couvert que par doublure.

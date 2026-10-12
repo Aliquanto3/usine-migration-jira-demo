@@ -12,6 +12,7 @@ import pytest
 import streamlit
 from streamlit.testing.v1 import AppTest
 
+from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date, formater_pourcentage
 from usine.contrats.meteo import (
     LIBELLES_COULEURS,
@@ -201,7 +202,10 @@ def test_detail_entite_rouge(racine_publiee: Path, monkeypatch: pytest.MonkeyPat
     if prevision.statut is StatutPrevision.regle_non_projetable:
         codes = ", ".join(c.value for c in prevision.regles_non_projetables)
         assert f"règle non projetable ({codes})" in textes
-    elif prevision.date_sortie_estimee is not None:
+    elif prevision.statut is StatutPrevision.pas_de_sortie_projetee:
+        assert detail.PAS_DE_SORTIE in textes
+    else:
+        assert prevision.date_sortie_estimee is not None
         assert formater_date(prevision.date_sortie_estimee) in textes
     assert prevision.facteurs
     for facteur in prevision.facteurs:
@@ -301,10 +305,12 @@ class _Doublure:
         return tuple(r for r in (risque,) if entite is None or r.entite == entite)
 
 
-def _avec_doublure(monkeypatch: pytest.MonkeyPatch, palier: int = 1) -> _Doublure:
+def _avec_doublure(
+    monkeypatch: pytest.MonkeyPatch, palier: int = 1, classe: type[_Doublure] | None = None
+) -> _Doublure:
     reelle = consultation_dernier_passage(Path.cwd())
     assert reelle is not None
-    doublure = _Doublure(reelle, palier)
+    doublure = (classe or _Doublure)(reelle, palier)
     monkeypatch.setattr(cli, "consultation_dernier_passage", lambda _racine: doublure)
     return doublure
 
@@ -362,15 +368,55 @@ def test_detail_prevision_non_calculee(
     racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(racine_publiee)
-    reelle = consultation_dernier_passage(Path.cwd())
-    doublure = _DoublureNonCalculee(reelle)
-    monkeypatch.setattr(cli, "consultation_dernier_passage", lambda _racine: doublure)
+    _avec_doublure(monkeypatch, classe=_DoublureNonCalculee)
     page = _page()
     page.button(key="detail_ENT-B").click().run()
     assert not page.exception
     textes = _textes(page)
     assert detail.PREVISION_NON_CALCULEE_PASSAGE in textes
     assert detail.RISQUE_NON_CALCULE_PASSAGE in textes
+
+
+class _DoublureVerte(_Doublure):
+    """ENT-B verte : aucune Règle déclenchante."""
+
+    def meteo(self, date_arrete: Any = None, entite: str | None = None) -> tuple[MeteoEntite, ...]:
+        return tuple(
+            m.model_copy(update={"couleur": Couleur.vert, "regles": ()})
+            if m.entite == "ENT-B"
+            else m
+            for m in super().meteo(date_arrete, entite)
+        )
+
+
+def test_detail_entite_verte(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    _avec_doublure(monkeypatch, classe=_DoublureVerte)
+    page = _page()
+    page.button(key="detail_ENT-B").click().run()
+    assert not page.exception
+    textes = _textes(page)
+    assert detail.AUCUNE_REGLE in textes
+    assert detail.PREVISION_SANS_OBJET in textes
+
+
+class _DoublureIllisible(_Doublure):
+    """`meteo.json` lisible, `previsions.json` illisible."""
+
+    def previsions(self, date_arrete: Any = None, entite: str | None = None) -> tuple[Any, ...]:
+        raise UsineErreur("previsions.json illisible")
+
+
+def test_detail_lecture_entite_illisible(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    _avec_doublure(monkeypatch, classe=_DoublureIllisible)
+    page = _page()
+    page.button(key="detail_ENT-A").click().run()
+    assert not page.exception
+    assert any("Lecture du dernier Passage impossible" in e.value for e in page.error)
+    assert detail.EXPLICATION_PALIER_1 not in _textes(page)
 
 
 def test_detail_palier_2(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
