@@ -122,7 +122,7 @@ development_status:
   epic-5-retrospective: optional
 
   epic-6: in-progress  # lane L6 Couche LLM — démarre après 5.7 (porte M3)
-  6-1-adaptateurs-anthropic-et-mistral: backlog
+  6-1-adaptateurs-anthropic-et-mistral: done
   6-2-pseudonymisation-par-presidio: done
   6-3-passerelle-complète-cache-coût-et-dégradation: backlog
   6-4-classification-incrémentale-des-causes-racines: backlog
