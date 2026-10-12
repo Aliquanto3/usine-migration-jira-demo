@@ -113,7 +113,7 @@ development_status:
 
   epic-5: in-progress  # lane L5 Rapport (après L3)
   5-1-étapes-déterministes-complètes-et-passage-autoportant: done
-  5-2-consultation-complète: backlog
+  5-2-consultation-complète: done
   5-3-classeur-excel-en-9-onglets: backlog
   5-4-présentation-powerpoint-en-7-sections: backlog
   5-5-commande-unique-et-rejeu-idempotent: backlog
