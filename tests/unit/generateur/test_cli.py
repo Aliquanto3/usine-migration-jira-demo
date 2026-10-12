@@ -5,7 +5,7 @@ import json
 import shutil
 from collections import Counter
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,9 @@ from typer.testing import CliRunner
 
 from usine import cli, composition
 from usine.cli import app
+from usine.config import charger_yaml
 from usine.contrats.calendrier import FUSEAU, jour_local, semaine_programme
+from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement
 from usine.contrats.llm import (
@@ -30,6 +32,9 @@ from usine.contrats.llm import (
 from usine.contrats.tickets import Champ, TypeTicket
 from usine.generateur import corpus as corpus_module
 from usine.generateur.corpus import Corpus, charger_corpus
+from usine.generateur.journal import generer as generer_journal
+from usine.generateur.journal import serialiser_journal
+from usine.generateur.scenarios import AUCUN_SCENARIO
 
 RACINE = Path(__file__).resolve().parents[3]
 CONFIG = Path(__file__).with_name("programme_reduit.yaml")
@@ -101,6 +106,57 @@ def test_generation_ecrit_les_identifiants_injectes(tmp_path: Path) -> None:
     assert all(i["valeur"] in journal for i in liste)
     assert str(sortie / "identifiants_injectes.json") in resultat.output
     assert f"{len(liste)} identifiants fictifs" in resultat.output
+
+
+def _invoquer(sortie: Path, *options: str) -> str:
+    """Lance `usine donnees generer` sur le Programme réduit (graine 42, 2026-10-12) ; renvoie
+    la sortie."""
+    resultat = CliRunner().invoke(
+        app,
+        [
+            "donnees",
+            "generer",
+            "--config",
+            str(CONFIG),
+            "--config-jira",
+            str(CONFIG_JIRA),
+            "--sortie",
+            str(sortie),
+            "--corpus",
+            str(CORPUS),
+            "--graine",
+            "42",
+            "--date-generation",
+            "2026-10-12",
+            *options,
+        ],
+    )
+    assert resultat.exit_code == 0, resultat.output
+    return resultat.output
+
+
+def test_scenarios_appliques_annonces(tmp_path: Path) -> None:
+    """Story 1.8 : Programme réduit (ENT-A, ENT-B) : Scénarios A et B appliqués, C ignoré."""
+    sortie = _invoquer(tmp_path)
+    assert "Scénarios appliqués : A (ENT-A), B (ENT-B)" in sortie
+
+
+def test_sans_scenarios(tmp_path: Path) -> None:
+    """`--sans-scenarios` : Journal identique à `scenarios=AUCUN_SCENARIO`, sortie « aucun »."""
+    sortie = _invoquer(tmp_path / "sans", "--sans-scenarios")
+    assert "Scénarios appliqués : aucun" in sortie
+    attendu = generer_journal(
+        charger_yaml(CONFIG, ConfigProgramme),
+        42,
+        date(2026, 10, 12),
+        cle_projet=charger_yaml(CONFIG_JIRA, ConfigJira).cle_projet,
+        corpus=charger_corpus(CORPUS),
+        scenarios=AUCUN_SCENARIO,
+    )
+    journal = (tmp_path / "sans" / "journal.jsonl").read_bytes()
+    assert journal == serialiser_journal(attendu)
+    _invoquer(tmp_path / "avec")
+    assert (tmp_path / "avec" / "journal.jsonl").read_bytes() != journal
 
 
 def test_identifiants_injectes_ignores_par_git() -> None:

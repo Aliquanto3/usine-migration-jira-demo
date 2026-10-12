@@ -1,12 +1,13 @@
-"""Scénarios de démo scriptés (Story 1.5, FR-3) : paramètres, Journal et Météo de fin de semaine.
+"""Scénarios de démo scriptés (Stories 1.5 et 1.8, FR-3) : paramètres, Journal et Météo de fin
+de semaine.
 
-Seule la forme des trajectoires est vérifiée, sur la Météo du dernier Jour ouvré de chaque
-semaine avec la Grille livrée (seuils inchangés, SM-C3) ; le calage au jour près relève de la
-Story 1.8.
+Ici, la forme des trajectoires est vérifiée sur la Météo du dernier Jour ouvré de chaque
+semaine avec la Grille livrée (seuils inchangés, SM-C3) ; le calage au jour près est vérifié
+par `test_calage.py` (Story 1.8).
 """
 
 from collections import Counter, defaultdict
-from datetime import date
+from datetime import date, datetime, timedelta
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,7 @@ from typing import Any
 import pytest
 
 from usine.config import charger_yaml
-from usine.contrats.calendrier import jour_local, jours_ouvres, semaine_programme
+from usine.contrats.calendrier import FUSEAU, jour_local, jours_ouvres, semaine_programme
 from usine.contrats.config import ConfigProgramme, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import NatureEvenement
@@ -29,7 +30,13 @@ from usine.contrats.tickets import (
 )
 from usine.domaine.instantanes import tickets_etats
 from usine.domaine.meteo import meteo
-from usine.generateur.journal import CAS_DE_TEST_PAR_ENTITE, Generation, generer, serialiser_journal
+from usine.generateur.journal import (
+    CAS_DE_TEST_PAR_ENTITE,
+    HEURE_MIDI,
+    Generation,
+    generer,
+    serialiser_journal,
+)
 from usine.generateur.scenarios import (
     AUCUN_SCENARIO,
     SCENARIOS_PAR_DEFAUT,
@@ -63,6 +70,13 @@ VERT_OU_JAUNE = {Couleur.vert, Couleur.jaune}
         (lambda: ScenarioSortie(poids_decrue=-0.5), "poids_decrue"),
         (lambda: ScenarioSortie(part_bloquantes_vague=1.2), "part_bloquantes_vague"),
         (lambda: ScenarioSortie(entite=""), "entite"),
+        (lambda: ScenarioSortie(bloquantes_bascule=-1), "bloquantes_bascule"),
+        (lambda: ScenarioSortie(bloquantes_bascule=True), "bloquantes_bascule"),
+        (lambda: ScenarioEnlisement(bloquantes_bascule=-3), "bloquantes_bascule"),
+        (
+            lambda: ScenarioEnlisement(bloquantes_bascule=1.5),  # type: ignore[arg-type]
+            "bloquantes_bascule",
+        ),
         (lambda: ScenarioEnlisement(semaine_debut=0), "semaine_debut"),
         (lambda: ScenarioEnlisement(poids=float("inf")), "poids"),
         (lambda: ScenarioEnlisement(part_majeures=-0.1), "part_majeures"),
@@ -73,6 +87,8 @@ VERT_OU_JAUNE = {Couleur.vert, Couleur.jaune}
         ),
         (lambda: ScenarioMenace(taux_ko_initial=1.5), "taux_ko_initial"),
         (lambda: ScenarioMenace(taux_ko_hausse=(0.1, -0.1)), "taux_ko_hausse[1]"),
+        (lambda: ScenarioMenace(taux_ko_hausse=(1.01,)), "taux_ko_hausse[0]"),
+        (lambda: ScenarioMenace(taux_ko_initial=-0.01), "taux_ko_initial"),
         (lambda: ScenarioMenace(taux_ko_hausse=()), "taux_ko_hausse"),
         (lambda: ScenarioMenace(semaine_hausse=0), "semaine_hausse"),
         (lambda: ScenarioMenace(cas_de_test_par_semaine=0), "cas_de_test_par_semaine"),
@@ -101,10 +117,15 @@ def test_scenarios_par_defaut() -> None:
     assert entites == SCENARISEES
 
 
-def test_nombre_ko_par_semaine() -> None:
+def test_ko_cumules() -> None:
+    """KO cumulés visés : ⌊taux visé × exécutés⌋ (plancher), en décimal exact."""
     menace = ScenarioMenace(taux_ko_initial=0.03, semaine_hausse=4, taux_ko_hausse=(0.07, 0.5))
-    assert [menace.nombre_ko(s, 30) for s in SEMAINES] == [1, 1, 1, 2, 15, 15, 15, 15]
-    assert ScenarioMenace(taux_ko_initial=1).nombre_ko(1, 7) == 7
+    assert [menace.ko_cumules(s, 30) for s in SEMAINES] == [0, 0, 0, 2, 15, 15, 15, 15]
+    assert [menace.ko_cumules(4, n) for n in (14, 15, 29, 100)] == [0, 1, 2, 7]
+    assert ScenarioMenace(taux_ko_initial=1).ko_cumules(1, 7) == 7
+    assert ScenarioMenace(taux_ko_initial=0).ko_cumules(1, 7) == 0
+    # 0,29 × 100 vaut 28,999… en flottant : le calcul exact donne 29.
+    assert ScenarioMenace(taux_ko_initial=0.29).ko_cumules(1, 100) == 29
 
 
 # --- Entité absente : Scénario ignoré ---
@@ -179,12 +200,13 @@ def test_entite_absente_generation_normale(config_reduite: ConfigProgramme) -> N
 
 
 def _attributs(generation: Generation) -> dict[str, dict[Any, Any]]:
-    """Attributs initiaux de chaque ticket, avec son type et sa semaine de création."""
+    """Attributs initiaux de chaque ticket, avec son type, son jour et sa semaine de création."""
     ancrage = generation.entete.ancrage_semaines
     attributs: dict[str, dict[Any, Any]] = defaultdict(dict)
     for e in generation.evenements:
         if e.nature is NatureEvenement.creation:
             attributs[e.cle_ticket]["type"] = e.type_ticket
+            attributs[e.cle_ticket]["jour"] = jour_local(e.horodatage)
             attributs[e.cle_ticket]["semaine"] = semaine_programme(
                 jour_local(e.horodatage), ancrage
             )
@@ -216,22 +238,28 @@ def _entrees_sorties(generation: Generation) -> tuple[Counter[Any], Counter[Any]
     return entrees, sorties
 
 
-def _ko_par_semaine(generation: Generation, entite: str) -> dict[int, Fraction]:
-    """Taux de KO des Cas de test de l'Entité exécutés chaque semaine."""
-    ancrage = generation.entete.ancrage_semaines
-    entites = {
-        e.cle_ticket: e.vers
+def _cas_de_test_executes(
+    generation: Generation, entite: str
+) -> dict[str, tuple[datetime, datetime, str, str]]:
+    """Cas de test exécutés de l'Entité : (création, exécution, Phase, résultat), par clé."""
+    attributs = _attributs(generation)
+    creations = {
+        e.cle_ticket: e.horodatage
         for e in generation.evenements
-        if e.champ is Champ.entite and e.de is None
+        if e.nature is NatureEvenement.creation
     }
-    executes: Counter[int] = Counter()
-    ko: Counter[int] = Counter()
-    for e in generation.evenements:
-        if e.champ is Champ.statut_test and e.de is not None and entites[e.cle_ticket] == entite:
-            semaine = semaine_programme(jour_local(e.horodatage), ancrage)
-            executes[semaine] += 1
-            ko[semaine] += e.vers == StatutTest.ko
-    return {s: Fraction(ko[s], executes[s]) for s in sorted(executes)}
+    return {
+        e.cle_ticket: (
+            creations[e.cle_ticket],
+            e.horodatage,
+            attributs[e.cle_ticket][Champ.phase],
+            str(e.vers),
+        )
+        for e in generation.evenements
+        if e.champ is Champ.statut_test
+        and e.de is not None
+        and attributs[e.cle_ticket][Champ.entite] == entite
+    }
 
 
 # --- Configuration livrée : Journal ---
@@ -296,20 +324,42 @@ def test_scenario_b_journal(generation_livree: Generation) -> None:
 
 
 def test_scenario_c_journal(generation_livree: Generation) -> None:
-    """C : taux de KO hebdomadaire plus haut dès la semaine 4 qu'en semaines 1 à 3, croissant
-    en TNR (semaines 6 à 8) et au-dessus de 10 % sur la TNR."""
-    taux = _ko_par_semaine(generation_livree, "ENT-C")
-    assert sorted(taux) == list(SEMAINES)
-    assert min(taux[s] for s in range(4, 9)) > max(taux[s] for s in range(1, 4)), taux
-    assert taux[6] < taux[7] < taux[8], taux
-    attributs = _attributs(generation_livree)
-    tnr = [
+    """C (Story 1.8) : chaque Jour ouvré, 6 Cas de test créés le matin et exécutés l'après-midi ;
+    le soir, les KO cumulés de la Phase valent `ko_cumules(semaine, exécutés de la Phase)` ;
+    taux cumulé de la TNR sous 10 % fin de semaine 6, au-dessus dès le lundi de la semaine 7,
+    sous 20 % jusqu'à la fin."""
+    menace = SCENARIOS_PAR_DEFAUT.menace
+    assert menace is not None
+    ancrage = generation_livree.entete.ancrage_semaines
+    jours = jours_ouvres(ancrage, generation_livree.entete.date_injection)
+    executes = _cas_de_test_executes(generation_livree, "ENT-C")
+    tests_c = [
         a
-        for a in attributs.values()
-        if a[Champ.entite] == "ENT-C" and a["type"] is TypeTicket.cas_de_test and a["semaine"] >= 6
+        for a in _attributs(generation_livree).values()
+        if a[Champ.entite] == "ENT-C" and a["type"] is TypeTicket.cas_de_test
     ]
-    assert {a[Champ.phase] for a in tnr} == {"tnr"}
-    assert taux[6] < Fraction(1, 10) <= taux[7], taux
+    assert len(executes) == len(tests_c) == 6 * len(jours)
+    par_jour: dict[date, list[tuple[str, str]]] = defaultdict(list)
+    for creation, execution, phase, resultat in executes.values():
+        assert jour_local(creation) == jour_local(execution)
+        assert creation.astimezone(FUSEAU).hour < HEURE_MIDI <= execution.astimezone(FUSEAU).hour
+        par_jour[jour_local(execution)].append((phase, resultat))
+    assert sorted(par_jour) == list(jours)
+    cumuls: dict[str, tuple[int, int]] = {}
+    taux_du_soir: dict[date, Fraction] = {}
+    for jour in jours:
+        (phase,) = {p for p, _ in par_jour[jour]}
+        nombre, ko = cumuls.get(phase, (0, 0))
+        nombre += len(par_jour[jour])
+        ko += sum(r == StatutTest.ko for _, r in par_jour[jour])
+        cumuls[phase] = (nombre, ko)
+        assert ko == menace.ko_cumules(semaine_programme(jour, ancrage), nombre), jour
+        taux_du_soir[jour] = Fraction(ko, nombre)
+    assert {p for p, _ in par_jour[jours[-1]]} == {"tnr"}
+    semaine_6 = [j for j in jours if semaine_programme(j, ancrage) == 6]
+    tnr_haute = [j for j in jours if semaine_programme(j, ancrage) >= 7]
+    assert taux_du_soir[semaine_6[-1]] < Fraction(1, 10)
+    assert all(Fraction(1, 10) <= taux_du_soir[j] < Fraction(1, 5) for j in tnr_haute)
 
 
 def test_certifications(generation_livree: Generation) -> None:
@@ -322,6 +372,16 @@ def test_certifications(generation_livree: Generation) -> None:
     assert certifications["ENT-A"] == (StatutCertification.accordee, 3)
     assert certifications["ENT-B"] == (StatutCertification.refusee, 4)
     assert certifications["ENT-C"] == (StatutCertification.reservee, 4)
+    # Story 1.8 : créées le premier Jour ouvré de leur semaine.
+    ancrage = generation_livree.entete.ancrage_semaines
+    jours = {
+        a[Champ.entite]: a["jour"]
+        for a in _attributs(generation_livree).values()
+        if a["type"] is TypeTicket.certification
+    }
+    for entite in SCENARISEES:
+        semaine = certifications[entite][1]
+        assert jours[entite] == ancrage + timedelta(weeks=semaine - 1), entite
     autres = {e: s for e, (s, _) in certifications.items() if e not in SCENARISEES}
     assert len(autres) == 7
     assert StatutCertification.refusee not in autres.values()
