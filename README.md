@@ -11,22 +11,23 @@ Projet en cours de cadrage. Licence MIT.
 
 ## Performance (NFR-2)
 
-Mesure de `usine rapport` en Palier 1 sur un Journal synthétique à la volumétrie cible : 10 Entités, 5 000 Anomalies, 8 semaines (63 781 événements, 5 032 tickets ; Journal généré en 0,9 s), Date d'arrêté 2026-10-09. Commande : `uv run python outils/mesurer_nfr2.py` (graine 42, date de génération 2026-10-12, répertoire temporaire).
+Cible : un Passage `usine rapport` en Palier 1 en moins de 5 minutes à la volumétrie cible (3 000 à 5 000 Anomalies, 10 Entités), extraction incrémentale comprise. Mesures du 2026-10-13 (porte M3, Story 5.7), toutes les étapes déterministes réelles.
 
-Poste : AMD Ryzen 5 7600 (6 cœurs), 32 Go de RAM, Windows 11, Python 3.12.14. Mesure du 2026-10-12 (Story 1.3, cycle de vie des Anomalies selon le workflow H-17).
+Poste : AMD Ryzen 5 7600 (6 cœurs), 32 Go de RAM, Windows 11 (10.0.26300), Python 3.12.14.
 
-| Étape | Statut | Durée (s) |
-|-------|--------|----------:|
-| extraction | bouchon (reussie) | 0,00 |
-| instantanes | reussie | 0,64 |
-| kpi | bouchon (reussie) | 0,00 |
-| meteo | reussie | 0,10 |
-| prevision | bouchon (reussie) | 0,00 |
-| classification | sautee | 0,00 |
-| repartition_causes | sautee | 0,00 |
-| explications | sautee | 0,00 |
-| narration | sautee | 0,00 |
-| rendu | reussie | 0,05 |
-| **Total de la commande** (lecture du Journal comprise) | | **1,27** |
+**Synthétique** : `uv run python outils/mesurer_nfr2.py` (graine 42, date de génération 2026-10-12, répertoire temporaire). Journal de 10 Entités, 5 000 Anomalies, 8 semaines (63 817 événements, 5 036 tickets ; généré en 1,1 s), Date d'arrêté 2026-10-09.
 
-Aucun écart à la cible de 5 minutes. Les étapes `extraction`, `kpi` et `prevision` ne sont encore que des bouchons : la mesure est à refaire quand les lanes les livrent. 5 000 Anomalies est un majorant de charge : la configuration livrée en génère 3 000 à 3 600 (8 semaines × 500 Entrées au plus, moins la marge de réouvertures).
+**Réel sur `DEMO`** : `uv run usine rapport --date-arrete 2026-10-09` depuis le dépôt principal, source composite (Journal + Jira Cloud `DEMO` en lecture seule), extraction incrémentale sur l'entrepôt existant. 3 547 tickets, 10 Entités (Passage `20261012T223234Z-d4f585`).
+
+| Étape | Synthétique (s) | `DEMO` (s) |
+|-------|----------------:|-----------:|
+| extraction | 0,00 | 1,51 |
+| instantanes | 0,66 | 0,68 |
+| kpi | 0,08 | 0,07 |
+| meteo | 3,06 | 3,01 |
+| prevision | 0,73 | 0,68 |
+| classification, repartition_causes, explications, narration | sautées | sautées |
+| rendu | 0,35 | 0,26 |
+| **Total** (synthétique : `lancer_rapport` ; `DEMO` : `uv run usine rapport` de bout en bout) | **5,39** | **9,3** |
+
+Les deux mesures sont très loin de la cible de 300 s. En source synthétique, l'étape `extraction` ne fait que lire le Journal. Sur `DEMO`, le premier Passage après réinjection (extraction complète, 20 014 alignements persistés) a pris 22,9 s pour la commande, dont 15 s d'extraction (Story 5.6) ; les Passages suivants, incrémentaux, prennent 9 à 10 s.

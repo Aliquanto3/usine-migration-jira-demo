@@ -13,15 +13,12 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-import polars as pl
 import pytest
-from openpyxl import load_workbook  # type: ignore[import-untyped]
-from pptx import Presentation
 
+from outils.verifier_rejeu import differences, hors_exclusions
 from tests.unit.chaine.environnement import INSTANT, preparer_racine
 from usine import cli, composition
 from usine.contrats.passage import (
-    EXCLUSIONS_REJEU,
     FICHIERS_PASSAGE,
     ContextePassage,
     DonneesPassage,
@@ -86,102 +83,6 @@ def _simuler_composite(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(composition, "construire_rapport", construire_composite)
 
 
-def _differences(a: object, b: object, chemin: str = "") -> set[str]:
-    """Chemins de champ (`etapes[].statut`) où deux valeurs JSON diffèrent."""
-    if isinstance(a, dict) and isinstance(b, dict):
-        return {
-            d
-            for cle in a.keys() | b.keys()
-            for d in _differences(
-                a.get(cle, ...), b.get(cle, ...), f"{chemin}.{cle}" if chemin else cle
-            )
-        }
-    if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
-        return {d for x, y in zip(a, b, strict=True) for d in _differences(x, y, f"{chemin}[]")}
-    return set() if a == b else {chemin}
-
-
-def _differences_cles(a: dict[str, object], b: dict[str, object]) -> set[str]:
-    return {cle for cle in a.keys() | b.keys() if a.get(cle, ...) != b.get(cle, ...)}
-
-
-def _cellules(chemin: Path) -> dict[str, object]:
-    """`<onglet>!<adresse>` → (valeur, cible d'hyperlien), plus les propriétés du classeur."""
-    classeur = load_workbook(chemin)
-    p = classeur.properties
-    cellules: dict[str, object] = {
-        "docProps": (p.created, p.modified, p.creator, p.title),
-        "onglets": classeur.sheetnames,
-    }
-    for onglet in classeur.worksheets:
-        for ligne in onglet.iter_rows():
-            for c in ligne:
-                cellules[f"{onglet.title}!{c.coordinate}"] = (
-                    c.value,
-                    c.hyperlink.target if c.hyperlink else None,
-                )
-    return cellules
-
-
-def _textes_slides(chemin: Path) -> dict[str, object]:
-    """`<titre>!<libellé>` (tableaux à deux colonnes) ou `<titre>!#<forme>` → texte."""
-    presentation = Presentation(str(chemin))
-    p = presentation.core_properties
-    textes: dict[str, object] = {"docProps": (p.created, p.modified, p.author, p.title)}
-
-    def ajouter(cle: str, valeur: object) -> None:
-        assert cle not in textes, f"repère ambigu : {cle}"
-        textes[cle] = valeur
-
-    for numero, slide in enumerate(presentation.slides):
-        titre_forme = slide.shapes.title
-        titre = titre_forme.text_frame.text if titre_forme is not None else f"slide {numero}"
-        for index, forme in enumerate(slide.shapes):
-            if forme.has_table and len(forme.table.columns) == 2:
-                for ligne in forme.table.rows:
-                    libelle, valeur = (c.text for c in ligne.cells)
-                    ajouter(f"{titre}!{libelle}", valeur)
-            else:
-                ajouter(
-                    f"{titre}!#{index}",
-                    (
-                        forme.text_frame.text if forme.has_text_frame else None,
-                        [[c.text for c in ligne.cells] for ligne in forme.table.rows]
-                        if forme.has_table
-                        else None,
-                    ),
-                )
-    return textes
-
-
-def _comparer(nom: str, premier: Path, second: Path) -> set[str]:
-    """Chemins qui diffèrent entre les deux Passages pour le fichier logique `nom`."""
-    relatif = FICHIERS_PASSAGE[nom].format(date_arrete=DATE)
-    a, b = premier / relatif, second / relatif
-    assert a.exists() == b.exists(), nom
-    if not a.exists():
-        return set()
-    if relatif.endswith(".parquet"):
-        return set() if pl.read_parquet(a).equals(pl.read_parquet(b)) else {"<table>"}
-    if relatif.endswith(".json"):
-        return _differences(
-            json.loads(a.read_text(encoding="utf-8")), json.loads(b.read_text(encoding="utf-8"))
-        )
-    if relatif.endswith(".jsonl"):
-        lignes = [
-            [json.loads(ligne) for ligne in p.read_text(encoding="utf-8").splitlines() if ligne]
-            for p in (a, b)
-        ]
-        assert len(lignes[0]) == len(lignes[1]), nom
-        # Chemins depuis la racine de chaque ligne (AD-7).
-        return {d for x, y in zip(*lignes, strict=True) for d in _differences(x, y)}
-    if relatif.endswith(".xlsx"):
-        return _differences_cles(_cellules(a), _cellules(b))
-    if relatif.endswith(".pptx"):
-        return _differences_cles(_textes_slides(a), _textes_slides(b))
-    raise AssertionError(f"format non comparé : {relatif}")  # pragma: no cover
-
-
 def test_rejeu_composite_ne_differe_que_par_les_exclusions(
     racine: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -205,9 +106,8 @@ def test_rejeu_composite_ne_differe_que_par_les_exclusions(
         assert (p / f"rapport-{DATE}.xlsx").is_file()
         assert (p / f"rapport-{DATE}.pptx").is_file()
 
-    observees = {(nom, d) for nom in FICHIERS_PASSAGE for d in _comparer(nom, premier, second)}
-    hors_exclusions = {(nom, d) for nom, d in observees if d not in EXCLUSIONS_REJEU.get(nom, ())}
-    assert not hors_exclusions
+    observees = differences(premier, second, DATE)
+    assert not hors_exclusions(observees)
     assert observees >= DIFFERENCES_ATTENDUES
 
     messages = [r.getMessage() for r in caplog.records if r.name == "usine.chaine.execution"]
