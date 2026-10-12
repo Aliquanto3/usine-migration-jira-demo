@@ -51,6 +51,8 @@ Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `construire_explicateur` expose à la suite d'évaluation `evals/explication` la vraie tâche
 `expliquer`, passerelle comprise, avec un cache en mémoire (jamais le cache de production) ;
 `controler_citations` est ré-exporté pour qu'`evals` n'importe pas `usine.ia`.
+`construire_classificateur` expose de même à `evals/classification` la vraie tâche `classer`,
+sur la même passerelle d'évaluation (`_passerelle_evaluation`).
 """
 
 import json
@@ -113,6 +115,7 @@ from usine.contrats.llm import (
     ParametresAppel,
     ReponseAgentBrute,
     ReponseStructuree,
+    SortieClassification,
     SortieExplication,
     Tache,
 )
@@ -147,7 +150,13 @@ from usine.generateur.corpus import (
 )
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
-from usine.ia.classification import PART_PLAFOND_CLASSIFICATION, EtapeClassification
+from usine.ia.classification import (
+    PART_PLAFOND_CLASSIFICATION,
+    ContexteClassification,
+    EtapeClassification,
+    classer,
+)
+from usine.ia.classification import lire_prompt as lire_prompt_classification
 from usine.ia.controles import controler_citations as controler_citations
 from usine.ia.etape import EtapeExplications, EtapeNarration
 from usine.ia.explication import ContexteExplication, expliquer, lire_prompt
@@ -444,12 +453,26 @@ class Explicateur:
             self.fermeture()
 
 
-def construire_explicateur(
+@dataclass(frozen=True)
+class _PasserelleEvaluation:
+    """Passerelle d'une suite d'évaluation et ses fournisseurs (cache en mémoire)."""
+
+    passerelle: Passerelle
+    fournisseur: FournisseurLLM
+    par_tache: Mapping[Tache, FournisseurLLM]
+    fermeture: Callable[[], None] | None
+
+    def version_modele(self, tache: Tache) -> str:
+        """`version_modele` du fournisseur qui sert `tache`."""
+        return self.par_tache.get(tache, self.fournisseur).version_modele
+
+
+def _passerelle_evaluation(
     racine: Path,
-    fournisseur: FournisseurLLM | None = None,
-    pseudonymiseur: Pseudonymiseur | None = None,
-) -> Explicateur:
-    """`Explicateur` de la suite d'évaluation `evals/explication`.
+    fournisseur: FournisseurLLM | None,
+    pseudonymiseur: Pseudonymiseur | None,
+) -> _PasserelleEvaluation:
+    """Passerelle des suites d'évaluation `evals/explication` et `evals/classification`.
 
     `fournisseur=None` : mode réel, comme un Passage Palier 2 : fournisseur (et fournisseurs
     par tâche) de `config/llm.yaml` avec la clé de son fournisseur, plafond de coût de ce
@@ -495,13 +518,89 @@ def construire_explicateur(
         if fermeture is not None:
             fermeture()
         raise
+    return _PasserelleEvaluation(passerelle, fournisseur, par_tache, fermeture)
+
+
+def construire_explicateur(
+    racine: Path,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> Explicateur:
+    """`Explicateur` de la suite d'évaluation `evals/explication`.
+
+    Passerelle de `_passerelle_evaluation` : mode réel sans `fournisseur` (configuration,
+    secrets, plafond de coût), doublures injectées sinon ; cache toujours en mémoire.
+    """
+    evaluation = _passerelle_evaluation(racine, fournisseur, pseudonymiseur)
     contexte = ContexteExplication(
         passage_id=f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
         version_donnees=VERSION_DONNEES_EVALUATION,
         gabarit=lire_prompt(),
     )
-    version = par_tache.get(Tache.explication, fournisseur).version_modele
-    return Explicateur(passerelle, contexte, version, fermeture)
+    version = evaluation.version_modele(Tache.explication)
+    return Explicateur(evaluation.passerelle, contexte, version, evaluation.fermeture)
+
+
+VERSION_DONNEES_CLASSIFICATION = "evaluation-classification"
+"""`version_donnees` (et `version_grille`, tracée seulement) des appels de la suite
+d'évaluation de la classification."""
+
+
+@dataclass(frozen=True)
+class Classificateur:
+    """Tâche `classer` câblée sur une passerelle, pour la suite d'évaluation.
+
+    Appelable `(textes) -> (sorties, traces)` : une `SortieClassification` par Anomalie
+    classée (une Anomalie refusée par le plafond de coût est absente) et une trace par appel.
+    """
+
+    passerelle: Passerelle
+    contexte: ContexteClassification
+    version_modele: str
+    """`version_modele` du fournisseur de la tâche `classification`."""
+    fermeture: Callable[[], None] | None = None
+
+    @property
+    def version_prompt(self) -> str:
+        """`version_prompt` du gabarit `classification` envoyé."""
+        return self.contexte.version_prompt
+
+    def __call__(
+        self, textes: pl.DataFrame, date_arrete: date | None = None
+    ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
+        """Cause racine proposée de chaque Anomalie de `textes` par la vraie tâche `classer`.
+
+        `date_arrete` n'est que tracée (ni prompt ni clé de cache) ; défaut : aujourd'hui.
+        """
+        jour = date_arrete if date_arrete is not None else _maintenant().date()
+        return classer(self.passerelle, textes, jour, self.contexte)
+
+    def fermer(self) -> None:
+        """Ferme les fournisseurs construits depuis `config/llm.yaml` (aucun effet sinon)."""
+        if self.fermeture is not None:
+            self.fermeture()
+
+
+def construire_classificateur(
+    racine: Path,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> Classificateur:
+    """`Classificateur` de la suite d'évaluation `evals/classification`.
+
+    Même passerelle que `construire_explicateur` (`_passerelle_evaluation`) ; la version de
+    modèle publiée est celle du fournisseur de la tâche `classification`. Aucune part de
+    plafond propre : seul le plafond de coût du Passage de `config/llm.yaml` s'applique.
+    """
+    evaluation = _passerelle_evaluation(racine, fournisseur, pseudonymiseur)
+    contexte = ContexteClassification(
+        passage_id=f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
+        version_donnees=VERSION_DONNEES_CLASSIFICATION,
+        version_grille=VERSION_DONNEES_CLASSIFICATION,
+        gabarit=lire_prompt_classification(),
+    )
+    version = evaluation.version_modele(Tache.classification)
+    return Classificateur(evaluation.passerelle, contexte, version, evaluation.fermeture)
 
 
 def _config_llm(racine: Path, *, controler_corpus: bool = True) -> ConfigLLM | None:

@@ -1,0 +1,332 @@
+[
+  {
+    "cle": "EVAL-1",
+    "domaine": "credits",
+    "titre": "Encours de prêt à zéro après chargement",
+    "description": "Après la reprise du lot 3, l'encours restant dû de 214 prêts immobiliers apparaît à 0 € dans le nouveau SI alors que l'ancien système affiche un capital restant. Le fichier d'extraction source contenait bien les montants.",
+    "cause_attendue": "reprise_donnees",
+    "reponse": {
+      "cause_racine": "reprise_donnees",
+      "justification": "Les montants existent à la source mais sont perdus au chargement du lot de reprise."
+    }
+  },
+  {
+    "cle": "EVAL-2",
+    "domaine": "referentiel_clients",
+    "titre": "Adresses postales tronquées après migration",
+    "description": "Les adresses de 1 200 clients particuliers sont coupées à 32 caractères dans la fiche client cible. L'extraction de l'ancien référentiel a été faite avec un format de colonne trop court.",
+    "cause_attendue": "reprise_donnees",
+    "reponse": {
+      "cause_racine": "reprise_donnees",
+      "justification": "L'extraction de l'ancien référentiel a tronqué les adresses avant leur chargement."
+    }
+  },
+  {
+    "cle": "EVAL-3",
+    "domaine": "epargne",
+    "titre": "Livrets A sans date d'ouverture",
+    "description": "Une partie des livrets A repris n'a pas de date d'ouverture : le champ était vide dans la table source pour les comptes ouverts avant 2004.",
+    "cause_attendue": "reprise_donnees",
+    "reponse": {
+      "cause_racine": "reprise_donnees",
+      "justification": "La donnée source est absente pour les comptes anciens, elle manque donc après la reprise."
+    }
+  },
+  {
+    "cle": "EVAL-4",
+    "domaine": "depots",
+    "titre": "Comptes courants en double après le chargement",
+    "description": "Le chargement de la vague 2 a inséré deux fois 87 comptes courants : le lot a été rejoué après un arrêt sans purge préalable.",
+    "cause_attendue": "reprise_donnees",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "Le ticket décrit des doublons de comptes, ce qui relève d'un doublon et non d'un défaut de migration."
+    }
+  },
+  {
+    "cle": "EVAL-5",
+    "domaine": "comptabilite",
+    "titre": "Soldes d'ouverture des comptes généraux manquants",
+    "description": "Les soldes d'ouverture de l'exercice ne sont pas présents pour 15 comptes du plan comptable : ils n'ont pas été extraits de l'ancien grand livre.",
+    "cause_attendue": "reprise_donnees",
+    "reponse": {
+      "cause_racine": "reprise_donnees",
+      "justification": "Les soldes n'ont pas été extraits de l'ancien grand livre : la reprise est incomplète."
+    }
+  },
+  {
+    "cle": "EVAL-6",
+    "domaine": "credits",
+    "titre": "Taux nominal converti en pourcentage deux fois",
+    "description": "Les taux des prêts à taux fixe apparaissent à 350 % au lieu de 3,50 % : la règle de correspondance multiplie par 100 une valeur déjà exprimée en pourcentage.",
+    "cause_attendue": "regle_transformation",
+    "reponse": {
+      "cause_racine": "regle_transformation",
+      "justification": "La règle de correspondance applique une conversion en trop sur le taux."
+    }
+  },
+  {
+    "cle": "EVAL-7",
+    "domaine": "paiements",
+    "titre": "Code motif de rejet SEPA mal transposé",
+    "description": "Le code AC04 de l'ancien système est transposé en MD01 dans le nouveau : la table de correspondance des motifs de rejet associe les mauvaises lignes.",
+    "cause_attendue": "regle_transformation",
+    "reponse": {
+      "cause_racine": "regle_transformation",
+      "justification": "La table de correspondance entre anciens et nouveaux codes de rejet est fausse."
+    }
+  },
+  {
+    "cle": "EVAL-8",
+    "domaine": "epargne",
+    "titre": "Intérêts courus arrondis au centime inférieur",
+    "description": "Le calcul des intérêts courus de reprise tronque au lieu d'arrondir : écart d'un centime sur 40 % des contrats par rapport au calcul de l'ancien système.",
+    "cause_attendue": "regle_transformation",
+    "reponse": {
+      "cause_racine": "regle_transformation",
+      "justification": "La règle de calcul des intérêts courus diffère de celle de l'ancien système."
+    }
+  },
+  {
+    "cle": "EVAL-9",
+    "domaine": "comptabilite",
+    "titre": "Sens débit/crédit inversé pour les écritures de reprise",
+    "description": "Les écritures de reprise des comptes de tiers sont passées au crédit au lieu du débit : la règle de mapping du sens de l'ancien format (D/C) vers le nouveau (+/-) est inversée.",
+    "cause_attendue": "regle_transformation",
+    "reponse": {
+      "cause_racine": "regle_transformation",
+      "justification": "Le mapping du sens des écritures entre ancien et nouveau format est inversé."
+    }
+  },
+  {
+    "cle": "EVAL-10",
+    "domaine": "referentiel_clients",
+    "titre": "Civilité « Mlle » transformée en valeur vide",
+    "description": "La règle de conversion des civilités ne prévoit pas la valeur « Mlle » de l'ancien référentiel ; les fiches concernées arrivent sans civilité.",
+    "cause_attendue": "regle_transformation",
+    "reponse": {
+      "cause_racine": "reprise_donnees",
+      "justification": "Les fiches clients arrivent sans civilité après le chargement : la donnée est perdue à la reprise."
+    }
+  },
+  {
+    "cle": "EVAL-11",
+    "domaine": "depots",
+    "titre": "Plafond de découvert autorisé absent du produit",
+    "description": "Le produit « Compte Jeune » est créé sans plafond de découvert dans le paramétrage produit du nouveau système ; les opérations débitrices sont toutes rejetées.",
+    "cause_attendue": "parametrage",
+    "reponse": {
+      "cause_racine": "parametrage",
+      "justification": "Le plafond manque dans le paramétrage produit du nouveau système."
+    }
+  },
+  {
+    "cle": "EVAL-12",
+    "domaine": "paiements",
+    "titre": "Gestionnaire sans droit de validation des virements",
+    "description": "Les gestionnaires du back-office paiements ne voient pas le bouton de validation des virements de plus de 10 000 € : le profil d'habilitation n'a pas reçu ce droit.",
+    "cause_attendue": "parametrage",
+    "reponse": {
+      "cause_racine": "parametrage",
+      "justification": "Il manque un droit au profil d'habilitation des gestionnaires."
+    }
+  },
+  {
+    "cle": "EVAL-13",
+    "domaine": "comptabilite",
+    "titre": "Calendrier comptable sans le 8 mai",
+    "description": "Le référentiel des jours fériés du nouveau SI ne contient pas le 8 mai ; la clôture journalière est planifiée ce jour-là.",
+    "cause_attendue": "parametrage",
+    "reponse": {
+      "cause_racine": "parametrage",
+      "justification": "Le référentiel des jours fériés du nouveau système est incomplet."
+    }
+  },
+  {
+    "cle": "EVAL-14",
+    "domaine": "credits",
+    "titre": "Barème de frais de dossier absent pour les prêts professionnels",
+    "description": "Le barème des frais de dossier des prêts professionnels n'est pas renseigné dans le référentiel tarifaire du nouveau système : les frais calculés sont nuls.",
+    "cause_attendue": "parametrage",
+    "reponse": {
+      "cause_racine": "parametrage",
+      "justification": "Le référentiel tarifaire du nouveau système ne porte pas ce barème."
+    }
+  },
+  {
+    "cle": "EVAL-15",
+    "domaine": "paiements",
+    "titre": "Fichier de remises de prélèvements non reçu",
+    "description": "Le fichier de remises de prélèvements envoyé chaque nuit par la plateforme d'échange n'arrive pas dans le répertoire d'entrée du nouveau système depuis la bascule.",
+    "cause_attendue": "interface_flux",
+    "reponse": {
+      "cause_racine": "interface_flux",
+      "justification": "Le fichier échangé chaque nuit n'arrive plus dans le nouveau système."
+    }
+  },
+  {
+    "cle": "EVAL-16",
+    "domaine": "referentiel_clients",
+    "titre": "Message de mise à jour client rejeté par le bus",
+    "description": "Les messages de modification d'adresse publiés par le CRM sont rejetés par le bus d'échange : le schéma XML attendu par le consommateur ne contient pas le nouveau champ « complement ».",
+    "cause_attendue": "interface_flux",
+    "reponse": {
+      "cause_racine": "interface_flux",
+      "justification": "Les messages entre le CRM et le nouveau système sont rejetés par le bus d'échange."
+    }
+  },
+  {
+    "cle": "EVAL-17",
+    "domaine": "epargne",
+    "titre": "Flux quotidien vers l'assureur arrêté",
+    "description": "Le flux des versements sur contrats d'assurance-vie n'est plus transmis à l'assureur partenaire depuis le 3 du mois ; l'ordonnanceur indique un fichier vide.",
+    "cause_attendue": "interface_flux",
+    "reponse": {
+      "cause_racine": "interface_flux",
+      "justification": "Le flux sortant vers l'assureur partenaire n'est plus transmis."
+    }
+  },
+  {
+    "cle": "EVAL-18",
+    "domaine": "comptabilite",
+    "titre": "Écritures monétiques absentes du grand livre",
+    "description": "Les écritures générées par le système monétique n'apparaissent pas dans le grand livre : l'interface comptable rejette le fichier faute d'en-tête conforme.",
+    "cause_attendue": "interface_flux",
+    "reponse": {
+      "cause_racine": "interface_flux",
+      "justification": "L'interface comptable rejette le fichier envoyé par le système monétique."
+    }
+  },
+  {
+    "cle": "EVAL-19",
+    "domaine": "depots",
+    "titre": "Environnement de recette indisponible le matin",
+    "description": "L'environnement de recette 2 ne répond pas entre 8 h et 10 h : la base de données est arrêtée par la sauvegarde planifiée.",
+    "cause_attendue": "environnement",
+    "reponse": {
+      "cause_racine": "environnement",
+      "justification": "L'environnement de recette est indisponible pendant la sauvegarde planifiée."
+    }
+  },
+  {
+    "cle": "EVAL-20",
+    "domaine": "credits",
+    "titre": "Version de recette en retard sur la livraison",
+    "description": "La recette des prêts est faite sur la version 4.2 alors que la livraison attendue est la 4.3 ; le correctif du calcul d'échéancier n'est pas déployé sur l'environnement.",
+    "cause_attendue": "environnement",
+    "reponse": {
+      "cause_racine": "regle_transformation",
+      "justification": "Le calcul de l'échéancier est faux, ce qui relève d'une règle de calcul."
+    }
+  },
+  {
+    "cle": "EVAL-21",
+    "domaine": "paiements",
+    "titre": "Certificat expiré sur le serveur de recette",
+    "description": "Les appels vers le service de vérification d'IBAN échouent en recette : le certificat TLS du serveur de test a expiré hier.",
+    "cause_attendue": "environnement",
+    "reponse": {
+      "cause_racine": "environnement",
+      "justification": "Le certificat du serveur de test a expiré : la configuration technique de l'environnement est en cause."
+    }
+  },
+  {
+    "cle": "EVAL-22",
+    "domaine": "referentiel_clients",
+    "titre": "Espace disque saturé sur l'environnement d'intégration",
+    "description": "Les traitements de dédoublonnage échouent sur l'environnement d'intégration : le volume de travail est plein à 100 %.",
+    "cause_attendue": "environnement",
+    "reponse": {
+      "cause_racine": "environnement",
+      "justification": "Le volume de l'environnement d'intégration est saturé."
+    }
+  },
+  {
+    "cle": "EVAL-23",
+    "domaine": "epargne",
+    "titre": "Client de test majeur sur un Livret Jeune",
+    "description": "Le cas de test LJ-12 utilise un client de 34 ans pour ouvrir un Livret Jeune : le rejet obtenu est le comportement attendu, c'est le jeu de données qui est inadapté.",
+    "cause_attendue": "donnee_test",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "Le rejet observé est le comportement attendu du système."
+    }
+  },
+  {
+    "cle": "EVAL-24",
+    "domaine": "credits",
+    "titre": "IBAN de test invalide pour le déblocage de fonds",
+    "description": "Le scénario de déblocage de fonds utilise un IBAN de test dont la clé de contrôle est fausse ; le déblocage est rejeté pour cette raison.",
+    "cause_attendue": "donnee_test",
+    "reponse": {
+      "cause_racine": "donnee_test",
+      "justification": "L'IBAN du jeu de test est invalide, le rejet vient de la donnée de test."
+    }
+  },
+  {
+    "cle": "EVAL-25",
+    "domaine": "depots",
+    "titre": "Résultat attendu erroné dans le cas de test de clôture",
+    "description": "Le cas de test CLO-07 attend des frais de clôture de 15 € alors que la grille tarifaire en vigueur prévoit la gratuité ; le cas de test est à corriger.",
+    "cause_attendue": "donnee_test",
+    "reponse": {
+      "cause_racine": "donnee_test",
+      "justification": "Le résultat attendu du cas de test est faux."
+    }
+  },
+  {
+    "cle": "EVAL-26",
+    "domaine": "comptabilite",
+    "titre": "Jeu de test sans écriture d'à-nouveau",
+    "description": "Le jeu de données de recette de la clôture annuelle ne contient aucune écriture d'à-nouveau ; le test du report des soldes ne peut pas aboutir.",
+    "cause_attendue": "donnee_test",
+    "reponse": {
+      "cause_racine": "donnee_test",
+      "justification": "Le jeu de données de recette est inadapté au test du report des soldes."
+    }
+  },
+  {
+    "cle": "EVAL-27",
+    "domaine": "paiements",
+    "titre": "Demande d'ajout du paiement instantané",
+    "description": "Le métier demande que les virements instantanés soient disponibles dans le nouveau SI ; cette fonctionnalité n'existait pas dans l'ancien système et n'est pas prévue dans le lot de migration.",
+    "cause_attendue": "hors_perimetre",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "Il s'agit d'une demande nouvelle, hors du périmètre de la migration."
+    }
+  },
+  {
+    "cle": "EVAL-28",
+    "domaine": "depots",
+    "titre": "Doublon de l'anomalie sur les frais de tenue de compte",
+    "description": "Même constat que l'anomalie déjà ouverte sur les frais de tenue de compte : les frais sont prélevés le 1er au lieu du 5. Ticket ouvert deux fois par deux testeurs.",
+    "cause_attendue": "hors_perimetre",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "Le ticket est un doublon d'une anomalie déjà ouverte."
+    }
+  },
+  {
+    "cle": "EVAL-29",
+    "domaine": "referentiel_clients",
+    "titre": "Tri alphabétique ignorant les accents",
+    "description": "Dans la recherche client, « Élise » apparaît après « Zoé ». Ce comportement est identique dans l'ancien système et conforme à la spécification.",
+    "cause_attendue": "hors_perimetre",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "Le comportement est conforme à la spécification et identique à l'ancien système."
+    }
+  },
+  {
+    "cle": "EVAL-30",
+    "domaine": "epargne",
+    "titre": "Nouveau tableau de bord des encours demandé",
+    "description": "Le contrôle de gestion souhaite un tableau de bord des encours d'épargne par agence, absent de l'ancien système et du périmètre de la migration.",
+    "cause_attendue": "hors_perimetre",
+    "reponse": {
+      "cause_racine": "hors_perimetre",
+      "justification": "La demande porte sur un rapport absent de l'ancien système et du périmètre."
+    }
+  }
+]
