@@ -32,6 +32,7 @@ from usine.contrats.prevision import (
 from usine.ui import cli, detail, lancement
 from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
+from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import STORY_A_VENIR, Ecran
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
@@ -196,8 +197,17 @@ def test_detail_entite_rouge(racine_publiee: Path, monkeypatch: pytest.MonkeyPat
     textes = _textes(page)
     for ligne in detail.lignes_kpi(consultation.kpi(entite="ENT-A")):
         assert f"| {ligne['KPI']} | {ligne['Valeur']} |" in textes
-    assert detail.PREVISION_NON_CALCULEE_PASSAGE in textes
-    assert detail.RISQUE_NON_CALCULE_PASSAGE in textes
+    (prevision,) = consultation.previsions(entite="ENT-A")  # Prévision réelle (Story 5.3)
+    if prevision.statut is StatutPrevision.regle_non_projetable:
+        codes = ", ".join(c.value for c in prevision.regles_non_projetables)
+        assert f"règle non projetable ({codes})" in textes
+    elif prevision.date_sortie_estimee is not None:
+        assert formater_date(prevision.date_sortie_estimee) in textes
+    assert prevision.facteurs
+    for facteur in prevision.facteurs:
+        assert echapper_markdown(facteur.libelle) in textes
+    assert detail.PREVISION_NON_CALCULEE_PASSAGE not in textes
+    assert detail.RISQUE_SANS_OBJET in textes
     assert detail.EXPLICATION_PALIER_1 in textes
 
 
@@ -285,6 +295,8 @@ class _Doublure:
             seuil_numerateur=10,
             seuil_denominateur=1,
             version_grille="abc",
+            valeur_projetee_numerateur=11,
+            valeur_projetee_denominateur=1,
         )
         return tuple(r for r in (risque,) if entite is None or r.entite == entite)
 
@@ -322,9 +334,43 @@ def test_detail_avec_prevision_et_risque(
     textes = _textes(page)
     (risque,) = doublure.risques(entite="ENT-B")
     assert "| IND-1 | 6 | 10 |" in textes
+    assert "10 jours ouvrés | 11 |" in textes  # valeur projetée (contrats 1.1)
     assert formater_date(risque.date_franchissement_estimee) in textes
     assert "10 jours ouvrés" in textes
     assert detail.PREVISION_SANS_OBJET in textes
+
+
+class _DoublureNonCalculee(_Doublure):
+    """Passage dont l'étape `prevision` est sautée : rien n'est publié."""
+
+    def manifeste(self) -> ManifestePassage:
+        manifeste = super().manifeste()
+        etapes = tuple(
+            e.model_copy(update={"statut": StatutEtape.sautee}) if e.etape is Etape.prevision else e
+            for e in manifeste.etapes
+        )
+        return manifeste.model_copy(update={"etapes": etapes})
+
+    def previsions(self, date_arrete: Any = None, entite: str | None = None) -> tuple[Any, ...]:
+        return ()
+
+    def risques(self, date_arrete: Any = None, entite: str | None = None) -> tuple[Any, ...]:
+        return ()
+
+
+def test_detail_prevision_non_calculee(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    reelle = consultation_dernier_passage(Path.cwd())
+    doublure = _DoublureNonCalculee(reelle)
+    monkeypatch.setattr(cli, "consultation_dernier_passage", lambda _racine: doublure)
+    page = _page()
+    page.button(key="detail_ENT-B").click().run()
+    assert not page.exception
+    textes = _textes(page)
+    assert detail.PREVISION_NON_CALCULEE_PASSAGE in textes
+    assert detail.RISQUE_NON_CALCULE_PASSAGE in textes
 
 
 def test_detail_palier_2(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:

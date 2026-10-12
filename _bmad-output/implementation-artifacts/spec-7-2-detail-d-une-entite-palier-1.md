@@ -19,7 +19,7 @@ deferred: []
 
 **Problem:** L'écran « Détail d'une Entité » livré par la 7.1 est un emplacement : il n'affiche que la Météo. Le Pilote ne voit ni chaque Règle déclenchante, ni les KPI, ni la Prévision de sortie du rouge, ni le Risque d'entrée en rouge (Story 7.2, FR-43, FR-17, FR-20, FR-21).
 
-**Approach:** Un module pur `ui/detail.py` construit, à partir de `Consultation`, les blocs de l'écran : Règles déclenchantes, KPI clés, Prévision, Risques et zone Explication. `app.afficher_detail` les affiche sous le sélecteur d'Entité existant. Prévisions et Risques arrivent dans le Passage avec la Story 5.3 (lane L5). Tant qu'un Passage n'en contient pas, l'écran l'annonce par un état explicite « non calculée ».
+**Approach:** Un module pur `ui/detail.py` construit, à partir de `Consultation`, les blocs de l'écran : Règles déclenchantes, KPI clés, Prévision, Risques et zone Explication. `app.afficher_detail` les affiche sous le sélecteur d'Entité existant. Prévisions et Risques sont publiés dans le Passage depuis la Story 5.3 (fusionnée dans `main`) : l'écran affiche les valeurs réelles. Si l'étape `prevision` n'a pas réussi, l'écran l'annonce par un état explicite « non calculée ».
 
 ## Boundaries & Constraints
 
@@ -34,8 +34,8 @@ deferred: []
   - `regle_non_projetable` : « pas de sortie projetée : règle non projetable (IND-x, …) ».
   - Puis les facteurs explicatifs : `libellé : valeur` (`formater_fraction`).
   - Entité non rouge : « Sans objet : l'Entité n'est pas rouge. »
-- **Risque d'entrée en rouge (Entité non rouge).** Pour chaque `RisqueEntreeRouge` de l'Entité : indicateur, valeur courante, seuil rouge, date de franchissement estimée et horizon. Aucun Risque : « Aucun Risque d'entrée en rouge dans l'horizon. » Entité rouge : « Sans objet : l'Entité est déjà rouge. »
-- **État « non calculée ».** Les Prévisions sont calculées pour ce Passage si et seulement si `previsions()` ou `risques()`, sans filtre d'Entité, est non vide (`Consultation` rend `()` sans `previsions.json`). Sinon, les deux blocs portent « Prévision non calculée pour ce Passage » et « Risque d'entrée en rouge non calculé pour ce Passage ». Si elles sont calculées mais qu'une Entité rouge n'a pas de Prévision : « Prévision non calculée pour cette Entité ».
+- **Risque d'entrée en rouge (Entité non rouge).** Pour chaque `RisqueEntreeRouge` de l'Entité : indicateur, valeur courante, seuil rouge, date de franchissement estimée et horizon ; colonne « Valeur projetée » (contrats 1.1.0, optionnelle) seulement si un Risque la porte, `—` pour les autres. Aucun Risque : « Aucun Risque d'entrée en rouge dans l'horizon. » Entité rouge : « Sans objet : l'Entité est déjà rouge. »
+- **État « non calculée ».** Les Prévisions sont calculées pour ce Passage si et seulement si l'étape `prevision` du manifeste est `reussie` (même règle que `consultation.prevision.previsions_calculees`, réécrite dans `ui` qui n'importe pas `consultation`). Sinon, les deux blocs portent « Prévision non calculée pour ce Passage » et « Risque d'entrée en rouge non calculé pour ce Passage ». Si elles sont calculées mais qu'une Entité rouge n'a pas de Prévision : « Prévision non calculée pour cette Entité ».
 - **Explication.** Passage `palier == 1` : la zone porte exactement « commentaire non généré (Palier 1) ». Palier 2 : « Explication sourcée : Story 7.7 ».
 - **Navigation.** L'écran Détail n'est plus un emplacement : `Ecran.detail` sort de `STORY_A_VENIR`. Sélecteur, bouton `Détail ENT-x`, messages « Aucun Passage publié » et « Lecture du dernier Passage impossible » de la 7.1 sont conservés.
 - **Tests.** Les valeurs attendues sont tirées du Passage (`consultation_dernier_passage`), jamais figées. Les cas avec Prévisions et Risques utilisent une doublure de `Consultation`, injectée dans `AppTest` en remplaçant `usine.ui.cli.consultation_dernier_passage`.
@@ -49,7 +49,9 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Entité rouge, Passage d'essai | ENT-A, Palier 1, sans `previsions.json` | chaque Règle de `meteo(entite)` avec tous ses tickets en liens ; KPI clés ; « Prévision non calculée pour ce Passage » ; « commentaire non généré (Palier 1) » | N/A |
+| Entité rouge, Passage d'essai | ENT-A, Palier 1, étape `prevision` réussie | chaque Règle de `meteo(entite)` avec tous ses tickets en liens ; KPI clés ; Prévision réelle du Passage et ses facteurs ; Risque sans objet ; « commentaire non généré (Palier 1) » | N/A |
+| Étape `prevision` non réussie | manifeste : `prevision` sautée | « Prévision non calculée pour ce Passage », « Risque d'entrée en rouge non calculé pour ce Passage » | N/A |
+| Valeur projetée | Risque avec `valeur_projetee_*` | colonne « Valeur projetée » | N/A |
 | Sortie projetée | doublure : Prévision `sortie_projetee` de l'Entité | dates estimée, optimiste, pessimiste en `JJ/MM/AAAA`, probabilité en %, facteurs | N/A |
 | Pas de sortie | Prévision `pas_de_sortie_projetee` | « pas de sortie projetée » et facteurs | N/A |
 | Non projetable | Prévision `regle_non_projetable` (IND-2) | « règle non projetable (IND-2) » | N/A |
@@ -94,11 +96,17 @@ deferred: []
 
 ## Spec Change Log
 
+### 2026-10-12 — Reprise après coupure, fusion de `main`
+- Déclencheur : `main` a reçu les contrats v1.1 (valeur projetée optionnelle du Risque) et la Story 5.3 (Prévisions et Risques publiés). Consigne de reprise : afficher Prévision et Risques réels et la valeur projetée si présente.
+- Amendé : critère « calculée » (manifeste au lieu de la présence de données), colonne « Valeur projetée », matrice I/O.
+- État écarté : heuristique « aucune Prévision ni Risque = non calculé », fausse dès qu'un Passage réel n'a ni rouge ni Risque.
+- KEEP : blocs purs de `ui/detail.py`, `LectureDetail` aligné par `inspect.signature`, tests `AppTest` à valeurs tirées du Passage, doublure injectée via `cli.consultation_dernier_passage`.
+
 ## Review Triage Log
 
 ## Design Notes
 
-**Critère « calculée ».** `Consultation` ne distingue pas un `previsions.json` absent d'un fichier vide, et le manifeste marque le bouchon `reussie`. Le domaine produit une Prévision par Entité rouge. Un Passage sans aucune Prévision ni aucun Risque est donc tenu pour « non calculé ». Cas limite accepté : un Passage sans Entité rouge ni Risque s'affiche aussi « non calculé ».
+**Critère « calculée ».** Depuis la Story 5.3, toute étape `prevision` réussie écrit `previsions.json` et son échec arrête le Passage : le manifeste suffit. Reste indiscernable un Passage publié avec l'ancien bouchon (étape réussie sans fichier), lu comme « aucun Risque » / « non calculée pour cette Entité » ; accepté (même limite que `consultation.prevision`).
 
 **Fichiers hors lane.** Aucun : `tests/unit/ui/` est le miroir de `src/usine/ui`.
 

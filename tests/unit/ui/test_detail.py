@@ -11,6 +11,7 @@ import pytest
 
 from usine.contrats.format import formater_date, formater_fraction, formater_pourcentage
 from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite, Operateur, RegleDeclenchante
+from usine.contrats.passage import Etape, StatutEtape
 from usine.contrats.prevision import (
     FacteurExplicatif,
     MethodePrevision,
@@ -41,6 +42,7 @@ from usine.ui.detail import (
     texte_risques,
     valeur_kpi,
 )
+from usine.ui.liens import echapper_markdown
 
 DATE = date(2026, 10, 9)
 METHODES = ["manifeste", "meteo", "kpi", "previsions", "risques", "url_ticket"]
@@ -155,14 +157,26 @@ def test_codes_kpi_presents_dans_le_passage(racine_publiee: Path) -> None:
         assert len(lignes) == attendues > 0
 
 
-def test_passage_d_essai_non_calcule(racine_publiee: Path) -> None:
+def test_passage_d_essai_previsions_reelles(racine_publiee: Path) -> None:
+    """Étape `prevision` réussie (Story 5.3) : chaque Entité rouge montre sa Prévision publiée."""
     consultation = consultation_dernier_passage(racine_publiee)
     assert consultation is not None
-    assert not previsions_calculees(consultation)
-    for meteo in consultation.meteo():
-        texte = texte_prevision(meteo, consultation.previsions(entite=meteo.entite), False)
-        assert texte == PREVISION_NON_CALCULEE_PASSAGE
-        assert texte_risques(meteo, (), False) == RISQUE_NON_CALCULE_PASSAGE
+    assert previsions_calculees(consultation.manifeste())
+    rouges = [m for m in consultation.meteo() if m.couleur is Couleur.rouge]
+    assert rouges
+    for meteo in rouges:
+        previsions = consultation.previsions(entite=meteo.entite)
+        texte = texte_prevision(meteo, previsions, True)
+        assert previsions
+        for prevision in previsions:
+            if prevision.statut is StatutPrevision.regle_non_projetable:
+                codes = ", ".join(c.value for c in prevision.regles_non_projetables)
+                assert f"règle non projetable ({codes})" in texte
+            for facteur in prevision.facteurs:
+                valeur = formater_fraction(Fraction(facteur.numerateur, facteur.denominateur))
+                assert f"{echapper_markdown(facteur.libelle)} : {valeur}" in texte
+        risques = consultation.risques(entite=meteo.entite)
+        assert texte_risques(meteo, risques, True) == RISQUE_SANS_OBJET
 
 
 def test_regles_du_passage_d_essai(racine_publiee: Path) -> None:
@@ -311,24 +325,39 @@ def test_risque_entite_rouge() -> None:
     assert texte_risques(VERTE, (), False) == RISQUE_NON_CALCULE_PASSAGE
 
 
-class _Doublure:
-    def __init__(self, previsions: tuple[Prevision, ...], risques: tuple[RisqueEntreeRouge, ...]):
-        self._p, self._r = previsions, risques
+def test_valeur_projetee() -> None:
+    projete = _risque().model_copy(
+        update={"valeur_projetee_numerateur": 23, "valeur_projetee_denominateur": 2}
+    )
+    texte = texte_risques(VERTE, (projete,), True)
+    assert "| Valeur projetée |" in texte
+    assert "10 jours ouvrés | 11,5 |" in texte
+    assert "Valeur projetée" not in texte_risques(VERTE, (_risque(),), True)
+    mixte = texte_risques(VERTE, (projete, _risque()), True)
+    assert "10 jours ouvrés | — |" in mixte
 
-    def previsions(self) -> tuple[Prevision, ...]:
-        return self._p
 
-    def risques(self) -> tuple[RisqueEntreeRouge, ...]:
-        return self._r
-
-
-def test_previsions_calculees() -> None:
-    def calculees(doublure: _Doublure) -> bool:
-        return previsions_calculees(doublure)  # type: ignore[arg-type]
-
-    assert not calculees(_Doublure((), ()))
-    assert calculees(_Doublure((_prevision(StatutPrevision.sortie_projetee),), ()))
-    assert calculees(_Doublure((), (_risque(),)))
+@pytest.mark.parametrize(
+    ("statut", "attendu"),
+    [
+        (StatutEtape.reussie, True),
+        (StatutEtape.sautee, False),
+        (StatutEtape.echouee, False),
+        (None, False),
+    ],
+)
+def test_previsions_calculees(
+    racine_publiee: Path, statut: StatutEtape | None, attendu: bool
+) -> None:
+    consultation = consultation_dernier_passage(racine_publiee)
+    assert consultation is not None
+    manifeste = consultation.manifeste()
+    etapes = tuple(
+        e if e.etape is not Etape.prevision else e.model_copy(update={"statut": statut})
+        for e in manifeste.etapes
+        if statut is not None or e.etape is not Etape.prevision
+    )
+    assert previsions_calculees(manifeste.model_copy(update={"etapes": etapes})) is attendu
 
 
 # Explication

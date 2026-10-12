@@ -128,10 +128,10 @@ def afficher_detail(racine: Path) -> None:
     entite = st.selectbox("Entité", list(meteos), key=navigation.CLE_ENTITE)
     meteo = meteos[entite]
     try:
-        palier = consultation.manifeste().palier
+        manifeste = consultation.manifeste()
         regles = detail.lignes_regles(meteo, consultation.url_ticket)
         kpi = detail.lignes_kpi(consultation.kpi(entite=entite))
-        calculees = detail.previsions_calculees(consultation)
+        calculees = detail.previsions_calculees(manifeste)
         previsions = consultation.previsions(entite=entite)
         risques = consultation.risques(entite=entite)
     except UsineErreur as exc:
@@ -142,7 +142,7 @@ def afficher_detail(racine: Path) -> None:
     _bloc("KPI clés", carte.tableau_markdown(kpi) or detail.AUCUN_KPI)
     _bloc("Prévision de sortie du rouge", detail.texte_prevision(meteo, previsions, calculees))
     _bloc("Risque d'entrée en rouge", detail.texte_risques(meteo, risques, calculees))
-    _bloc("Explication", detail.texte_explication(palier))
+    _bloc("Explication", detail.texte_explication(manifeste.palier))
 
 
 def afficher_a_venir(ecran: Ecran) -> None:

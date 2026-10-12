@@ -15,7 +15,7 @@ import polars as pl
 
 from usine.contrats.format import formater_date, formater_fraction, formater_pourcentage
 from usine.contrats.meteo import Couleur, MeteoEntite
-from usine.contrats.passage import ManifestePassage
+from usine.contrats.passage import Etape, ManifestePassage, StatutEtape
 from usine.contrats.prevision import Prevision, RisqueEntreeRouge, StatutPrevision
 from usine.ui.carte import INCONNUE, formater_regle, tableau_markdown
 from usine.ui.liens import echapper_markdown, lien_ticket
@@ -130,9 +130,17 @@ def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
     return lignes
 
 
-def previsions_calculees(consultation: LectureDetail) -> bool:
-    """Vrai si le Passage contient au moins une Prévision ou un Risque (toutes Entités)."""
-    return bool(consultation.previsions()) or bool(consultation.risques())
+def previsions_calculees(manifeste: ManifestePassage) -> bool:
+    """Vrai si l'étape `prevision` du Passage a réussi.
+
+    `Consultation` rend `()` aussi bien sans `previsions.json` que sans Risque : seul le
+    manifeste dit si la Prévision a été calculée (même règle que `consultation.prevision`,
+    que `ui` n'importe pas).
+    """
+    return any(
+        execution.etape is Etape.prevision and execution.statut is StatutEtape.reussie
+        for execution in manifeste.etapes
+    )
 
 
 def _facteurs(prevision: Prevision) -> list[str]:
@@ -201,7 +209,10 @@ def _valeur(numerateur: int, denominateur: int) -> str:
 def texte_risques(
     meteo: MeteoEntite, risques: tuple[RisqueEntreeRouge, ...], calculees: bool
 ) -> str:
-    """Bloc Risque d'entrée en rouge de l'Entité (Markdown : message ou tableau)."""
+    """Bloc Risque d'entrée en rouge de l'Entité (Markdown : message ou tableau).
+
+    La colonne « Valeur projetée » (contrats 1.1.0) n'apparaît que si un Risque la porte.
+    """
     if not calculees:
         return RISQUE_NON_CALCULE_PASSAGE
     if meteo.couleur is Couleur.rouge:
@@ -209,18 +220,26 @@ def texte_risques(
     propres = [r for r in risques if r.entite == meteo.entite]
     if not propres:
         return AUCUN_RISQUE
-    return tableau_markdown(
-        [
-            {
-                "Indicateur": risque.indicateur.value,
-                "Valeur courante": _valeur(risque.numerateur, risque.denominateur),
-                "Seuil rouge": _valeur(risque.seuil_numerateur, risque.seuil_denominateur),
-                "Franchissement estimé": formater_date(risque.date_franchissement_estimee),
-                "Horizon": f"{risque.horizon_jours_ouvres} jours ouvrés",
-            }
-            for risque in propres
-        ]
-    )
+    avec_projection = any(r.valeur_projetee_denominateur is not None for r in propres)
+    lignes: list[dict[str, str]] = []
+    for risque in propres:
+        ligne = {
+            "Indicateur": risque.indicateur.value,
+            "Valeur courante": _valeur(risque.numerateur, risque.denominateur),
+            "Seuil rouge": _valeur(risque.seuil_numerateur, risque.seuil_denominateur),
+            "Franchissement estimé": formater_date(risque.date_franchissement_estimee),
+            "Horizon": f"{risque.horizon_jours_ouvres} jours ouvrés",
+        }
+        if avec_projection:
+            numerateur = risque.valeur_projetee_numerateur
+            denominateur = risque.valeur_projetee_denominateur
+            ligne["Valeur projetée"] = (
+                _valeur(numerateur, denominateur)
+                if numerateur is not None and denominateur is not None
+                else INCONNUE
+            )
+        lignes.append(ligne)
+    return tableau_markdown(lignes)
 
 
 def texte_explication(palier: Literal[1, 2]) -> str:
