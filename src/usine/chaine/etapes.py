@@ -1,12 +1,19 @@
-"""Étapes de la Chaîne du walking skeleton (Story 0.5).
+"""Étapes déterministes de la Chaîne (Stories 0.5 et 5.1).
 
-Les étapes déterministes réelles enveloppent le domaine ; les autres sont des bouchons, et les
-étapes LLM sont sautées en Palier 1. Aucune étape n'écrit : elle renvoie un `ResultatEtape`.
+Les étapes déterministes enveloppent le domaine sans aucun recalcul : `EtapeInstantanes` et
+`EtapeMeteo` couvrent chaque Jour ouvré de l'historique jusqu'à la Date d'arrêté ;
+`EtapeKpi` (KPI quotidiens et Tendances) couvre chaque Jour ouvré du premier jour où un ticket
+existe jusqu'à la Date d'arrêté, aucun avant ; `EtapePrevision` reçoit la prévision sous forme de
+fonction injectée et trace chaque Prévision et chaque Risque (AD-16, FR-34). Les étapes pas
+encore implémentées sont des bouchons, et les étapes LLM sont sautées en Palier 1. Aucune
+étape n'écrit : elle lit le Passage en cours par `ctx.consultation` et renvoie un
+`ResultatEtape`, que l'`EcrivainPassage` écrit.
 """
 
+import json
 from collections import deque
-from collections.abc import Sequence
-from datetime import date
+from collections.abc import Callable, Sequence
+from datetime import date, datetime
 
 import polars as pl
 
@@ -16,10 +23,16 @@ from usine.contrats.config import ConfigProgramme, GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.meteo import MeteoEntite
 from usine.contrats.passage import ContextePassage, ResultatEtape, StatutEtape
+from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.domaine.instantanes import instantane, tickets_etats, tickets_textes
+from usine.domaine.kpi import kpi, tendances
 from usine.domaine.meteo import DECALAGE_IND8, indicateurs, meteo
 from usine.ports.consultation import Consultation
 from usine.ports.source_tickets import SourceTickets
+
+type Prevoir = Callable[[ContextePassage[Consultation]], ContenuPrevisions]
+"""Fonction de prévision injectée dans `EtapePrevision` (lit le Passage, appelle le domaine)."""
 
 
 def jours_du_passage(premier_jour: date, date_arrete: date) -> tuple[date, ...]:
@@ -115,6 +128,112 @@ class EtapeMeteo:
             else pl.DataFrame(schema=dict(SCHEMA_INDICATEUR.colonnes))
         )
         return ResultatEtape(StatutEtape.reussie, {"indicateurs": table, "meteo": tuple(meteos)})
+
+
+class EtapeKpi:
+    """KPI quotidiens et Tendances, sur tout l'historique du Passage.
+
+    `premier_jour` est aussi l'ancrage des semaines du Programme (`EnteteJournal.ancrage_semaines`).
+    """
+
+    def __init__(self, entites: Sequence[str], premier_jour: date) -> None:
+        self._entites = tuple(entites)
+        self._premier_jour = premier_jour
+
+    def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
+        """Sorties `kpi` et `tendances`, lues depuis `tickets_etats` du Passage.
+
+        `kpi` reçoit l'état des tickets de chaque Jour ouvré de `premier_jour` à la Date
+        d'arrêté ; ses lignes couvrent chaque Jour ouvré du premier jour où un ticket existe
+        jusqu'à la Date d'arrêté, aucune avant. `tendances` reçoit ces KPI, la Date d'arrêté
+        et l'ancrage. Sans aucun ticket, les deux tables sont vides.
+        """
+        jours = jours_du_passage(self._premier_jour, ctx.date_arrete)
+        historique = pl.concat(
+            [ctx.consultation.tickets_etats(jour) for jour in jours], how="vertical"
+        )
+        quotidiens = kpi(historique, self._entites)
+        return ResultatEtape(
+            StatutEtape.reussie,
+            {
+                "kpi": quotidiens,
+                "tendances": tendances(quotidiens, ctx.date_arrete, self._premier_jour),
+            },
+        )
+
+
+def _json(identite: dict[str, str]) -> str:
+    return json.dumps(identite, ensure_ascii=False, separators=(",", ":"))
+
+
+class EtapePrevision:
+    """Prévisions de sortie du rouge et Risques d'entrée en rouge, avec leurs traces.
+
+    La prévision elle-même est la fonction injectée `prevoir` (le domaine `prevision`) :
+    l'étape ne connaît aucune Baseline. Chaque Prévision, puis chaque Risque, produit une
+    `EntreeTrace` de type `prevision`, datée par `horloge`, avec `version_donnees`.
+    """
+
+    def __init__(
+        self, prevoir: Prevoir, version_donnees: str, horloge: Callable[[], datetime]
+    ) -> None:
+        self._prevoir = prevoir
+        self._version_donnees = version_donnees
+        self._horloge = horloge
+
+    def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
+        """Sortie `previsions` et une trace par Prévision et par Risque, dans cet ordre."""
+        contenu: object = self._prevoir(ctx)
+        if not isinstance(contenu, ContenuPrevisions):
+            raise UsineErreur(
+                f"prévision de type {type(contenu).__name__}, attendu ContenuPrevisions"
+            )
+        traces = [
+            self._trace(
+                ctx,
+                p.date_arrete,
+                p.entite,
+                p.version_grille,
+                {"methode": p.methode.value},
+                p.model_dump_json(),
+            )
+            for p in contenu.previsions
+        ]
+        traces += [
+            self._trace(
+                ctx,
+                r.date_arrete,
+                r.entite,
+                r.version_grille,
+                {"indicateur": r.indicateur.value},
+                r.model_dump_json(),
+            )
+            for r in contenu.risques
+        ]
+        return ResultatEtape(StatutEtape.reussie, {"previsions": contenu}, tuple(traces))
+
+    def _trace(
+        self,
+        ctx: ContextePassage[Consultation],
+        date_arrete: date,
+        entite: str,
+        version_grille: str,
+        identite: dict[str, str],
+        sortie: str,
+    ) -> EntreeTrace:
+        entree = {"date_arrete": date_arrete.isoformat(), "entite": entite, **identite}
+        return EntreeTrace(
+            type_trace=TypeTrace.prevision,
+            horodatage=self._horloge(),
+            passage_id=ctx.passage_id,
+            date_arrete=date_arrete,
+            entite=entite,
+            cible=entite,
+            version_grille=version_grille,
+            version_donnees=self._version_donnees,
+            entree_pseudonymisee=_json(entree),
+            sortie=sortie,
+        )
 
 
 class EtapeBouchon:

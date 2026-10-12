@@ -16,9 +16,24 @@ L'étape `extraction` verse Jira dans `donnees/entrepot.duckdb` (`EtapeExtractio
 `config/jira.yaml` existe, hors Mode repli, et que le secret de lecture de sa plateforme est
 présent (`mode: cloud` : `JIRA_TOKEN_LECTURE`, puis `JIRA_EMAIL` exigé ; `mode: dc` :
 `JIRA_DC_PAT`) ; l'adaptateur (`SourceJiraCloud` ou `SourceJiraDC`) suit `mode`. Sinon elle
-reste un bouchon et le Journal est la seule source. `instantanes` lit toujours le Journal
-(source composite : Story 2.6). Les services de l'UI vivent dans
-`ui/cli.py`, l'écriture du Journal dans `generateur.journal.ecrire_journal`.
+reste un bouchon et le Journal est la seule source.
+
+Quand l'extraction Jira est active et que le manifeste d'injection existe, la source est
+`composite` (Story 2.6) : `instantanes` lit `SourceComposite` (Journal, puis événements Jira
+de l'entrepôt postérieurs à la fin d'injection) et l'étape `extraction` persiste les
+alignements détectés (`DetecteurAlignements`). L'instant d'extraction est alors figé à la
+composition : repère, instant de détection et `version_donnees` le partagent, et la Chaîne
+le recopie au manifeste du Passage avec le nombre d'alignements. `version_donnees` porte sur
+les octets du Journal, suivis de `\n` et du manifeste d'injection s'il existe.
+
+`instantanes` et `meteo` couvrent chaque Jour ouvré depuis `EnteteJournal.ancrage_semaines`,
+aussi ancrage des semaines ; `kpi` (KPI et Tendances), chaque Jour ouvré du premier jour où un
+ticket existe à la Date d'arrêté, aucun avant. `prevision` reste un bouchon : la Baseline
+(`domaine.prevision.baseline`, Story 4.1) attend une `SerieStock` que le domaine ne construit
+pas encore depuis le Passage, ni les Risques (Story 4.2) ; ensuite, une `EtapePrevision`.
+
+Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
+`generateur.journal.ecrire_journal`.
 """
 
 import secrets
@@ -31,6 +46,7 @@ from types import MappingProxyType
 
 from pydantic import SecretStr
 
+from usine.adaptateurs.composite import DetecteurAlignements, SourceComposite
 from usine.adaptateurs.entrepot_duckdb import CHEMIN_ENTREPOT, EtapeExtraction
 from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
@@ -47,7 +63,7 @@ from usine.adaptateurs.pseudonymisation import (
 )
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.chaine.ecrivain import EcrivainPassage
-from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeMeteo, EtapeSautee
+from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeKpi, EtapeMeteo, EtapeSautee
 from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
 from usine.config import Secrets, charger_secrets, charger_yaml
@@ -111,6 +127,8 @@ class Rapport:
     chemin_verrou: Path
     url_jira: str | None = None
     """URL du site Jira pour `url_ticket` ; `None` en Mode repli ou sans `config/jira.yaml`."""
+    horodatage_extraction: datetime | None = None
+    """Instant d'extraction figé à la composition (source `composite`) ; sinon `None`."""
 
     def fabrique_consultation(self, date_arrete: date) -> Callable[[Path], Consultation]:
         """Fabrique de la `Consultation` d'un Passage de ce rapport à la Date d'arrêté."""
@@ -221,23 +239,37 @@ def _secret_present(valeur: SecretStr | None) -> bool:
     return valeur is not None and bool(valeur.get_secret_value().strip())
 
 
-def _etape_extraction(
-    racine: Path,
-    jira: ConfigJira | None,
-    secrets_usine: Secrets,
-    horloge: Callable[[], datetime],
-) -> PortEtape:
-    """Étape `extraction` : Jira (`mode` de `config/jira.yaml`) vers l'entrepôt, ou bouchon.
+def _jira_actif(jira: ConfigJira | None, secrets_usine: Secrets) -> ConfigJira | None:
+    """`jira` si l'extraction Jira est active, sinon `None`.
 
-    Bouchon sans `config/jira.yaml`, en Mode repli (pas d'extraction automatique) ou sans le
-    secret de lecture de la plateforme. En Cloud, `JIRA_TOKEN_LECTURE` sans `JIRA_EMAIL` lève
-    une `UsineErreur` qui nomme `JIRA_EMAIL`. Le client Jira est fermé après l'étape.
+    Inactive sans `config/jira.yaml`, en Mode repli (pas d'extraction automatique) ou sans le
+    secret de lecture de la plateforme.
     """
     if jira is None or secrets_usine.usine_mode_repli:
-        return EtapeBouchon()
+        return None
     secret = secrets_usine.jira_token_lecture if jira.mode == "cloud" else secrets_usine.jira_dc_pat
-    if not _secret_present(secret):
-        return EtapeBouchon()
+    return jira if _secret_present(secret) else None
+
+
+def _figee(instant: datetime) -> Callable[[], datetime]:
+    """Horloge qui rend toujours `instant`."""
+    return lambda: instant
+
+
+def _etape_extraction(
+    racine: Path,
+    jira: ConfigJira,
+    secrets_usine: Secrets,
+    horloge: Callable[[], datetime],
+    composite: tuple[SourceJournal, datetime] | None = None,
+) -> EtapeExtraction:
+    """Étape `extraction` : Jira (`mode` de `config/jira.yaml`) vers l'entrepôt.
+
+    En Cloud, `JIRA_TOKEN_LECTURE` sans `JIRA_EMAIL` lève une `UsineErreur` qui nomme
+    `JIRA_EMAIL`. Le client Jira est fermé après l'étape. Avec `composite` (Journal lu aux
+    clés Jira, instant d'extraction figé), le repère est cet instant et l'étape persiste les
+    alignements détectés à cet instant ; la source Jira garde `horloge` (fenêtre `updated`).
+    """
     client = construire_client_lecture(
         jira,
         email=secrets_usine.jira_email,
@@ -249,12 +281,17 @@ def _etape_extraction(
         if jira.mode == "cloud"
         else SourceJiraDC(client, jira, horloge)
     )
+    marge = timedelta(minutes=jira.marge_extraction_minutes)
+    if composite is None:
+        return EtapeExtraction(source, racine / CHEMIN_ENTREPOT, marge, horloge, client.fermer)
+    journal, instant = composite
     return EtapeExtraction(
         source,
         racine / CHEMIN_ENTREPOT,
-        timedelta(minutes=jira.marge_extraction_minutes),
-        horloge,
-        fermer=client.fermer,
+        marge,
+        _figee(instant),
+        client.fermer,
+        aligner=DetecteurAlignements(journal),
     )
 
 
@@ -269,7 +306,8 @@ def construire_rapport(
     En Palier 2, `fournisseur` est obligatoire ; sans `pseudonymiseur`, `PseudonymiseurHmac`
     est construit et exige `USINE_CLE_PSEUDO`. Toute absence lève une `UsineErreur` avant tout
     Passage. `horloge` date les traces LLM et l'extraction Jira (repère, restriction
-    `updated`).
+    `updated`). En source `composite`, l'instant d'extraction est lu une seule fois, ici :
+    repère, détection des alignements et `version_donnees` le partagent.
     """
     repertoire_config = racine / "config"
     chaine = charger_yaml(repertoire_config / "chaine.yaml", ConfigChaine)
@@ -291,15 +329,23 @@ def construire_rapport(
     chemin_manifeste = racine / CHEMIN_MANIFESTE_INJECTION
     manifeste = charger_manifeste(chemin_manifeste) if chemin_manifeste.exists() else None
     source = SourceJournal(chemin_journal, manifeste)
-    empreinte_donnees = version_donnees(_octets(chemin_journal, "Journal"), None)
+    jira_actif = _jira_actif(jira, secrets_usine)
+    # Source composite : extraction Jira active et Journal lu aux clés Jira.
+    horodatage_extraction = horloge() if jira_actif is not None and manifeste is not None else None
+    octets_donnees = _octets(chemin_journal, "Journal")
+    if manifeste is not None:
+        octets_donnees += b"\n" + _octets(chemin_manifeste, "manifeste d'injection")
+    empreinte_donnees = version_donnees(octets_donnees, horodatage_extraction)
     premier_jour = source.entete.ancrage_semaines
     entites = [entite.code for entite in programme.entites]
 
     registre: dict[Etape, PortEtape] = {
         Etape.extraction: EtapeBouchon(),
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
-        Etape.kpi: EtapeBouchon(),
+        Etape.kpi: EtapeKpi(entites, premier_jour),
         Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
+        # Bouchon tant que le domaine L4 ne construit pas la `SerieStock` depuis le Passage et
+        # les Risques (Story 4.2) ; ensuite `EtapePrevision(prevoir, empreinte_donnees, horloge)`.
         Etape.prevision: EtapeBouchon(),
         Etape.rendu: EtapeRendu(gabarit),
     }
@@ -320,14 +366,26 @@ def construire_rapport(
         )
         registre[Etape.explications] = EtapeExplications(passerelle, empreinte_donnees)
     # En dernier : le client Jira n'est ouvert qu'une fois tout le reste validé.
-    registre[Etape.extraction] = _etape_extraction(racine, jira, secrets_usine, horloge)
+    if jira_actif is not None:
+        composite = None if horodatage_extraction is None else (source, horodatage_extraction)
+        extraction = _etape_extraction(racine, jira_actif, secrets_usine, horloge, composite)
+        registre[Etape.extraction] = extraction
+        if composite is not None:
+            registre[Etape.instantanes] = EtapeInstantanes(
+                SourceComposite(source, extraction.evenements_extraits), premier_jour
+            )
     return Rapport(
         configuration=configuration,
         registre=MappingProxyType({etape: registre[etape] for etape in Etape}),
-        donnees=DonneesPassage("journal", empreinte_grille, empreinte_donnees),
+        donnees=DonneesPassage(
+            "journal" if horodatage_extraction is None else "composite",
+            empreinte_grille,
+            empreinte_donnees,
+        ),
         racine_sorties=racine / REPERTOIRE_SORTIES,
         chemin_verrou=racine / CHEMIN_VERROU,
         url_jira=_url_jira(secrets_usine.usine_mode_repli, jira),
+        horodatage_extraction=horodatage_extraction,
     )
 
 
@@ -360,10 +418,15 @@ def lancer_rapport(
     fournisseur: FournisseurLLM | None = None,
     pseudonymiseur: Pseudonymiseur | None = None,
 ) -> PassageLance:
-    """Prend le verrou, construit le rapport et exécute un Passage ; verrou toujours rendu."""
+    """Prend le verrou, construit le rapport et exécute un Passage ; verrou toujours rendu.
+
+    Le manifeste du Passage reçoit l'instant d'extraction du rapport et le nombre
+    d'alignements persistés par l'étape `extraction`.
+    """
     verifier_date_arrete(date_arrete)
     with verrou_exclusif(racine / CHEMIN_VERROU):
         rapport = construire_rapport(racine, fournisseur, pseudonymiseur, horloge)
+        extraction = rapport.registre[Etape.extraction]
         try:
             ecrivain = EcrivainPassage(rapport.racine_sorties, horloge)
             manifeste = executer_passage(
@@ -375,10 +438,13 @@ def lancer_rapport(
                 horloge,
                 alea,
                 rapport.donnees,
+                horodatage_extraction=rapport.horodatage_extraction,
+                nb_alignements=(
+                    extraction.nb_alignements if isinstance(extraction, EtapeExtraction) else None
+                ),
             )
         finally:
             # Client Jira fermé même si le Passage échoue avant l'étape `extraction`.
-            extraction = rapport.registre[Etape.extraction]
             if isinstance(extraction, EtapeExtraction):
                 extraction.fermer()
     repertoire = ecrivain.repertoire_publie

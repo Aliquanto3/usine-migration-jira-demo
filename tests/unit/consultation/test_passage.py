@@ -155,13 +155,15 @@ def test_tables_filtrees(lance: PassageLance) -> None:
     assert set(indicateurs["date"].to_list()) == {date(2026, 10, 8)}
 
 
-def test_palier_1_textes_presents_autres_fichiers_absents(lance: PassageLance) -> None:
+def test_palier_1_kpi_et_textes_presents_autres_fichiers_absents(lance: PassageLance) -> None:
     consultation = ConsultationPassage(lance.repertoire)
-    kpi = consultation.kpi()
-    assert kpi.is_empty()
+    kpi = consultation.kpi()  # écrit par `kpi` (Story 5.1)
+    assert not kpi.is_empty()
+    assert set(kpi["date"].to_list()) == {DATE_ARRETE}
     assert kpi.schema == dict(SCHEMA_KPI.colonnes)
-    assert consultation.tendances().is_empty()
+    assert not consultation.tendances().is_empty()
     assert consultation.textes_tickets().height > 0  # écrit par `instantanes` (Story 0.7)
+    # `prevision` reste un bouchon (domaine L4 absent) : ni Prévision, ni Risque, ni trace.
     assert consultation.explications() == ()
     assert consultation.narrations() == ()
     assert consultation.classification() == ()
