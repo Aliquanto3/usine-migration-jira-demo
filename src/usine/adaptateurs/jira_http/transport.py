@@ -150,6 +150,46 @@ class TransportJira:
         Une réponse sans contenu (204, corps vide) rend `{}`. Un chemin qui n'est pas relatif
         au site (URL absolue, `//hôte`) est refusé avant envoi : le jeton ne quitte pas le site.
         """
+        contexte, reponse = self._envoyer(methode, chemin, params, corps)
+        donnees = self._decoder(contexte, reponse)
+        if donnees is None:
+            return {}
+        if not isinstance(donnees, dict):
+            raise UsineErreur(
+                f"{contexte} : statut HTTP {reponse.status_code}, objet JSON attendu,"
+                f" reçu {type(donnees).__name__}"
+            )
+        return donnees
+
+    def requete_liste(
+        self,
+        methode: str,
+        chemin: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        corps: Mapping[str, Any] | None = None,
+    ) -> list[Any]:
+        """Comme `requete`, pour un point d'accès qui rend un tableau JSON (`/field`).
+
+        Une réponse vide, ou qui n'est pas un tableau, lève une `UsineErreur`.
+        """
+        contexte, reponse = self._envoyer(methode, chemin, params, corps)
+        donnees = self._decoder(contexte, reponse)
+        if not isinstance(donnees, list):
+            recu = "une réponse vide" if donnees is None else type(donnees).__name__
+            raise UsineErreur(
+                f"{contexte} : statut HTTP {reponse.status_code}, tableau JSON attendu, reçu {recu}"
+            )
+        return donnees
+
+    def _envoyer(
+        self,
+        methode: str,
+        chemin: str,
+        params: Mapping[str, Any] | None,
+        corps: Mapping[str, Any] | None,
+    ) -> tuple[str, httpx.Response]:
+        """Envoie la requête et reprend sur 429 ; rend le contexte des erreurs et la réponse."""
         methode = methode.upper()
         contexte = f"Jira {methode} {chemin}"
         if not chemin.startswith("/") or chemin.startswith("//") or "://" in chemin:
@@ -183,11 +223,12 @@ class TransportJira:
                 attente = demande if demande is not None else exponentielle
                 self._attendre(min(attente, ATTENTE_MAX_SECONDES))
                 continue
-            return self._decoder(contexte, reponse)
+            return contexte, reponse
         raise AssertionError("inaccessible : la boucle rend ou lève")  # pragma: no cover
 
     @staticmethod
-    def _decoder(contexte: str, reponse: httpx.Response) -> dict[str, Any]:
+    def _decoder(contexte: str, reponse: httpx.Response) -> object:
+        """JSON décodé d'une réponse 2xx ; `None` si elle est sans contenu."""
         statut = reponse.status_code
         if 300 <= statut < 400:
             raise UsineErreur(f"{contexte} : statut HTTP {statut} (redirection non suivie)")
@@ -195,16 +236,11 @@ class TransportJira:
             precision = {401: " (authentification refusée)", 403: " (accès refusé)"}.get(statut, "")
             raise UsineErreur(f"{contexte} : statut HTTP {statut}{precision}")
         if statut == 204 or not reponse.content.strip():
-            return {}
+            return None
         try:
-            donnees = reponse.json()
+            donnees: object = reponse.json()
         except ValueError:
             raise UsineErreur(f"{contexte} : statut HTTP {statut}, réponse non JSON") from None
-        if not isinstance(donnees, dict):
-            raise UsineErreur(
-                f"{contexte} : statut HTTP {statut}, objet JSON attendu,"
-                f" reçu {type(donnees).__name__}"
-            )
         return donnees
 
     def fermer(self) -> None:

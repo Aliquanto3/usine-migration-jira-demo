@@ -165,6 +165,21 @@ def test_jql_incrementale() -> None:
     )
 
 
+def test_jql_tranche_apres_une_cle() -> None:
+    assert requete_jql(config_jira("cloud"), 25, apres="DEMO-2") == (
+        'project = "DEMO" AND issuetype in ("Anomalie", "Cas de test", "Certification")'
+        ' AND updated >= "-25m" AND key > "DEMO-2" ORDER BY key ASC'
+    )
+    assert requete_jql(config_jira("cloud"), apres='X"1').endswith(
+        ' AND key > "X\\"1" ORDER BY key ASC'
+    )
+
+
+def test_jql_tranche_refuse_une_cle_vide() -> None:
+    with pytest.raises(UsineErreur, match="clé vide"):
+        requete_jql(config_jira("cloud"), apres=" ")
+
+
 def test_jql_incrementale_refuse_moins_d_une_minute() -> None:
     with pytest.raises(UsineErreur, match="1 minute"):
         requete_jql(config_jira("cloud"), 0)
