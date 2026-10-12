@@ -151,6 +151,8 @@ def _verifier_calage(
     derniere = semaine_programme(generation.entete.date_injection, ancrage)
     assert derniere == config.nb_semaines
     assert set(couleurs) == {e.code for e in config.entites}
+    jours = set(jours_ouvres(ancrage, generation.entete.date_injection))
+    assert all(set(du_jour) == jours for du_jour in couleurs.values())
     assert _ecarts(couleurs, ancrage, derniere) == []
     return generation, couleurs
 
