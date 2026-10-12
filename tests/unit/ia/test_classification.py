@@ -22,9 +22,11 @@ from tests.unit.ia.espions import (
     pseudonymiseur,
     textes,
 )
+from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.config import ConfigChaine, ConfigUsine
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
+    SCHEMA_REPARTITION_CAUSES,
     ReponseClassification,
     ReponseExplication,
     SortieClassification,
@@ -353,6 +355,12 @@ class ConsultationMeteoTextes(ConsultationTextes):
         self, date_arrete: date | None = None, entite: str | None = None
     ) -> tuple[MeteoEntite, ...]:
         return self._meteos
+
+    def kpi(self, date_arrete: date | None = None, entite: str | None = None) -> pl.DataFrame:
+        return pl.DataFrame(schema=dict(SCHEMA_KPI.colonnes))
+
+    def repartition_causes(self, entite: str | None = None, palier: int = 2) -> pl.DataFrame:
+        return pl.DataFrame(schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes))
 
 
 def test_explications_appelees_apres_classification_arretee_a_sa_part() -> None:

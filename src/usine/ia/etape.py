@@ -15,6 +15,10 @@ COULEURS_EXPLIQUEES = frozenset({Couleur.rouge, Couleur.orange})
 class EtapeExplications:
     """Explique chaque Entité rouge ou orange à la Date d'arrêté ; n'écrit rien elle-même.
 
+    Lit via la Consultation la Météo, les textes des tickets, et pour chaque Entité expliquée
+    ses KPI à la Date d'arrêté et sa répartition des Causes racines (vide sans étape
+    `repartition_causes`).
+
     `version_prompt` est calculée à partir des octets du gabarit qu'elle envoie (par défaut
     `ia/prompts/explication.md`).
     """
@@ -42,7 +46,15 @@ class EtapeExplications:
         for meteo_entite in ctx.consultation.meteo(ctx.date_arrete):
             if meteo_entite.couleur not in COULEURS_EXPLIQUEES:
                 continue
-            sortie, traces_entite = expliquer(self._passerelle, meteo_entite, textes, contexte)
+            entite = meteo_entite.entite
+            sortie, traces_entite = expliquer(
+                self._passerelle,
+                meteo_entite,
+                textes,
+                contexte,
+                kpi=ctx.consultation.kpi(ctx.date_arrete, entite),
+                repartition=ctx.consultation.repartition_causes(entite),
+            )
             sorties.append(sortie)
             traces.extend(traces_entite)
         return ResultatEtape(StatutEtape.reussie, {"explications": tuple(sorties)}, tuple(traces))
