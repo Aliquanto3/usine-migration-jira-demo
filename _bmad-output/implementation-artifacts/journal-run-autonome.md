@@ -74,6 +74,8 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 
 - Story 1.6 (site Jira réel) : avant tout `usine rapport` sur Jira avec `JIRA_TOKEN_LECTURE`, aligner `champs` de `config/jira.yaml` sur les identifiants réels du site (entite 10043, vague 10044, domaine 10045, gravite 10046, phase 10047, statut_test 10048, statut_certification 10049 ; source : `donnees/injection/site_jira.json`, non versionné) et adapter les fixtures L2 qui figent les identifiants fictifs 10001 à 10007. Le manifeste `donnees/injection/manifeste_injection.json` (non versionné) est à conserver : il interdit une seconde injection (Story 1.7 pour la réinjection). **Résolu par la Story 1.7** (alignement fait, réinjection idempotente).
 
+- Réinjection de `DEMO` (étape 2c de la proposition contrats 1.2, prérequis de la 5.6), **reportée au 13/10 par Anaël**. Le 12/10 au soir, la suppression des 3 384 tickets par l'API a reçu 3 384 refus 403, et aucun ticket n'a été supprimé. `mypermissions` sur `DEMO` : `ADMINISTER` vrai, `DELETE_ISSUES` faux. Mettre `DEMO` à la corbeille ne convient pas, car la clé resterait réservée et l'injecteur ne pourrait pas recréer le projet. À faire : (1) dans Jira, projet `DEMO`, Paramètres, Autorisations, accorder « Supprimer des tickets » au compte d'injection ; (2) relancer la séquence : `uv run python ../usine-archives/vider_demo.py <racine> --executer` (vide `DEMO` seul, `KAN` non touché), attendre une à deux minutes, déplacer `donnees/injection/` dans `../usine-archives/donnees-2026-10-12-avant-reinjection/` (Journal et vérité terrain déjà archivés), `usine donnees generer --graine 42 --date-generation 2026-10-12`, puis `usine donnees injecter` (environ 2 h).
+
 ## Fichiers écrits hors lane
 
 - Story 1.1 (L1) : `tests/unit/chaine/environnement.py`, `tests/contrat/consultation/fabriques.py`, `tests/contrat/source_tickets/fabriques.py`, `tests/unit/adaptateurs/journal/test_source_journal.py`, `tests/unit/domaine/test_instantanes.py`, `tests/unit/domaine/test_meteo.py` : passage à la fixture réduite `tests/unit/generateur/programme_reduit.yaml` (une ou deux lignes chacun), indispensable car la configuration complète porte la suite à plus de 10 min et casse les attendus ENT-A/ENT-B.
@@ -125,3 +127,9 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 - Prompt : « Contrats 1.2 : appliquer les deux évolutions consignées dans la File humaine de `journal-run-autonome.md` (Scénarios recalés par la Story 4.5, branche `bloque/4-5` ; `EXCLUSIONS_REJEU` des rapports pour la Story 5.5), puis ordonner la reprise de 4.5, 5.5, 5.6 et la porte M3. »
 - Modèle : Opus 5.5 — Effort : high (contrats, générateur, configuration et Chaîne)
 - Nouveau chat (`/clear`) avant, en plan mode.
+
+## Bilan de la reprise contrats 1.2 (12/10/2026, soir, mode économique)
+
+- Contrats 1.2 (`a663bf3`), Story 5.5 (`192f044`) et Story 4.5 (`0b10472`) sont intégrés à `main` et poussés, et la CI est verte. Coût : environ 190 k, 140 k et 143 k tokens.
+- Réinjection de `DEMO` : bloquée par le droit « Supprimer des tickets » (voir File humaine). La 5.6, la porte M3 (5.7) et l'Epic 6 attendent.
+- Points ouverts : la recette 4.5 utilise le Corpus provisoire, pas le Corpus versionné ; sur le Programme réduit, les contrats 1.2 ont fait perdre la couverture de « ↗ aggravation » et de « aucun Brouillon de commentaire », à reprendre en 5.6 sur le Journal complet ; la branche `bloque/4-5` peut être supprimée.
