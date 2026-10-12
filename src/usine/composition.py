@@ -55,6 +55,7 @@ from usine.contrats.passage import (
     ManifestePassage,
 )
 from usine.contrats.versions import version_donnees, version_grille
+from usine.domaine.meteo import verifier_grille
 from usine.generateur.corpus import (
     VERSION_CORPUS_LLM,
     VERSION_CORPUS_PROVISOIRE,
@@ -219,7 +220,7 @@ def construire_rapport(
     )
     programme = charger_yaml(repertoire_config / "programme.yaml", ConfigProgramme)
     chemin_grille = repertoire_config / "grille_meteo.yaml"
-    grille = charger_yaml(chemin_grille, GrilleMeteo)
+    grille = verifier_grille(charger_yaml(chemin_grille, GrilleMeteo), str(chemin_grille))
     jira = _config_jira(racine)
     configuration = ConfigUsine(chaine=chaine, programme=programme, grille_meteo=grille, jira=jira)
     gabarit = _octets(racine / CHEMIN_GABARIT, "gabarit PowerPoint")

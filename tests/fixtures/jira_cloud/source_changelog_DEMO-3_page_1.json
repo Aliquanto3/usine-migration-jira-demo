@@ -1,0 +1,23 @@
+{
+  "self": "https://jira.example.invalid/rest/api/3/issue/DEMO-3/changelog?startAt=0&maxResults=2",
+  "startAt": 0,
+  "maxResults": 2,
+  "total": 4,
+  "isLast": false,
+  "values": [
+    {
+      "id": "20005",
+      "created": "2026-09-03T08:00:00.000+0000",
+      "items": [
+        {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "1", "fromString": "Nouvelle", "to": "2", "toString": "En analyse"}
+      ]
+    },
+    {
+      "id": "20006",
+      "created": "2026-09-04T08:00:00.000+0000",
+      "items": [
+        {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "2", "fromString": "En analyse", "to": "3", "toString": "En correction"}
+      ]
+    }
+  ]
+}

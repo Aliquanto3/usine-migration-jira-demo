@@ -42,3 +42,17 @@ def test_generer_journal_delegue(racine: Path) -> None:
     assert chemin == racine / "donnees" / "journal.jsonl"
     assert chemin.is_file()
     assert (racine / "donnees" / "verite_terrain.json").is_file()
+
+
+def test_grille_incoherente_refusee_au_chargement(racine: Path) -> None:
+    """FR-18 : orange plus sévère que rouge refusé avant tout Passage (Story 3.4)."""
+    chemin = racine / "config" / "grille_meteo.yaml"
+    texte = chemin.read_text(encoding="utf-8")
+    assert 'orange: ">= 1"' in texte
+    chemin.write_text(texte.replace('orange: ">= 1"', 'orange: ">= 4"', 1), encoding="utf-8")
+    with pytest.raises(UsineErreur) as erreur:
+        composition.construire_rapport(racine)
+    message = str(erreur.value)
+    assert str(chemin) in message
+    assert "IND-1" in message
+    assert "« >= 4 »" in message
