@@ -1,7 +1,9 @@
 """Racine de composition : seul lieu qui instancie les adaptateurs et câble les étapes (AD-1).
 
 Elle lit `config/*.yaml` et les secrets (Mode repli), calcule `version_grille` et
-`version_donnees`, instancie la `SourceJournal`, charge le gabarit PowerPoint et construit le
+`version_donnees`, instancie la `SourceJournal` (avec le manifeste d'injection
+`donnees/injection/manifeste_injection.json` s'il existe, pour lire le Journal aux clés Jira ;
+sinon aux clés générées), charge le gabarit PowerPoint et construit le
 registre des étapes de la Chaîne selon le Palier. En Palier 2, elle câble la passerelle LLM
 (fournisseur injecté, cache `donnees/cache_llm.sqlite`) dans l'étape `explications` ; les
 autres étapes LLM restent sautées. Sans pseudonymiseur injecté, elle construit
@@ -33,7 +35,11 @@ from usine.adaptateurs.entrepot_duckdb import CHEMIN_ENTREPOT, EtapeExtraction
 from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
 from usine.adaptateurs.jira_http import construire_client_lecture
-from usine.adaptateurs.journal import SourceJournal
+from usine.adaptateurs.journal import (
+    CHEMIN_MANIFESTE_INJECTION,
+    SourceJournal,
+    charger_manifeste,
+)
 from usine.adaptateurs.pseudonymisation import (
     MOTIFS_PAR_DEFAUT,
     PseudonymiseurHmac,
@@ -282,7 +288,9 @@ def construire_rapport(
     empreinte_grille = version_grille(_octets(chemin_grille, "Grille de météo"))
 
     chemin_journal = racine / CHEMIN_JOURNAL
-    source = SourceJournal(chemin_journal)
+    chemin_manifeste = racine / CHEMIN_MANIFESTE_INJECTION
+    manifeste = charger_manifeste(chemin_manifeste) if chemin_manifeste.exists() else None
+    source = SourceJournal(chemin_journal, manifeste)
     empreinte_donnees = version_donnees(_octets(chemin_journal, "Journal"), None)
     premier_jour = source.entete.ancrage_semaines
     entites = [entite.code for entite in programme.entites]

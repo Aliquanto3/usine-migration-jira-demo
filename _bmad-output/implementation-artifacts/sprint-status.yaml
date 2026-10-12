@@ -85,7 +85,7 @@ development_status:
   2-2-adaptateur-jira-cloud-v3-et-vocabulaire-canonique: done
   2-3-entrepôt-duckdb-et-extraction-incrémentale: done
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: done
-  2-5-source-journal-à-l-échelle-et-correspondance-des-clés: backlog
+  2-5-source-journal-à-l-échelle-et-correspondance-des-clés: done
   2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
@@ -98,7 +98,7 @@ development_status:
   3-5-indicateurs-de-météo-ind-1-à-ind-8: done
   3-6-météo-et-règles-déclenchantes: done
   3-7-évolution-de-la-météo-à-j-1-et-j-5: done
-  3-8-rapport-de-référence-et-réconciliation-à-100: backlog
+  3-8-rapport-de-référence-et-réconciliation-à-100: done
   epic-3-retrospective: optional
 
   epic-4: backlog  # lane L4 Prévision (après L3)
