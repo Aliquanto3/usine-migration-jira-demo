@@ -120,6 +120,7 @@ from usine.generateur.corpus import (
 )
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
+from usine.ia.classification import PART_PLAFOND_CLASSIFICATION, EtapeClassification
 from usine.ia.etape import EtapeExplications
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
@@ -512,6 +513,13 @@ def _assembler_rapport(
             plafond_cout_passage_eur=(
                 None if config_llm is None else config_llm.plafond_cout_passage_eur
             ),
+        )
+        plafond = None if config_llm is None else config_llm.plafond_cout_passage_eur
+        registre[Etape.classification] = EtapeClassification(
+            passerelle,
+            empreinte_donnees,
+            empreinte_grille,
+            plafond_eur=None if plafond is None else plafond * PART_PLAFOND_CLASSIFICATION,
         )
         registre[Etape.explications] = EtapeExplications(passerelle, empreinte_donnees)
     # En dernier : le client Jira n'est ouvert qu'une fois tout le reste validé.

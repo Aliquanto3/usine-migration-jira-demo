@@ -201,12 +201,17 @@ class Passerelle:
         parametres: ParametresAppel,
         contexte: ContexteAppel,
         controler: Callable[[T], Controle[S]],
+        plafond_eur: Decimal | None = None,
     ) -> ResultatAppel[S]:
         """Exécute un appel structuré dans l'ordre d'AD-12 et renvoie sortie et trace.
 
         La clé de cache porte le `version_modele` du fournisseur, connu avant l'appel ; la trace
         porte celui de la `ReponseStructuree` reçue, gardé dans l'`EnveloppeCache` pour un succès
         en cache.
+
+        `plafond_eur` : part du plafond réservée à une tâche ; un appel frais est refusé
+        (`PlafondCoutAtteint`) dès que le cumul du Passage atteint le plus petit des deux
+        plafonds. Le cache reste servi.
         """
         entree = self._pseudonymiseur.pseudonymiser(prompt)
         version_modele = self._fournisseur.version_modele
@@ -242,6 +247,18 @@ class Passerelle:
                 raise PlafondCoutAtteint(
                     f"plafond de coût du Passage atteint ({cumul} € pour un plafond de"
                     f" {self._plafond} €, config/llm.yaml, clé « plafond_cout_passage_eur »)"
+                )
+            if plafond_eur is not None and cumul >= plafond_eur:
+                journal.warning(
+                    "part du plafond de coût atteinte, Passage %s (%s € ≥ %s €) : %s sans appel",
+                    contexte.passage_id,
+                    cumul,
+                    plafond_eur,
+                    contexte.cible,
+                )
+                raise PlafondCoutAtteint(
+                    f"part du plafond de coût du Passage atteinte ({cumul} € pour une part de"
+                    f" {plafond_eur} € réservée à la tâche « {parametres.tache.value} »)"
                 )
             appel = self._fournisseur.generer_structure(entree, schema, parametres)
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)

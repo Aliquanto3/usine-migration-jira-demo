@@ -15,6 +15,7 @@ from pathlib import Path
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.contrats.config import ConfigUsine
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import Tache
 from usine.contrats.passage import (
     ContextePassage,
     DonneesPassage,
@@ -57,7 +58,9 @@ def executer_passage(
     données du Passage ne dépendant alors d'aucune extraction) est recopié au manifeste ;
     `nb_alignements`, lu après les étapes, y donne le nombre d'alignements persistés par ce
     Passage (0 sans lui). `cout_llm_eur` est la somme des `cout_estime_eur` des traces LLM
-    (FR-34) ; un succès en cache y compte pour 0 €.
+    (FR-34) ; un succès en cache y compte pour 0 €. `classification_initiale` est vrai quand la
+    classification a appelé le fournisseur sans aucun succès en cache : stock complet classé
+    (premier Passage, ou prompt ou modèle changé), Passage exclu des mesures (FR-44).
     """
     manquantes = [etape.value for etape in Etape if etape not in registre]
     if manquantes:
@@ -72,6 +75,7 @@ def executer_passage(
         ctx = ContextePassage(date_arrete, passage_id, configuration, consultation)
         executions: list[ExecutionEtape] = []
         cout_llm = Decimal(0)
+        depuis_cache_classification: list[bool] = []
         for etape in Etape:
             etape_courante = etape
             debut_etape = horloge()
@@ -84,6 +88,11 @@ def executer_passage(
             cout_llm += sum(
                 (t.cout_estime_eur for t in resultat.traces if t.type_trace is TypeTrace.llm),
                 Decimal(0),
+            )
+            depuis_cache_classification.extend(
+                t.depuis_cache
+                for t in resultat.traces
+                if t.type_trace is TypeTrace.llm and t.tache is Tache.classification
             )
             executions.append(
                 ExecutionEtape(
@@ -111,6 +120,8 @@ def executer_passage(
             horodatage_extraction=horodatage_extraction,
             version_grille=donnees.version_grille,
             version_donnees=donnees.version_donnees,
+            classification_initiale=bool(depuis_cache_classification)
+            and not any(depuis_cache_classification),
             cout_llm_eur=cout_llm,
             nb_alignements=0 if nb_alignements is None else nb_alignements(),
             nb_tickets=nb_tickets,

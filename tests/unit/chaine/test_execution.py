@@ -10,8 +10,9 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+from pydantic import BaseModel
 
-from tests.doublures.fournisseur_factice import FournisseurFactice
+from tests.doublures.fournisseur_factice import AppelEnregistre, FournisseurFactice
 from tests.doublures.pseudonymiseur_factice import PseudonymiseurFactice
 from tests.doublures.source_en_memoire import SourceEnMemoire
 from tests.unit.chaine.environnement import (
@@ -37,7 +38,14 @@ from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import jours_ouvres
 from usine.contrats.config import GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import ReponseExplication, StatutControle
+from usine.contrats.llm import (
+    ParametresAppel,
+    ReponseClassification,
+    ReponseExplication,
+    ReponseStructuree,
+    StatutControle,
+    Tache,
+)
 from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite
 from usine.contrats.passage import (
     CHEMIN_JOURNAL,
@@ -52,6 +60,7 @@ from usine.contrats.passage import (
     lire_enveloppe,
 )
 from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.tickets import CauseRacine, TypeTicket, rang_cle
 from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.contrats.versions import CONTRATS_VERSION, version_prompt
 from usine.domaine.kpi import kpi as calculer_kpi
@@ -171,6 +180,54 @@ class EtapeNotee:
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
         self._journal.append(self._nom)
         return ResultatEtape(StatutEtape.reussie)
+
+
+class EtapeTracesLLM:
+    """Étape réussie sans sortie qui rend des traces LLM : `(tâche, depuis_cache)`."""
+
+    def __init__(self, appels: list[tuple[Tache, bool]]) -> None:
+        self._appels = appels
+
+    def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
+        traces = tuple(
+            EntreeTrace(
+                type_trace=TypeTrace.llm,
+                horodatage=INSTANT,
+                passage_id=ctx.passage_id,
+                date_arrete=ctx.date_arrete,
+                tache=tache,
+                cible=f"DEMO-{rang}",
+                fournisseur="factice",
+                version_prompt="p" * 64,
+                version_modele="factice:modele",
+                version_grille="grille123456",
+                version_donnees="d" * 64,
+                entree_pseudonymisee="entrée",
+                sortie="{}",
+                statut_controle=StatutControle.conforme,
+                depuis_cache=depuis_cache,
+            )
+            for rang, (tache, depuis_cache) in enumerate(self._appels, start=1)
+        )
+        return ResultatEtape(StatutEtape.reussie, traces=traces)
+
+
+@pytest.mark.parametrize(
+    ("appels", "attendu"),
+    [
+        ([], False),
+        ([(Tache.classification, False), (Tache.classification, False)], True),
+        ([(Tache.classification, False), (Tache.classification, True)], False),
+        ([(Tache.classification, True)], False),
+        ([(Tache.explication, False)], False),
+    ],
+)
+def test_classification_initiale_du_manifeste(
+    rapport: Rapport, appels: list[tuple[Tache, bool]], attendu: bool
+) -> None:
+    """Vrai si la classification a appelé le fournisseur sans aucun succès en cache."""
+    manifeste, _ = _executer(rapport, remplacements={Etape.classification: EtapeTracesLLM(appels)})
+    assert manifeste.classification_initiale is attendu
 
 
 def test_extraction_et_alignements_recopies_au_manifeste(rapport: Rapport) -> None:
@@ -560,7 +617,7 @@ def test_palier_2_explications(tmp_path: Path) -> None:
 
     racine = preparer_racine(tmp_path / "p2")
     _passer_en_palier_2(racine)
-    fournisseur = FournisseurFactice(reponses)
+    fournisseur = FournisseurPalier2(reponses)
     rapport = construire_rapport(
         racine, fournisseur, PseudonymiseurFactice(b"cle-fictive", {}), horloge_figee()
     )
@@ -568,7 +625,8 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     assert manifeste.palier == 2
     statuts = {e.etape: e.statut for e in manifeste.etapes}
     assert statuts[Etape.explications] is StatutEtape.reussie
-    for etape in (Etape.classification, Etape.repartition_causes, Etape.narration):
+    assert statuts[Etape.classification] is StatutEtape.reussie
+    for etape in (Etape.repartition_causes, Etape.narration):
         assert statuts[etape] is StatutEtape.sautee
     repertoire = ecrivain.repertoire_publie
     assert repertoire is not None
@@ -578,8 +636,8 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     explications = consultation.explications()
     assert [e.entite for e in explications] == [m.entite for m in a_expliquer]
     assert all(e.statut_controle is StatutControle.conforme for e in explications)
-    traces = [t for t in consultation.traces() if t.type_trace is TypeTrace.llm]
-    assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
+    traces = [t for t in consultation.traces() if t.tache is Tache.explication]
+    assert len(traces) == len(a_expliquer) == len(_appels(fournisseur, Tache.explication))
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
     assert (racine / "donnees" / "cache_llm.sqlite").is_file()
@@ -665,21 +723,45 @@ def _reponses(a_expliquer: list[MeteoEntite]) -> list[ReponseExplication]:
     ]
 
 
+CAUSE_SCRIPTEE = CauseRacine.parametrage
+"""Cause racine que `FournisseurPalier2` propose pour chaque Anomalie."""
+
+
+class FournisseurPalier2(FournisseurFactice):
+    """Fournisseur factice qui répond seul à chaque classification ; les explications suivent
+    les réponses scriptées, dans l'ordre."""
+
+    def generer_structure[T: BaseModel](
+        self, prompt: str, schema: type[T], parametres: ParametresAppel
+    ) -> ReponseStructuree[T]:
+        if schema is ReponseClassification:
+            reponse = ReponseClassification(
+                cause_racine=CAUSE_SCRIPTEE, justification="Paramètre manquant."
+            )
+            self._structurees.appendleft(reponse)
+        return super().generer_structure(prompt, schema, parametres)
+
+
+def _appels(fournisseur: FournisseurFactice, tache: Tache) -> list[AppelEnregistre]:
+    """Appels structurés reçus par `fournisseur` pour la tâche `tache`."""
+    return [a for a in fournisseur.appels if a.parametres.tache is tache]
+
+
 def test_palier_2_par_lancer_rapport(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
     monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
     racine = preparer_racine(tmp_path / "p2")
     _passer_en_palier_2(racine)
     instant = datetime(2026, 10, 12, 6, 45, tzinfo=UTC)
-    fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    fournisseur = FournisseurPalier2(_reponses(a_expliquer))
     lance = lancer_rapport(
         racine, DATE_ARRETE, horloge_figee(instant), lambda: "abc123", fournisseur
     )
     assert lance.manifeste.palier == 2
     traces = [
-        t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
+        t for t in ConsultationPassage(lance.repertoire).traces() if t.tache is Tache.explication
     ]
-    assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
+    assert len(traces) == len(a_expliquer) == len(_appels(fournisseur, Tache.explication))
     assert {t.horodatage for t in traces} == {instant}
     assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}
     assert (racine / "donnees" / "pseudonymes.sqlite").is_file()  # `PseudonymiseurHmac`
@@ -710,7 +792,7 @@ def test_deux_passages_palier_2_cache_et_pseudonymisation(
             pseudonymiseur=injecte,
         )
 
-    premier_fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    premier_fournisseur = FournisseurPalier2(_reponses(a_expliquer))
     premier = lancer(premier_fournisseur)
     second_fournisseur = FournisseurFactice()  # aucune réponse : tout doit venir du cache
     second = lancer(second_fournisseur)
@@ -725,7 +807,9 @@ def test_deux_passages_palier_2_cache_et_pseudonymisation(
     gabarit = version_prompt(lire_prompt())
     for lance, depuis_cache in ((premier, False), (second, True)):
         lignes = (lance.repertoire / "trace" / "llm.jsonl").read_text(encoding="utf-8")
-        traces = [EntreeTrace.model_validate_json(ligne) for ligne in lignes.splitlines()]
+        toutes = [EntreeTrace.model_validate_json(ligne) for ligne in lignes.splitlines()]
+        assert {t.depuis_cache for t in toutes} == {depuis_cache}
+        traces = [t for t in toutes if t.tache is Tache.explication]
         assert len(traces) == len(a_expliquer)
         assert {t.depuis_cache for t in traces} == {depuis_cache}
         meteos = {m.entite: m for m in ConsultationPassage(lance.repertoire).meteo(DATE_ARRETE)}
@@ -757,7 +841,7 @@ def test_rejeu_palier_2_exclusions_par_fichier(
         racine,
         DATE_ARRETE,
         horloge_pas_a_pas(),
-        fournisseur=FournisseurFactice(_reponses(a_expliquer)),
+        fournisseur=FournisseurPalier2(_reponses(a_expliquer)),
     )
     second_fournisseur = FournisseurFactice()  # aucune réponse : tout vient du cache
     second = lancer_rapport(
@@ -774,7 +858,7 @@ def test_rejeu_palier_2_exclusions_par_fichier(
             return [json.loads(ligne) for ligne in texte.splitlines() if ligne.strip()]
         return json.loads(texte)
 
-    for nom in ("explications", "trace_llm"):
+    for nom in ("classification", "explications", "trace_llm"):
         a, b = lire(premier, nom), lire(second, nom)
         assert a != b, nom  # passage_id, horodatage, depuis_cache… diffèrent bien
         if nom == "trace_llm":
@@ -782,6 +866,47 @@ def test_rejeu_palier_2_exclusions_par_fichier(
             assert [sans_exclusions(nom, x) for x in a] == [sans_exclusions(nom, y) for y in b]
         else:
             assert sans_exclusions(nom, a) == sans_exclusions(nom, b), nom
+
+
+def test_palier_2_classification_initiale_puis_incrementale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FR-35, AD-8 : le premier Passage Palier 2 classe tout le stock (`classification_initiale`)
+    et publie `llm/classification.json` ; le suivant, à textes identiques, n'appelle pas."""
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    fournisseur = FournisseurPalier2(_reponses(a_expliquer))
+    premier = lancer_rapport(racine, DATE_ARRETE, horloge_pas_a_pas(), fournisseur=fournisseur)
+    assert premier.manifeste.classification_initiale is True
+    assert (premier.repertoire / FICHIERS_PASSAGE["classification"]).is_file()
+    consultation = ConsultationPassage(premier.repertoire)
+    textes = consultation.textes_tickets()
+    anomalies = sorted(
+        textes.filter(pl.col("type_ticket") == TypeTicket.anomalie.value)["cle_ticket"],
+        key=rang_cle,
+    )
+    assert anomalies
+    classification = consultation.classification()
+    assert [c.cle_ticket for c in classification] == anomalies
+    assert {c.cause_racine for c in classification} == {CAUSE_SCRIPTEE}
+    assert {c.statut_controle for c in classification} == {StatutControle.conforme}
+    assert len(_appels(fournisseur, Tache.classification)) == len(anomalies)
+    traces = [t for t in consultation.traces() if t.tache is Tache.classification]
+    assert [t.cible for t in traces] == anomalies
+    assert not any(t.depuis_cache for t in traces)
+
+    second_fournisseur = FournisseurFactice()  # aucune réponse : tout vient du cache
+    second = lancer_rapport(
+        racine,
+        DATE_ARRETE,
+        horloge_pas_a_pas(INSTANT + timedelta(hours=1)),
+        fournisseur=second_fournisseur,
+    )
+    assert second_fournisseur.appels == []
+    assert second.manifeste.classification_initiale is False
+    assert ConsultationPassage(second.repertoire).classification() == classification
 
 
 def test_palier_2_cle_de_pseudonymisation_blanche(
@@ -832,9 +957,9 @@ def test_palier_2_deux_reconnaisseurs_du_meme_type(
         "    motif: '\\bcpt\\d{8}\\b'\n",
         encoding="utf-8",
     )
-    fournisseur = FournisseurFactice(_reponses(a_expliquer))
+    fournisseur = FournisseurPalier2(_reponses(a_expliquer))
     lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=fournisseur)
-    entrees = [str(appel.entree) for appel in fournisseur.appels]
+    entrees = [str(appel.entree) for appel in _appels(fournisseur, Tache.explication)]
     assert len(entrees) == len(a_expliquer)
     for entree in entrees:
         assert NUMERO_COMPTE not in entree
@@ -859,7 +984,7 @@ def test_palier_2_cout_llm_du_manifeste(tmp_path: Path, monkeypatch: pytest.Monk
     racine = preparer_racine(tmp_path / "p2")
     _passer_en_palier_2(racine)
     version = "anthropic:claude-sonnet-5-5"  # au registre des prix : coût non nul
-    fournisseur = FournisseurFactice(_reponses(a_expliquer), version_modele=version)
+    fournisseur = FournisseurPalier2(_reponses(a_expliquer), version_modele=version)
     lance = lancer_rapport(racine, DATE_ARRETE, horloge_pas_a_pas(), fournisseur=fournisseur)
     traces = [
         t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
@@ -910,13 +1035,13 @@ def test_palier_2_fournisseur_en_echec_nomme_l_etape(
     monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
     racine = preparer_racine(tmp_path)
     _passer_en_palier_2(racine)
-    with pytest.raises(UsineErreur, match="étape « explications »"):
+    with pytest.raises(UsineErreur, match="étape « classification »"):
         lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=FournisseurFactice())
     publies = racine / "sorties" / "passages" / DATE_ARRETE.isoformat()
     assert not publies.exists() or not any(publies.iterdir())
 
 
-class _FournisseurFermable(FournisseurFactice):
+class _FournisseurFermable(FournisseurPalier2):
     """Fournisseur factice qui compte ses fermetures (adaptateur construit par la composition)."""
 
     def __init__(self, reponses: list[ReponseExplication] | None = None) -> None:
