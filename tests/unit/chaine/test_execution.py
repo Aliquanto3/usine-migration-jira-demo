@@ -22,6 +22,7 @@ from tests.unit.chaine.environnement import (
     sans_exclusions,
 )
 from tests.unit.domaine.constructeur import Flux
+from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo
@@ -32,8 +33,9 @@ from usine.contrats.calendrier import jours_ouvres
 from usine.contrats.config import GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import ReponseExplication, StatutControle
-from usine.contrats.meteo import Couleur, MeteoEntite
+from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite
 from usine.contrats.passage import (
+    CHEMIN_JOURNAL,
     FICHIERS_PASSAGE,
     MOTIF_PASSAGE_ID,
     ContextePassage,
@@ -46,6 +48,7 @@ from usine.contrats.passage import (
 )
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
+from usine.domaine.meteo import indicateurs as calculer_indicateurs
 from usine.ia.explication import lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -159,7 +162,36 @@ def test_autoportance_meteo(rapport: Rapport) -> None:
     assert [(m.date_arrete, m.entite) for m in meteo] == attendu
     assert {m.version_grille for m in meteo} == {manifeste.version_grille}
     indicateurs = pl.read_parquet(ecrivain.repertoire_publie / "indicateurs.parquet")
-    assert indicateurs.height == len(attendu)
+    # Grille livrée : IND-1 à IND-8 actifs, une ligne par indicateur, Entité et jour.
+    codes = [code.value for code in CodeIndicateur]
+    assert indicateurs.height == len(attendu) * len(codes)
+    assert indicateurs.select("date", "entite").unique(maintain_order=True).rows() == attendu
+    assert indicateurs["code"].cast(pl.Utf8).to_list() == codes * len(attendu)
+    # Valeurs : identiques à un appel direct du domaine sur tout l'historique du Passage.
+    grille = rapport.configuration.grille_meteo
+    programme = rapport.configuration.programme
+    assert isinstance(grille, GrilleMeteo)
+    assert programme is not None
+    racine = rapport.racine_sorties.parent
+    ancrage = SourceJournal(racine / CHEMIN_JOURNAL).entete.ancrage_semaines
+    etats = pl.read_parquet(ecrivain.repertoire_publie / "tickets_etats.parquet")
+    directs = pl.concat(
+        [
+            calculer_indicateurs(
+                etats.filter(pl.col("date") <= jour),
+                jour,
+                ["ENT-A", "ENT-B"],
+                grille,
+                programme=programme,
+                ancrage=ancrage,
+            )
+            for jour in jours
+        ],
+        how="vertical",
+    )
+    colonnes = ["date", "entite", "statut", "motif", "numerateur", "denominateur"]
+    comparees = [*colonnes, pl.col("code").cast(pl.Utf8), pl.col("couleur").cast(pl.Utf8)]
+    assert indicateurs.select(comparees).equals(directs.select(comparees))
 
 
 @pytest.mark.parametrize(
@@ -213,11 +245,13 @@ def test_jours_sans_ticket_verts(rapport: Rapport) -> None:
     flux.anomalie("DEMO-1", datetime(2026, 10, 7, 9, tzinfo=UTC))  # mercredi
     flux.transition("DEMO-1", datetime(2026, 10, 8, 9, tzinfo=UTC), "nouvelle", "rejetee")
     grille = rapport.configuration.grille_meteo
+    programme = rapport.configuration.programme
     assert isinstance(grille, GrilleMeteo)
+    assert programme is not None
     premier = date(2026, 10, 5)
     remplacements: dict[Etape, object] = {
         Etape.instantanes: EtapeInstantanes(SourceEnMemoire(flux.evenements), premier),
-        Etape.meteo: EtapeMeteo(grille, "abcdef012345", ["ENT-A", "ENT-B"], premier),
+        Etape.meteo: EtapeMeteo(grille, "abcdef012345", ["ENT-A", "ENT-B"], premier, programme),
     }
     _, ecrivain = _executer(rapport, remplacements=remplacements)
     assert ecrivain.repertoire_publie is not None

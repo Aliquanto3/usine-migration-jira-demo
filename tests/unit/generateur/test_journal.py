@@ -1,4 +1,4 @@
-"""Générateur déterministe du Journal (Stories 0.3, 1.1 et 1.2)."""
+"""Générateur déterministe du Journal (Stories 0.3, 1.1, 1.2 et 1.3)."""
 
 import json
 import re
@@ -22,9 +22,17 @@ from usine.contrats.calendrier import (
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
-from usine.contrats.tickets import CHAMPS_PAR_TYPE, CauseRacine, Champ, StatutTest, TypeTicket
+from usine.contrats.tickets import (
+    CHAMPS_PAR_TYPE,
+    CauseRacine,
+    Champ,
+    StatutAnomalie,
+    StatutTest,
+    TypeTicket,
+)
 from usine.generateur.corpus import Corpus, TextesDomaine, TexteTicket
 from usine.generateur.journal import (
+    TRANSITIONS_MAX,
     Generation,
     ecrire_journal,
     fenetre_generation,
@@ -43,14 +51,18 @@ GRAINES = (42, 86, 153, 162, 234)
 
 TRANSITIONS_PERMISES = {
     ("nouvelle", "en_analyse"),
-    ("nouvelle", "en_correction"),
     ("en_analyse", "en_correction"),
     ("en_analyse", "rejetee"),
     ("en_correction", "a_retester"),
     ("a_retester", "fermee"),
     ("a_retester", "en_correction"),
     ("fermee", "en_analyse"),
+    ("rejetee", "en_analyse"),
 }
+"""Workflow H-17 strict : pas de raccourci Nouvelle → En correction ; réouverture depuis
+Fermée ou Rejetée."""
+
+STATUTS_FERMES_JOURNAL = {"fermee", "rejetee"}
 
 
 @pytest.fixture(scope="module")
@@ -167,24 +179,42 @@ def test_horodatages_ouvres_dans_la_fenetre(generation: Generation) -> None:
         assert 8 <= local.hour < 18
 
 
-def test_cycle_de_vie(generation: Generation) -> None:
+def _rejouer_workflow(generation: Generation) -> dict[str, str]:
+    """Rejoue les transitions des Anomalies et vérifie le workflow H-17 ; renvoie le dernier
+    statut de chaque Anomalie.
+
+    Chaque transition part du statut courant, suit `TRANSITIONS_PERMISES` et tombe sur un
+    Jour ouvré distinct, strictement après la création et au plus tard à la Date d'injection.
+    """
     statuts: dict[str, str] = {}
+    jours: dict[str, list[date]] = {}
+    date_injection = generation.entete.date_injection
     for e in generation.evenements:
         if e.champ is Champ.statut and e.nature is NatureEvenement.modification_champ:
             assert e.vers == "nouvelle"
             statuts[e.cle_ticket] = e.vers
+            jours[e.cle_ticket] = [jour_local(e.horodatage)]
         elif e.nature is NatureEvenement.transition:
+            assert e.type_ticket is TypeTicket.anomalie
             assert e.de == statuts[e.cle_ticket]
             assert (e.de, e.vers) in TRANSITIONS_PERMISES
             assert e.vers is not None
             statuts[e.cle_ticket] = e.vers
-        elif e.champ is Champ.statut_test and e.de is not None:
+            jour = jour_local(e.horodatage)
+            assert jours[e.cle_ticket][-1] < jour <= date_injection, e.cle_ticket
+            jours[e.cle_ticket].append(jour)
+    assert max((len(j) - 1 for j in jours.values()), default=0) <= TRANSITIONS_MAX
+    return statuts
+
+
+def test_cycle_de_vie(generation: Generation) -> None:
+    _rejouer_workflow(generation)
+    for e in generation.evenements:
+        if e.champ is Champ.statut_test and e.de is not None:
             assert e.de == StatutTest.non_execute
             assert e.vers in {StatutTest.ok, StatutTest.ko}
     transitions = [e for e in generation.evenements if e.nature is NatureEvenement.transition]
     assert transitions
-    par_ticket = Counter(e.cle_ticket for e in transitions)
-    assert max(par_ticket.values()) <= 4
     initiaux_tests = [
         e.vers for e in generation.evenements if e.champ is Champ.statut_test and e.de is None
     ]
@@ -304,9 +334,17 @@ def _entrees_par_semaine(generation: Generation) -> Counter[int]:
         if e.type_ticket is TypeTicket.anomalie
         and (
             e.nature is NatureEvenement.creation
-            or (e.nature is NatureEvenement.transition and e.de == "fermee")
+            or (e.nature is NatureEvenement.transition and e.de in STATUTS_FERMES_JOURNAL)
         )
     )
+
+
+def _reouvertures(generation: Generation) -> list[Evenement]:
+    return [
+        e
+        for e in generation.evenements
+        if e.nature is NatureEvenement.transition and e.de in STATUTS_FERMES_JOURNAL
+    ]
 
 
 def _nb_anomalies(generation: Generation) -> int:
@@ -401,12 +439,74 @@ def test_generation_config_livree(
 ) -> None:
     entites = {v[Champ.entite] for v in _attributs(generation_livree).values()}
     assert entites == {e.code for e in config_livree.entites}
-    # Bornes livrées ∩ 8 semaines × [200, 500] Entrées par semaine = [3 000, 4 000].
-    assert 3000 <= _nb_anomalies(generation_livree) <= 4000
+    # Bornes livrées ∩ 8 semaines × [200, 500] Entrées par semaine = [3 000, 4 000], moins la
+    # marge de réouvertures (500 − 50 créations au plus par semaine) : [3 000, 3 600].
+    assert 3000 <= _nb_anomalies(generation_livree) <= 3600
     entrees = _entrees_par_semaine(generation_livree)
     assert sorted(entrees) == list(range(1, 9))
     assert all(200 <= n <= 500 for n in entrees.values()), entrees
     assert all(cle.startswith("DEMO-") for cle in generation_livree.verite_terrain)
+
+
+def test_workflow_et_reouvertures_config_livree(generation_livree: Generation) -> None:
+    """Workflow H-17 rejoué ; réouvertures depuis Fermée et Rejetée ; derniers statuts variés,
+    Anomalies récentes encore ouvertes à la Date d'injection."""
+    statuts = _rejouer_workflow(generation_livree)
+    assert set(statuts) == set(generation_livree.verite_terrain)
+    reouvertures = _reouvertures(generation_livree)
+    assert {e.de for e in reouvertures} == STATUTS_FERMES_JOURNAL
+    assert {e.vers for e in reouvertures} == {"en_analyse"}
+    derniers = Counter(statuts.values())
+    assert set(derniers) == {s.value for s in StatutAnomalie}
+    # La majorité des Anomalies est fermée ou rejetée ; celles du dernier jour sont nouvelles.
+    assert derniers["fermee"] + derniers["rejetee"] > len(statuts) // 2
+    date_injection = generation_livree.entete.date_injection
+    du_dernier_jour = {
+        e.cle_ticket
+        for e in generation_livree.evenements
+        if e.nature is NatureEvenement.creation
+        and e.type_ticket is TypeTicket.anomalie
+        and jour_local(e.horodatage) == date_injection
+    }
+    assert du_dernier_jour
+    assert {statuts[cle] for cle in du_dernier_jour} == {"nouvelle"}
+
+
+def test_semaine_partielle_bornes_proratisees() -> None:
+    """Date d'injection un lundi : la semaine 8 n'a qu'un Jour ouvré, ses bornes d'Entrées
+    sont ⌊20 / 5⌋ = 4 et ⌈50 / 5⌉ = 10 ; les semaines pleines gardent [20, 50]."""
+    config = _variante(_volumetrie((150, 300), (20, 50)))
+    mardi = date(2026, 10, 13)
+    for graine in GRAINES:
+        generation = generer(config, graine, mardi)
+        assert generation.entete.date_injection == date(2026, 10, 12)
+        entrees = _entrees_par_semaine(generation)
+        assert sorted(entrees) == list(range(1, 9))
+        assert 4 <= entrees[8] <= 10, entrees
+        assert all(20 <= entrees[s] <= 50 for s in range(1, 8)), entrees
+        _rejouer_workflow(generation)
+
+
+def test_semaine_partielle_reouvertures_sous_le_maximum_proratise() -> None:
+    """Anomalies = Σ plafonds (7 × 45 + 9) : la semaine 8 d'un seul jour est pleine de
+    créations ; ses réouvertures restent sous ⌈50 / 5⌉ = 10, pas sous le maximum plein 50."""
+    config = _variante(_volumetrie((324, 324), (20, 50)))
+    reouvertures_semaine_8 = 0
+    for graine in GRAINES:
+        generation = generer(config, graine, date(2026, 10, 13))
+        assert _nb_anomalies(generation) == 324
+        entrees = _entrees_par_semaine(generation)
+        assert 9 <= entrees[8] <= 10, entrees
+        reouvertures_semaine_8 += entrees[8] - 9
+    assert reouvertures_semaine_8 > 0
+
+
+def test_semaine_partielle_volumetrie_infaisable() -> None:
+    """Bornes proratisées : 7 × [20, 50] + [4, 10] = [144, 360] Entrées."""
+    config = _variante(_volumetrie((361, 400), (20, 50)))
+    with pytest.raises(UsineErreur, match=re.escape("[144, 360]")):
+        generer(config, 42, date(2026, 10, 13))
+    assert _nb_anomalies(generer(config, 42, DATE_GENERATION)) >= 361
 
 
 def test_phases_du_calendrier_livre(
@@ -652,3 +752,55 @@ def test_corpus_passe_en_parametre(config: ConfigProgramme) -> None:
     assert serialiser_journal(generer(config, 42, DATE_GENERATION)) != serialiser_journal(
         generation
     )
+
+
+# --- Story 1.3 : volumétrie cible sur plusieurs graines et dates (test `lent`) ---
+
+DATES_LENT = (
+    date(2026, 10, 12),  # lundi : 8 semaines pleines
+    date(2026, 10, 13),  # mardi : Date d'injection lundi, semaine 8 d'un seul jour
+    date(2026, 10, 15),  # jeudi : semaine 8 de 3 jours
+    date(2026, 10, 17),  # samedi : 8 semaines pleines
+)
+
+
+@pytest.mark.lent
+@pytest.mark.parametrize("date_generation", DATES_LENT, ids=lambda d: d.isoformat())
+@pytest.mark.parametrize("graine_lente", GRAINES, ids=lambda g: f"graine-{g}")
+def test_volumetrie_cible_config_livree(
+    config_livree: ConfigProgramme, graine_lente: int, date_generation: date
+) -> None:
+    generation = generer(config_livree, graine_lente, date_generation)
+    autre = generer(config_livree, graine_lente, date_generation)
+    assert serialiser_journal(autre) == serialiser_journal(generation)
+    assert serialiser_verite(autre) == serialiser_verite(generation)
+
+    entete = generation.entete
+    ancrage, injection = entete.ancrage_semaines, entete.date_injection
+    assert ancrage.weekday() == 0
+    assert semaine_programme(injection, ancrage) == config_livree.nb_semaines
+    jours = [jour_local(e.horodatage) for e in generation.evenements]
+    assert (min(jours), max(jours)) == (ancrage, injection)
+
+    entites = {v[Champ.entite] for v in _attributs(generation).values()}
+    assert entites == {e.code for e in config_livree.entites}
+    volumetrie = config_livree.volumetrie
+    assert volumetrie.anomalies_min <= _nb_anomalies(generation) <= volumetrie.anomalies_max
+
+    # Bornes d'Entrées proratisées aux Jours ouvrés de chaque semaine (sur 5).
+    jours_semaine = Counter(semaine_programme(j, ancrage) for j in jours_ouvres(ancrage, injection))
+    entrees = _entrees_par_semaine(generation)
+    assert sorted(entrees) == sorted(jours_semaine) == list(range(1, 9))
+    for semaine, nombre in jours_semaine.items():
+        minimum = volumetrie.entrees_semaine_min * nombre // 5
+        maximum = -(-volumetrie.entrees_semaine_max * nombre // 5)
+        assert minimum <= entrees[semaine] <= maximum, (semaine, nombre, entrees)
+
+    statuts = _rejouer_workflow(generation)
+    assert set(statuts) == set(generation.verite_terrain)
+    assert _reouvertures(generation)
+    assert set(generation.verite_terrain.values()) == set(CauseRacine)
+    journal = serialiser_journal(generation).decode("utf-8")
+    assert "cause_racine" not in journal
+    for cause in CauseRacine:
+        assert f'"{cause.value}"' not in journal
