@@ -202,10 +202,16 @@ SCHEMA_REPARTITION_CAUSES = SchemaTable(
         "entite": pl.Utf8(),
         "cause_racine": enum_polars(CauseRacine),
         "nombre": pl.Int64(),
+        "part": pl.Float64(),
     },
-    non_nulles=frozenset({"date", "entite", "cause_racine", "nombre"}),
+    non_nulles=frozenset({"date", "entite", "cause_racine", "nombre", "part"}),
 )
-"""`RepartitionCauses` : Anomalies ouvertes par Cause racine proposée et par Entité."""
+"""`RepartitionCauses` : Anomalies ouvertes classées par Cause racine proposée et par Entité.
+
+`nombre` compte les Anomalies ouvertes classées de l'Entité qui portent la Cause racine ;
+`part` (contrats 1.5, ajout additif) est leur fraction, de 0 à 1, parmi les Anomalies
+ouvertes classées de l'Entité : la somme des parts vaut 1 par Entité.
+"""
 
 
 class SortieExplication(Enregistrement):

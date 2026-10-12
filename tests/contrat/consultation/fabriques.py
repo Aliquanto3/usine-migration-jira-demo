@@ -224,7 +224,13 @@ def _completer_palier_2(repertoire: Path, entite: str) -> None:
         (SortieClassification(cle_ticket=cle, cause_racine=CauseRacine.parametrage),),
     )
     pl.DataFrame(
-        {"date": [jour], "entite": [entite], "cause_racine": ["parametrage"], "nombre": [1]},
+        {
+            "date": [jour],
+            "entite": [entite],
+            "cause_racine": ["parametrage"],
+            "nombre": [1],
+            "part": [1.0],
+        },
         schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
     ).write_parquet(
         repertoire / "repartition_causes.parquet", metadata={CLE_VERSION: CONTRATS_VERSION}

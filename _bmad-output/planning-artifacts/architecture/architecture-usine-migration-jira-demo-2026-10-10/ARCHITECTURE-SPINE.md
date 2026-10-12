@@ -20,6 +20,7 @@ amendments:
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12-contrats-1-2.md (contrats 1.2 : Scénarios à flux scripté, exclusions des rendus)'
   - '2026-10-12 : Story 6.3 (contrats 1.3 : clé `moteur` de `ConfigPseudonymisation`, ajout additif)'
   - '2026-10-12 : Story 6.4 (contrats 1.4 : `ReponseClassification`, schéma demandé au fournisseur pour la tâche `classification`, ajout additif)'
+  - '2026-10-12 : Story 6.5 (contrats 1.5 : colonne `part` de `SCHEMA_REPARTITION_CAUSES`, fraction des Anomalies ouvertes classées de l''Entité, ajout additif)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo

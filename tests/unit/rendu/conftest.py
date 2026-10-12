@@ -205,6 +205,7 @@ def completer_palier_2(repertoire: Path) -> None:
             "entite": ["ENT-A", "ENT-B"],
             "cause_racine": ["parametrage", "reprise_donnees"],
             "nombre": [1, 1234],
+            "part": [1.0, 1.0],
         },
         schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
     ).write_parquet(

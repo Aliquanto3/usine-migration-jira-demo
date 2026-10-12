@@ -328,6 +328,7 @@ def _ecrire_sorties_llm(
             "entite": [entite, entite],
             "cause_racine": ["parametrage", "parametrage"],
             "nombre": [2, 1],
+            "part": [1.0, 1.0],
         },
         schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
     )
@@ -349,7 +350,9 @@ def test_sorties_llm_selon_palier(passage: Path) -> None:
     assert consultation.narrations(palier=2) == (narration,)
     assert consultation.repartition_causes(palier=1).is_empty()
     # Seule la ligne de la Date d'arrêté du Passage est rendue.
-    assert consultation.repartition_causes().rows() == [(DATE_ARRETE, "ENT-A", "parametrage", 1)]
+    assert consultation.repartition_causes().rows() == [
+        (DATE_ARRETE, "ENT-A", "parametrage", 1, 1.0)
+    ]
 
 
 def test_anomalies_passage_vide(tmp_path: Path) -> None:
@@ -402,7 +405,7 @@ def test_version_etrangere_meteo(passage: Path) -> None:
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
     contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.4\.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1\.5\.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 
