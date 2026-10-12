@@ -80,8 +80,8 @@ development_status:
   1-9-corpus-de-textes-définitif-par-llm: backlog  # prérequis : 6.1 (après la porte M3)
   epic-1-retrospective: optional
 
-  epic-2: backlog  # lane L2 Extraction
-  2-1-transport-jira-commun-et-client-de-lecture-à-liste-blanche: backlog
+  epic-2: in-progress  # lane L2 Extraction
+  2-1-transport-jira-commun-et-client-de-lecture-à-liste-blanche: done
   2-2-adaptateur-jira-cloud-v3-et-vocabulaire-canonique: backlog
   2-3-entrepôt-duckdb-et-extraction-incrémentale: backlog
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: backlog
