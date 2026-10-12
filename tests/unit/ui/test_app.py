@@ -1,4 +1,5 @@
-"""Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement, avant / après."""
+"""Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement, avant / après,
+outillage."""
 
 import re
 import shutil
@@ -31,7 +32,7 @@ from usine.contrats.prevision import (
     RisqueEntreeRouge,
     StatutPrevision,
 )
-from usine.ui import avant_apres, cli, detail, lancement
+from usine.ui import avant_apres, cli, detail, lancement, outillage
 from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.liens import echapper_markdown
@@ -152,6 +153,10 @@ def test_navigation(ecran: Ecran, racine_publiee: Path, monkeypatch: pytest.Monk
     elif ecran is Ecran.avant_apres:
         assert page.subheader[0].value == ecran.value
         assert _tableau_avant_apres(page)
+        assert not page.info  # plus un emplacement
+    elif ecran is Ecran.outillage:
+        assert page.subheader[0].value == ecran.value
+        assert _fiche(page) == _fiche_attendue(racine_publiee)
         assert not page.info  # plus un emplacement
     elif ecran is not Ecran.carte:
         assert page.subheader[0].value == ecran.value
@@ -986,3 +991,97 @@ def test_avant_apres_passages_illisibles(tmp_path: Path, monkeypatch: pytest.Mon
     assert erreur.value.startswith("Lecture des Passages publiés impossible : ")
     assert "accès refusé" in erreur.value
     assert not _tableau_avant_apres(page)
+
+
+# --- Ce qu'il faut pour le faire en vrai (Story 7.5) ---
+
+
+def _fiche_attendue(racine: Path) -> str:
+    """Contenu de la fiche tel que `st.markdown` le garde (Streamlit retire les blancs finaux)."""
+    return (racine / outillage.FICHIER_FICHE).read_text(encoding="utf-8").strip()
+
+
+def _fiche(page: AppTest) -> str:
+    """Seul bloc Markdown de l'écran outillage (la fiche), ou chaîne vide."""
+    blocs = [str(m.value) for m in page.main.markdown]
+    assert len(blocs) <= 1
+    return blocs[0] if blocs else ""
+
+
+def test_outillage_nominal(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page = _page(Ecran.outillage)
+    assert not page.exception
+    assert not page.error
+    assert not page.warning
+    assert not page.info
+    assert page.subheader[0].value == Ecran.outillage.value
+    assert _fiche(page) == _fiche_attendue(racine_publiee)
+    assert [c.value for c in page.caption] == [outillage.LEGENDE]
+    assert not page.text_input
+    assert not page.text_area  # lecture seule
+
+
+def test_outillage_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    page = _page(Ecran.outillage)
+    assert not page.exception
+    assert not page.error
+    assert _bandeau_en_tete(page)
+    assert _fiche(page) == _fiche_attendue(racine_publiee)
+    assert [c.value for c in page.caption] == [outillage.LEGENDE]
+
+
+def test_outillage_fiche_absente(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.outillage)
+    assert not page.exception
+    assert not page.error
+    assert [w.value for w in page.warning] == [outillage.FICHE_ABSENTE]
+    assert "docs/fiche-outillage.md" in page.warning[0].value
+    assert "Story 8.1" in page.warning[0].value
+    assert not _fiche(page)
+    assert not page.caption
+
+
+def test_outillage_fiche_illisible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / outillage.FICHIER_FICHE).write_bytes(b"\xff\xfe\xfa illisible")
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.outillage)
+    assert not page.exception
+    (erreur,) = page.error
+    assert erreur.value.startswith("Lecture de la fiche outillage impossible : ")
+    assert not page.warning
+    assert not _fiche(page)
+    assert not page.caption
+
+
+def test_outillage_fiche_inaccessible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def inaccessible(racine: Path) -> Any:
+        raise PermissionError(13, "accès refusé", str(racine / outillage.FICHIER_FICHE))
+
+    monkeypatch.setattr(outillage, "lire_fiche", inaccessible)  # module importé par app.py
+    monkeypatch.chdir(tmp_path)
+    page = _page(Ecran.outillage)
+    assert not page.exception
+    (erreur,) = page.error
+    assert erreur.value.startswith("Lecture de la fiche outillage impossible : ")
+    assert "accès refusé" in erreur.value
+    assert not page.warning
+    assert not _fiche(page)
+    assert not page.caption
+
+
+def test_outillage_racine_introuvable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    absente = tmp_path / "absente"
+    monkeypatch.setenv("USINE_RACINE", str(absente))
+    page = _page()
+    message_carte = page.error[0].value
+    _aller(page, Ecran.outillage)
+    assert not page.exception
+    assert [e.value for e in page.error] == [message_carte]
+    assert str(absente) in message_carte
+    assert not page.warning
+    assert not _fiche(page)

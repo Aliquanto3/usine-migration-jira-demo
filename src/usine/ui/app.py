@@ -9,7 +9,8 @@ Passage lancé dans `sorties/progression/`. Elle n'écrit rien sous `sorties/` e
 jamais la Chaîne dans son propre processus : `usine rapport` tourne dans un sous-processus.
 La racine est `USINE_RACINE` si elle est définie, sinon le répertoire courant. Racine, Mode
 repli, `Consultation`, configuration de la démo (`config/demo.yaml`) et manifestes de l'avant
-/ après viennent des services de `ui/cli.py` (racine de composition).
+/ après viennent des services de `ui/cli.py` (racine de composition). L'écran outillage affiche
+en lecture seule la fiche `docs/fiche-outillage.md` (Story 8.1), lue sous la même racine.
 """
 
 import subprocess
@@ -20,7 +21,7 @@ import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
-from usine.ui import avant_apres, carte, detail, lancement, navigation, progression
+from usine.ui import avant_apres, carte, detail, lancement, navigation, outillage, progression
 from usine.ui.cli import (
     config_demo,
     consultation_dernier_passage,
@@ -199,6 +200,23 @@ def afficher_avant_apres(racine: Path) -> None:
         return
     st.markdown(avant_apres.tableau_avant_apres(minutes, avant_apres.duree_mesuree(manifeste)))
     st.caption(avant_apres.legende(manifeste))
+
+
+def afficher_outillage(racine: Path) -> None:
+    """Fiche outillage de la Story 8.1, lue sous la racine et affichée telle quelle."""
+    st.subheader(Ecran.outillage.value)
+    if _racine_introuvable(racine):
+        return
+    try:
+        fiche = outillage.lire_fiche(racine)
+    except (OSError, UnicodeDecodeError) as exc:
+        st.error(f"Lecture de la fiche outillage impossible : {exc}")
+        return
+    if fiche is None:
+        st.warning(outillage.FICHE_ABSENTE)
+        return
+    st.caption(outillage.LEGENDE)
+    st.markdown(fiche)
 
 
 def afficher_a_venir(ecran: Ecran) -> None:
@@ -393,6 +411,8 @@ def principal() -> None:
         afficher_lancement(racine)
     elif ecran is Ecran.avant_apres:
         afficher_avant_apres(racine)
+    elif ecran is Ecran.outillage:
+        afficher_outillage(racine)
     else:
         afficher_a_venir(ecran)
 
