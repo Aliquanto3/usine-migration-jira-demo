@@ -583,10 +583,27 @@ def test_palier_2_explications(tmp_path: Path) -> None:
 def test_palier_2_sans_fournisseur(tmp_path: Path) -> None:
     racine = preparer_racine(tmp_path)
     _passer_en_palier_2(racine)
+    (racine / "config" / "llm.yaml").unlink(missing_ok=True)
     with pytest.raises(UsineErreur, match="aucun fournisseur LLM"):
         construire_rapport(racine)
     assert not (racine / "sorties").exists()
     assert not (racine / "donnees" / "cache_llm.sqlite").exists()
+
+
+def test_palier_2_fournisseur_de_llm_yaml_sans_cle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`config/llm.yaml` présent, `ANTHROPIC_API_KEY` absente : refus avant tout Passage."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    (racine / "config" / "llm.yaml").write_text(
+        "fournisseur: anthropic\nmodele: claude-sonnet-5-5\nplafond_cout_passage_eur: 1\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UsineErreur, match="ANTHROPIC_API_KEY"):
+        construire_rapport(racine)
+    assert not (racine / "sorties").exists()
 
 
 def test_palier_2_sans_cle_de_pseudonymisation(

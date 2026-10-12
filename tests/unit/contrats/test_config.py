@@ -321,6 +321,7 @@ def test_yaml_livres_en_e0(racine_depot: Path) -> None:
         "demo.yaml",
         "grille_meteo.yaml",
         "jira.yaml",
+        "llm.yaml",
         "programme.yaml",
     ]
 

@@ -85,6 +85,7 @@ from usine.contrats.calendrier import est_jour_ouvre
 from usine.contrats.config import (
     ConfigChaine,
     ConfigJira,
+    ConfigLLM,
     ConfigProgramme,
     ConfigPseudonymisation,
     ConfigUsine,
@@ -228,6 +229,26 @@ def _verifier_llm(
     return _ParametresPseudonymisation(octets_cle, _motifs_pseudonymisation(repertoire_config))
 
 
+def construire_fournisseur(racine: Path, secrets_usine: Secrets | None = None) -> FournisseurLLM:
+    """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
+
+    `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
+    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
+    des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
+    """
+    # Import différé : `pydantic_ai` et les SDK ne se chargent qu'en Palier 2 (outils sans SDK).
+    from usine.adaptateurs.llm import construire_fournisseur_llm
+
+    chemin = racine / "config" / "llm.yaml"
+    if not chemin.exists():
+        raise UsineErreur(f"{chemin} : fichier absent ; aucun fournisseur LLM configuré")
+    config = charger_yaml(chemin, ConfigLLM)
+    secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
+    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
+    cle = cles.get(config.fournisseur)
+    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+
+
 def _config_jira(racine: Path) -> ConfigJira | None:
     """`config/jira.yaml` validé, ou `None` s'il n'existe pas."""
     chemin = racine / "config" / "jira.yaml"
@@ -328,6 +349,8 @@ def construire_rapport(
     repertoire_config = racine / "config"
     chaine = charger_yaml(repertoire_config / "chaine.yaml", ConfigChaine)
     secrets_usine = charger_secrets(racine)
+    if chaine.palier == 2 and fournisseur is None and (repertoire_config / "llm.yaml").exists():
+        fournisseur = construire_fournisseur(racine, secrets_usine)
     pseudonymisation = (
         _verifier_llm(fournisseur, pseudonymiseur, secrets_usine, repertoire_config)
         if chaine.palier == 2

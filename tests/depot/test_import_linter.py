@@ -16,8 +16,12 @@ RACINE = Path(__file__).resolve().parents[2]
 RACINES_HORS_PRODUIT = ("evaluation", "evals", "outils")
 
 PYPROJECT = tomllib.loads((RACINE / "pyproject.toml").read_text(encoding="utf-8"))
+NOM_ISOLATION_LLM = "pydantic_ai, anthropic, mistralai : adaptateurs/llm seulement"
+"""Contrat transverse d'AD-12 (source `usine` entier), hors du tableau des couches."""
 CONTRATS_INTERDITS: list[dict[str, Any]] = [
-    c for c in PYPROJECT["tool"]["importlinter"]["contracts"] if c["type"] == "forbidden"
+    c
+    for c in PYPROJECT["tool"]["importlinter"]["contracts"]
+    if c["type"] == "forbidden" and c["name"] != NOM_ISOLATION_LLM
 ]
 
 # Classement des dépendances directes (groupes compris) : modules importables de chacune.
@@ -252,3 +256,13 @@ def test_dependance_transitive_refusee(tmp_path: Path) -> None:
     assert _hors_liste_blanche(_externes_importes(depot / "src")) == [
         "usine.domaine.violation -> click"
     ]
+
+
+def test_pydantic_ai_hors_adaptateurs_llm_refuse(tmp_path: Path) -> None:
+    """AD-12 : `pydantic_ai` importé hors de `adaptateurs/llm/`, même dans un adaptateur, casse."""
+    depot = _copie_du_depot(RACINE, tmp_path)
+    violation = depot / "src" / "usine" / "adaptateurs" / "journal" / "violation.py"
+    violation.write_text("import pydantic_ai  # noqa: F401\n", encoding="utf-8")
+    sortie = _lint_imports(depot).stdout
+    assert f"{NOM_ISOLATION_LLM} BROKEN" in sortie
+    assert "usine.adaptateurs.journal.violation -> pydantic_ai" in sortie

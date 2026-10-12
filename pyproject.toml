@@ -242,6 +242,20 @@ ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
 unmatched_ignore_imports_alerting = "none"
 allow_indirect_imports = true
 
+# AD-12 : `pydantic_ai` (et les SDK qu'il tire) n'est importé que dans `adaptateurs/llm/`.
+[[tool.importlinter.contracts]]
+name = "pydantic_ai, anthropic, mistralai : adaptateurs/llm seulement"
+type = "forbidden"
+source_modules = ["usine"]
+forbidden_modules = ["pydantic_ai", "anthropic", "mistralai"]
+ignore_imports = [
+    "usine.adaptateurs.llm -> pydantic_ai", "usine.adaptateurs.llm.** -> pydantic_ai",
+    "usine.adaptateurs.llm -> anthropic", "usine.adaptateurs.llm.** -> anthropic",
+    "usine.adaptateurs.llm -> mistralai", "usine.adaptateurs.llm.** -> mistralai",
+]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
 [[tool.importlinter.contracts]]
 name = "generateur : contrats, ports"
 type = "forbidden"

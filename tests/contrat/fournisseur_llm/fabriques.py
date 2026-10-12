@@ -11,6 +11,12 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict
 
 from tests.doublures import FournisseurFactice, ReponseAgentScriptee
+from tests.doublures.transport_llm import (
+    TransportScripte,
+    fournisseur_scripte,
+    reponse_outil,
+    reponse_texte,
+)
 from usine.contrats.llm import AppelOutil, MessageAgent
 from usine.ports import FournisseurLLM
 
@@ -58,6 +64,34 @@ def fabrique_factice() -> CasFournisseurLLM:
     )
 
 
+def _fabrique_enregistree(fournisseur: str) -> Callable[[], CasFournisseurLLM]:
+    """Adaptateur réel sur réponses enregistrées (faux transport HTTP, sans réseau)."""
+
+    def fabrique() -> CasFournisseurLLM:
+        transport = TransportScripte(
+            [
+                reponse_outil(fournisseur, NOM_OUTIL, {"entite": "ENT-A"}, "id0000002"),
+                reponse_texte(fournisseur, "ENT-A est rouge."),
+            ],
+            structure=[
+                reponse_outil(fournisseur, "reponse", {"reponse": "ENT-A est rouge."}, "id0000001")
+            ],
+        )
+        inconnu = TransportScripte(
+            [reponse_outil(fournisseur, "supprimer_ticket", {}, "id0000003")]
+        )
+        return CasFournisseurLLM(
+            fournisseur=fournisseur_scripte(fournisseur, transport),
+            fournisseur_outil_inconnu=fournisseur_scripte(fournisseur, inconnu),
+            prompt="Classe l'Anomalie DEMO-1.",
+            messages=MESSAGES,
+        )
+
+    return fabrique
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasFournisseurLLM]]] = [
     ("factice", fabrique_factice),
+    ("anthropic", _fabrique_enregistree("anthropic")),
+    ("mistral", _fabrique_enregistree("mistral")),
 ]

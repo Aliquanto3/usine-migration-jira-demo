@@ -1,0 +1,14 @@
+# Couche LLM (AD-12, AD-13, H-23), lue par la composition seulement : fournisseur et modèle
+# se changent ici, sans modification de code. Le modèle doit figurer dans le registre des
+# quotas et des prix (`src/usine/adaptateurs/llm/registre.py`).
+
+# Fournisseur : anthropic (clé ANTHROPIC_API_KEY) ou mistral (clé MISTRAL_API_KEY).
+fournisseur: anthropic
+# Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
+modele: claude-sonnet-5-5
+# Plafond de coût estimé par Passage, en euros (NFR-9, calibré en Story 6.3).
+plafond_cout_passage_eur: 2.00
+# Tentatives maximales d'un appel repris sur 429 (attente croissante, Retry-After respecté).
+tentatives_max: 5
+# Température des appels ; ignorée par les modèles Claude qui ne l'acceptent plus.
+temperature: 0.0
