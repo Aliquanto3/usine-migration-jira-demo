@@ -84,7 +84,7 @@ development_status:
   2-1-transport-jira-commun-et-client-de-lecture-à-liste-blanche: done
   2-2-adaptateur-jira-cloud-v3-et-vocabulaire-canonique: done
   2-3-entrepôt-duckdb-et-extraction-incrémentale: done
-  2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: backlog
+  2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: done
   2-5-source-journal-à-l-échelle-et-correspondance-des-clés: backlog
   2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
