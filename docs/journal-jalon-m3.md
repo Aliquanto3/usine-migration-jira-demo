@@ -58,7 +58,7 @@ L'orchestrateur a décidé de démarrer l'Epic 6 avant la porte. Les Stories 6.1
 - elles ne modifient ni `rendu/` ni les étapes déterministes ;
 - elles restent `sautee` en Palier 1, comme le montrent les Passages de cette porte.
 
-Les Stories 6.8 à 6.11 restent en backlog. Elles peuvent démarrer dès que la porte est déclarée passée.
+La Story 6.8 (suite d'évaluation de l'explication sourcée, sur fixtures) a été intégrée en parallèle de cette porte, sur le même principe. Les Stories 6.9 à 6.13 restent en backlog ; la 6.10 (recette Palier 2) part de ce Palier 1 validé.
 
 ## Arbitrages en attente d'Anaël
 
