@@ -211,6 +211,18 @@ unmatched_ignore_imports_alerting = "none"
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
+name = "ia.agent : lecture seule"
+type = "forbidden"
+source_modules = ["usine.ia.agent"]
+forbidden_modules = [
+    "usine.ports.source_tickets", "usine.ports.entrepot", "usine.ports.etape",
+    "usine.ports.fournisseur_llm", "usine.ports.cache_llm",
+]
+ignore_imports = ["usine.ia.agent.cli -> usine.**"]
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
 name = "rendu : contrats, ports, consultation ; openpyxl, pptx"
 type = "forbidden"
 source_modules = ["usine.rendu"]

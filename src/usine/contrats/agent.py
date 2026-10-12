@@ -4,7 +4,7 @@ Chaque date absente (`None`) désigne la Date d'arrêté du Passage consulté.
 """
 
 from datetime import date
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -37,6 +37,7 @@ class ArgumentsListAnomalies(Enregistrement):
     gravite: Gravite | None = None
     phase: Phase | None = None
     domaine: str | None = None
+    statut: StatutAnomalie | None = None
     limite: int = Field(default=50, gt=0)
 
 
@@ -128,3 +129,11 @@ class ResultatGetRisques(Enregistrement):
 
     date_arrete: date
     risques: tuple[RisqueEntreeRouge, ...]
+
+
+class AucuneDonnee(Enregistrement):
+    """Résultat d'un outil daté quand le Passage ne couvre pas la Date d'arrêté demandée."""
+
+    date_arrete: date | None
+    """Date demandée, sinon `None` quand aucune n'est demandée et que le Passage n'a aucune date."""
+    message: Literal["aucune donnée pour cette date"] = "aucune donnée pour cette date"
