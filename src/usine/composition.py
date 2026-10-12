@@ -13,7 +13,7 @@ variable) ; l'URL Jira se résout dans `url_jira` seulement. Les services de l'U
 """
 
 import secrets
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from functools import partial
@@ -55,7 +55,15 @@ from usine.contrats.passage import (
     ManifestePassage,
 )
 from usine.contrats.versions import version_donnees, version_grille
+from usine.domaine.meteo import verifier_grille
+from usine.generateur.corpus import (
+    VERSION_CORPUS_LLM,
+    VERSION_CORPUS_PROVISOIRE,
+    ecrire_corpus,
+    produire_corpus,
+)
 from usine.generateur.journal import ecrire_journal, generer
+from usine.generateur.textes import corpus_provisoire
 from usine.ia.etape import EtapeExplications
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
@@ -212,7 +220,7 @@ def construire_rapport(
     )
     programme = charger_yaml(repertoire_config / "programme.yaml", ConfigProgramme)
     chemin_grille = repertoire_config / "grille_meteo.yaml"
-    grille = charger_yaml(chemin_grille, GrilleMeteo)
+    grille = verifier_grille(charger_yaml(chemin_grille, GrilleMeteo), str(chemin_grille))
     jira = _config_jira(racine)
     configuration = ConfigUsine(chaine=chaine, programme=programme, grille_meteo=grille, jira=jira)
     gabarit = _octets(racine / CHEMIN_GABARIT, "gabarit PowerPoint")
@@ -314,7 +322,34 @@ def generer_journal(
     """Génère le Journal de `programme` sous `racine/donnees/` et renvoie son chemin.
 
     Délègue à `generateur.journal.ecrire_journal` (Journal et vérité terrain) ; sert à
-    `outils/`, qui ne peut pas importer `generateur` (NFR-2).
+    `outils/`, qui ne peut pas importer `generateur` (NFR-2). Les textes viennent du Corpus
+    provisoire en mémoire (défaut de `generer`), non de `donnees/corpus/textes.json` : quand la
+    Story 1.9 versionnera un Corpus produit par LLM, il faudra charger ici le Corpus versionné.
     """
     generation = generer(programme, graine, date_generation)
     return ecrire_journal(generation, racine / CHEMIN_JOURNAL.parent)
+
+
+def generer_corpus(
+    fournisseur: FournisseurLLM | None,
+    domaines: Sequence[str],
+    chemin: Path,
+    *,
+    version_corpus: str | None = None,
+) -> Path:
+    """Écrit le Corpus de textes des `domaines` à `chemin` et renvoie ce chemin (Story 1.2).
+
+    Sans fournisseur : Corpus provisoire par gabarits (`gabarits-provisoires`). Avec : Corpus
+    produit par `FournisseurLLM.generer_structure` seulement (AD-24). Délègue à
+    `generateur.corpus`, seul propriétaire du format ; sert à `outils/`, qui ne peut pas
+    importer `generateur`.
+    """
+    if fournisseur is None:
+        corpus = corpus_provisoire(
+            domaines, version_corpus=version_corpus or VERSION_CORPUS_PROVISOIRE
+        )
+    else:
+        corpus = produire_corpus(
+            fournisseur, domaines, version_corpus=version_corpus or VERSION_CORPUS_LLM
+        )
+    return ecrire_corpus(corpus, chemin)

@@ -1,6 +1,8 @@
-"""Indicateur IND-1 et Météo par Entité (Story 0.4, FR-15, FR-16)."""
+"""Indicateur IND-1, Météo par Entité et Grille livrée (Stories 0.4, 3.4 ; FR-15, FR-16, FR-18)."""
 
-from collections.abc import Iterable
+import hashlib
+import re
+from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime
 from fractions import Fraction
 from pathlib import Path
@@ -23,7 +25,7 @@ from usine.contrats.schemas import valider
 from usine.contrats.tickets import STATUTS_FERMES, Champ
 from usine.contrats.versions import version_grille
 from usine.domaine.instantanes import tickets_etats
-from usine.domaine.meteo import indicateurs, meteo
+from usine.domaine.meteo import indicateurs, meteo, verifier_grille
 from usine.generateur.journal import generer, serialiser_journal
 
 RACINE = Path(__file__).resolve().parents[3]
@@ -54,15 +56,143 @@ def _meteo(flux: Flux, grille: GrilleMeteo, d: date = LUNDI) -> dict[str, MeteoE
     return {m.entite: m for m in meteo(etats, d, ["ENT-A", "ENT-B"], grille, VERSION)}
 
 
+SEUILS_LIVRES: dict[CodeIndicateur, dict[Couleur, tuple[Operateur, Fraction]]] = {
+    CodeIndicateur.ind_1: {
+        Couleur.rouge: (Operateur.superieur_ou_egal, Fraction(3)),
+        Couleur.orange: (Operateur.superieur_ou_egal, Fraction(1)),
+    },
+    CodeIndicateur.ind_2: {
+        Couleur.rouge: (Operateur.superieur, Fraction(10)),
+        Couleur.orange: (Operateur.superieur, Fraction(5)),
+    },
+    CodeIndicateur.ind_3: {
+        Couleur.rouge: (Operateur.superieur_ou_egal, Fraction(20)),
+        Couleur.orange: (Operateur.superieur_ou_egal, Fraction(10)),
+        Couleur.jaune: (Operateur.superieur_ou_egal, Fraction(5)),
+    },
+    CodeIndicateur.ind_4: {
+        Couleur.rouge: (Operateur.superieur_ou_egal, Fraction(1, 5)),
+        Couleur.orange: (Operateur.superieur_ou_egal, Fraction(1, 10)),
+        Couleur.jaune: (Operateur.superieur_ou_egal, Fraction(1, 20)),
+    },
+    CodeIndicateur.ind_5: {Couleur.rouge: (Operateur.superieur_ou_egal, Fraction(1))},
+    CodeIndicateur.ind_6: {
+        Couleur.orange: (Operateur.superieur_ou_egal, Fraction(2)),
+        Couleur.jaune: (Operateur.superieur_ou_egal, Fraction(1)),
+    },
+    CodeIndicateur.ind_7: {
+        Couleur.orange: (Operateur.superieur, Fraction(3, 2)),
+        Couleur.jaune: (Operateur.superieur, Fraction(1)),
+    },
+    CodeIndicateur.ind_8: {
+        Couleur.orange: (Operateur.superieur_ou_egal, Fraction(1, 20)),
+        Couleur.jaune: (Operateur.superieur_ou_egal, Fraction(3, 100)),
+    },
+}
+
+
 def test_grille_livree() -> None:
     grille = charger_yaml(CHEMIN_GRILLE, GrilleMeteo)
-    ind1 = grille.indicateurs[CodeIndicateur.ind_1]
-    assert set(grille.indicateurs) == {CodeIndicateur.ind_1}
-    assert ind1.active
-    assert ind1.seuils[Couleur.rouge] == (Operateur.superieur_ou_egal, Fraction(3))
-    assert ind1.seuils[Couleur.orange] == (Operateur.superieur_ou_egal, Fraction(1))
+    assert set(grille.indicateurs) == set(CodeIndicateur)
+    for code, seuils in SEUILS_LIVRES.items():
+        regle = grille.indicateurs[code]
+        assert dict(regle.seuils) == seuils, code
+        assert regle.active is (code is CodeIndicateur.ind_1), code
+        assert regle.libelle
     assert grille.garde_fous.ind4_min_tests_executes == 20
     assert grille.garde_fous.ind7_min_entrees_fenetre_glissante == 5
+    octets = CHEMIN_GRILLE.read_bytes()
+    empreinte = version_grille(octets)
+    assert re.fullmatch(r"[0-9a-f]{12}", empreinte)
+    assert empreinte == hashlib.sha256(octets).hexdigest()[:12]
+    assert verifier_grille(grille, str(CHEMIN_GRILLE)) is grille
+
+
+def _regle(seuils: dict[str, str], active: bool = True) -> dict[str, Any]:
+    return {"libelle": "Règle d'essai", "active": active, "seuils": seuils}
+
+
+@pytest.mark.parametrize(
+    ("code", "seuils", "attendus"),
+    [
+        (
+            "IND-1",
+            {"rouge": ">= 3", "orange": ">= 4"},
+            ["grille.yaml", "IND-1", "orange « >= 4 »", "rouge « >= 3 »"],
+        ),
+        (
+            "IND-3",
+            {"rouge": ">= 20", "orange": ">= 10", "jaune": ">= 12"},
+            ["IND-3", "jaune « >= 12 »", "orange « >= 10 »"],
+        ),
+        ("IND-3", {"rouge": ">= 3", "jaune": ">= 5"}, ["IND-3", "jaune « >= 5 »", "rouge"]),
+        ("IND-1", {"rouge": ">= 3", "orange": "> 3"}, ["IND-1", "orange « > 3 »"]),
+        (
+            "IND-4",
+            {"rouge": ">= 0.20", "orange": ">= 0.25"},
+            ["IND-4", "orange « >= 0.25 »", "rouge « >= 0.2 »"],
+        ),
+    ],
+    ids=["orange-rouge", "jaune-orange", "non-adjacente", "operateur-strict", "decimal"],
+)
+def test_grille_incoherente_refusee(code: str, seuils: dict[str, str], attendus: list[str]) -> None:
+    grille = _grille(**{code: _regle(seuils)})
+    with pytest.raises(UsineErreur) as erreur:
+        verifier_grille(grille, "grille.yaml")
+    message = str(erreur.value)
+    assert message.startswith("grille.yaml : règle ")
+    for attendu in attendus:
+        assert attendu in message
+
+
+def test_regle_inactive_incoherente_refusee() -> None:
+    grille = _grille(**{"IND-2": _regle({"rouge": "> 5", "orange": "> 10"}, active=False)})
+    with pytest.raises(UsineErreur, match=r"IND-2 : seuil orange « > 10 »"):
+        verifier_grille(grille, "grille.yaml")
+
+
+@pytest.mark.parametrize(
+    "seuils",
+    [{"rouge": "> 3", "orange": ">= 3"}, {"rouge": ">= 3", "orange": ">= 3"}],
+    ids=["operateur-strict-inverse", "seuils-egaux"],
+)
+def test_grille_coherente_acceptee(seuils: dict[str, str]) -> None:
+    grille = _grille(**{"IND-1": _regle(seuils)})
+    assert verifier_grille(grille, "grille.yaml") is grille
+
+
+def _ecrire_grille(tmp_path: Path, modifier: Callable[[dict[str, Any]], None]) -> Path:
+    donnees = yaml.safe_load(CHEMIN_GRILLE.read_text(encoding="utf-8"))
+    modifier(donnees)
+    chemin = tmp_path / "grille_meteo.yaml"
+    chemin.write_text(yaml.safe_dump(donnees, allow_unicode=True), encoding="utf-8")
+    return chemin
+
+
+def test_indicateur_inconnu_refuse(tmp_path: Path) -> None:
+    chemin = _ecrire_grille(
+        tmp_path, lambda d: d["indicateurs"].update({"IND-9": _regle({"rouge": ">= 1"})})
+    )
+    with pytest.raises(UsineErreur) as erreur:
+        charger_yaml(chemin, GrilleMeteo)
+    assert str(chemin) in str(erreur.value)
+    assert "IND-9" in str(erreur.value)
+
+
+def test_couleur_inconnue_refusee(tmp_path: Path) -> None:
+    chemin = _ecrire_grille(
+        tmp_path, lambda d: d["indicateurs"]["IND-1"]["seuils"].update({"violet": ">= 2"})
+    )
+    with pytest.raises(UsineErreur) as erreur:
+        charger_yaml(chemin, GrilleMeteo)
+    assert str(chemin) in str(erreur.value)
+    assert "violet" in str(erreur.value)
+
+
+def test_seuil_decimal_exact() -> None:
+    grille = _grille(**{"IND-4": _regle({"rouge": ">= 0.20"}, active=False)})
+    seuil = grille.indicateurs[CodeIndicateur.ind_4].seuils[Couleur.rouge]
+    assert seuil == (Operateur.superieur_ou_egal, Fraction(1, 5))
 
 
 def test_rouge(grille: GrilleMeteo) -> None:

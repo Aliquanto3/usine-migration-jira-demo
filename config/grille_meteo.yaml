@@ -1,8 +1,11 @@
-# Grille de météo, version réduite du walking skeleton (Story 0.4) : seul IND-1 est calculé.
+# Grille de météo par défaut (fictive, PRD § 4.4) : seuils des indicateurs IND-1 à IND-8.
 # Toute modification change la `version_grille` (empreinte SHA-256 de ce fichier).
+# Seuils au format « <opérateur> <décimal> » (opérateur `>=` ou `>`) ; taux et hausses en
+# fractions (0.20 = 20 %, 0.05 = +5 points). Une couleur moins grave ne doit jamais être plus
+# sévère qu'une couleur plus grave de la même règle : la Grille est refusée au chargement sinon.
 
 # Version de la Grille, incrémentée à chaque changement de règle ou de seuil.
-version: 1
+version: 2
 # Couleurs dans l'ordre de gravité croissante (rappel, ne pas modifier).
 couleurs: [vert, jaune, orange, rouge]
 # Agrégation des règles : la couleur la plus grave dont un seuil est franchi l'emporte.
@@ -16,6 +19,8 @@ garde_fous:
   ind7_min_entrees_fenetre_glissante: 5
 
 # Indicateurs de météo, par code ; les seuils se lisent « valeur <opérateur> seuil ».
+# `active: false` : indicateur ignoré par la Météo. IND-2 à IND-8 sont livrés inactifs tant
+# qu'ils ne sont pas calculés (Story 3.5) ; les activer avant fait échouer la Chaîne.
 indicateurs:
   # IND-1 : nombre d'Anomalies bloquantes ouvertes de l'Entité à la Date d'arrêté.
   IND-1:
@@ -29,3 +34,99 @@ indicateurs:
       rouge: ">= 3"
       # Orange à partir d'une Anomalie bloquante ouverte.
       orange: ">= 1"
+
+  # IND-2 : âge, en Jours ouvrés depuis sa dernière Entrée, de la plus ancienne Anomalie
+  # bloquante ouverte de l'Entité.
+  IND-2:
+    # Libellé affiché de l'indicateur.
+    libelle: "Âge de la plus ancienne bloquante ouverte (Jours ouvrés)"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Rouge au-delà de 10 Jours ouvrés.
+      rouge: "> 10"
+      # Orange au-delà de 5 Jours ouvrés.
+      orange: "> 5"
+
+  # IND-3 : nombre d'Anomalies majeures ouvertes de l'Entité à la Date d'arrêté.
+  IND-3:
+    # Libellé affiché de l'indicateur.
+    libelle: "Anomalies majeures ouvertes"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Rouge à partir de 20 Anomalies majeures ouvertes.
+      rouge: ">= 20"
+      # Orange à partir de 10 Anomalies majeures ouvertes.
+      orange: ">= 10"
+      # Jaune à partir de 5 Anomalies majeures ouvertes.
+      jaune: ">= 5"
+
+  # IND-4 : taux de KO des Cas de test exécutés dans la Phase en cours (voir garde-fou IND-4).
+  IND-4:
+    # Libellé affiché de l'indicateur.
+    libelle: "Taux de KO des Cas de test exécutés, Phase en cours"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur, en fraction ; vert = aucun seuil franchi.
+    seuils:
+      # Rouge à partir de 20 % de KO.
+      rouge: ">= 0.20"
+      # Orange à partir de 10 % de KO.
+      orange: ">= 0.10"
+      # Jaune à partir de 5 % de KO.
+      jaune: ">= 0.05"
+
+  # IND-5 : nombre de Certifications refusées dans la Vague en cours de l'Entité.
+  IND-5:
+    # Libellé affiché de l'indicateur.
+    libelle: "Certifications refusées (Vague en cours)"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Rouge dès une Certification refusée.
+      rouge: ">= 1"
+
+  # IND-6 : nombre de Certifications réservées dans la Vague en cours de l'Entité.
+  IND-6:
+    # Libellé affiché de l'indicateur.
+    libelle: "Certifications réservées (Vague en cours)"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Orange à partir de 2 Certifications réservées.
+      orange: ">= 2"
+      # Jaune dès une Certification réservée.
+      jaune: ">= 1"
+
+  # IND-7 : ratio Entrées / Sorties des Anomalies bloquantes et majeures sur la Fenêtre
+  # glissante (voir garde-fou IND-7 ; 0 Sortie avec Entrées suffisantes = ratio infini).
+  IND-7:
+    # Libellé affiché de l'indicateur.
+    libelle: "Ratio Entrées / Sorties bloquantes et majeures, Fenêtre glissante"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur ; vert = aucun seuil franchi.
+    seuils:
+      # Orange au-delà de 1,5 Entrée par Sortie.
+      orange: "> 1.5"
+      # Jaune au-delà d'une Entrée par Sortie.
+      jaune: "> 1.0"
+
+  # IND-8 : hausse du taux de KO (IND-4) par rapport à J-5, évaluable seulement si IND-4
+  # l'est aux deux dates.
+  IND-8:
+    # Libellé affiché de l'indicateur.
+    libelle: "Hausse du taux de KO par rapport à J-5 (points)"
+    # Inactif : la Story 3.5 l'active en le calculant.
+    active: false
+    # Seuils par couleur, en fraction ; vert = aucun seuil franchi.
+    seuils:
+      # Orange à partir d'une hausse de 5 points.
+      orange: ">= 0.05"
+      # Jaune à partir d'une hausse de 3 points.
+      jaune: ">= 0.03"

@@ -1,7 +1,7 @@
-"""Générateur déterministe du Journal d'événements (Stories 0.3 et 1.1, amorce de FR-2).
+"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 et 1.2, amorce de FR-2).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
-`(config, graine, date_generation, cle_projet)` (la clé de projet ne fixe que le préfixe
+`(config, graine, date_generation, cle_projet, corpus)` (la clé de projet ne fixe que le préfixe
 des clés de tickets) ; tout le hasard vient d'une seule instance de
 `Random` initialisée par la graine, tirée dans un ordre fixe. Seule `ecrire_journal` écrit
 sur disque : le Journal et la vérité terrain d'une `Generation`.
@@ -39,7 +39,8 @@ from usine.contrats.tickets import (
     StatutTest,
     TypeTicket,
 )
-from usine.generateur.textes import DESCRIPTIONS, MODELE_CORPUS, TITRES, VERSION_CORPUS
+from usine.generateur.corpus import Corpus, TexteTicket
+from usine.generateur.textes import corpus_provisoire
 
 CLE_PROJET_ESSAI = "DEMO"
 """Clé de projet par défaut, pour les appelants sans configuration Jira (tests, composition).
@@ -154,12 +155,10 @@ def _statut_suivant(statut: StatutAnomalie, rng: random.Random) -> StatutAnomali
 
 
 def _textes(
-    type_ticket: TypeTicket, entite: str, domaine: str, rng: random.Random
+    case: tuple[TexteTicket, ...], entite: str, domaine: str, rng: random.Random
 ) -> tuple[str, str]:
-    """Titre et description tirés dans le mini-corpus."""
-    titre = rng.choice(TITRES[type_ticket]).format(entite=entite, domaine=domaine)
-    description = rng.choice(DESCRIPTIONS[type_ticket]).format(entite=entite, domaine=domaine)
-    return titre, description
+    """Titre et description d'une paire tirée d'un seul coup dans une case du Corpus."""
+    return rng.choice(case).remplir(entite, domaine)
 
 
 def _verifier_phases(vague: VagueProgramme) -> None:
@@ -220,6 +219,7 @@ def _anomalie(
     entite: EntiteProgramme,
     jour: date,
     domaines: tuple[str, ...],
+    corpus: Corpus,
     calendrier: _Calendrier,
     rng: random.Random,
 ) -> _Ticket:
@@ -228,7 +228,8 @@ def _anomalie(
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
     cause = rng.choice(tuple(CauseRacine))
-    titre, description = _textes(TypeTicket.anomalie, entite.code, domaine, rng)
+    case = corpus.textes_domaine(domaine).anomalies[cause]
+    titre, description = _textes(case, entite.code, domaine, rng)
     ticket = _Ticket(
         TypeTicket.anomalie,
         creation,
@@ -269,6 +270,7 @@ def _anomalie(
 def _cas_de_test(
     entite: EntiteProgramme,
     domaines: tuple[str, ...],
+    corpus: Corpus,
     calendrier: _Calendrier,
     rng: random.Random,
 ) -> _Ticket:
@@ -277,7 +279,8 @@ def _cas_de_test(
     creation = _horodatage(jour, rng)
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
-    titre, description = _textes(TypeTicket.cas_de_test, entite.code, domaine, rng)
+    case = corpus.textes_domaine(domaine).cas_de_test
+    titre, description = _textes(case, entite.code, domaine, rng)
     ticket = _Ticket(
         TypeTicket.cas_de_test,
         creation,
@@ -306,10 +309,12 @@ def _cas_de_test(
     return ticket
 
 
-def _certification(entite: EntiteProgramme, jours: tuple[date, ...], rng: random.Random) -> _Ticket:
+def _certification(
+    entite: EntiteProgramme, corpus: Corpus, jours: tuple[date, ...], rng: random.Random
+) -> _Ticket:
     creation = _horodatage(rng.choice(jours), rng)
     statut = rng.choice(tuple(StatutCertification))
-    titre, description = _textes(TypeTicket.certification, entite.code, "", rng)
+    titre, description = _textes(corpus.certifications, entite.code, "", rng)
     return _Ticket(
         TypeTicket.certification,
         creation,
@@ -431,6 +436,7 @@ def generer(
     date_generation: date,
     *,
     cle_projet: str = CLE_PROJET_ESSAI,
+    corpus: Corpus | None = None,
 ) -> Generation:
     """Génère le Journal du Programme fictif pour `graine` et `date_generation`.
 
@@ -441,7 +447,14 @@ def generer(
     calendrier de la Vague de son Entité la semaine de sa création. Une réouverture n'est
     gardée que si sa semaine reste sous le maximum d'Entrées. Les clés `<cle_projet>-<n>`
     sont ensuite attribuées dans l'ordre chronologique de création.
+
+    Titre et description forment une paire tirée d'un seul coup dans la case du `corpus`
+    (défaut : Corpus provisoire des Domaines de `config`) : (Domaine, Cause racine) pour une
+    Anomalie, Cas de test du Domaine, Certifications ; un Domaine absent du Corpus tire dans
+    `generique`. L'en-tête reprend `version_corpus` et `modele_corpus`. Aucun appel LLM.
     """
+    if corpus is None:
+        corpus = corpus_provisoire(config.domaines)
     if graine < 0:
         # `Random(-n)` tire comme `Random(n)` : deux graines, un même Journal.
         raise UsineErreur(f"graine invalide : {graine} (entier ≥ 0 attendu)")
@@ -477,13 +490,13 @@ def generer(
         for _ in range(nombre):
             jour = rng.choice(jours_semaine)
             entite = rng.choice(config.entites)
-            tickets.append(_anomalie(entite, jour, config.domaines, calendrier, rng))
+            tickets.append(_anomalie(entite, jour, config.domaines, corpus, calendrier, rng))
     for entite in config.entites:
         nb_tests = rng.randint(*CAS_DE_TEST_PAR_ENTITE)
         tickets.extend(
-            _cas_de_test(entite, config.domaines, calendrier, rng) for _ in range(nb_tests)
+            _cas_de_test(entite, config.domaines, corpus, calendrier, rng) for _ in range(nb_tests)
         )
-        tickets.append(_certification(entite, calendrier.jours, rng))
+        tickets.append(_certification(entite, corpus, calendrier.jours, rng))
 
     ordre = sorted(range(len(tickets)), key=lambda i: (tickets[i].creation, i))
     a_trier: list[tuple[datetime, int, int, Evenement]] = []
@@ -509,8 +522,8 @@ def generer(
         date_generation=date_generation,
         date_injection=date_injection,
         ancrage_semaines=ancrage,
-        version_corpus=VERSION_CORPUS,
-        modele_corpus=MODELE_CORPUS,
+        version_corpus=corpus.version_corpus,
+        modele_corpus=corpus.modele_corpus,
     )
     return Generation(entete, evenements, MappingProxyType(verite))
 
