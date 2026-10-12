@@ -67,3 +67,8 @@ Ils ne bloquent pas la porte, mais ils sont consignés ici. Aucun n'a été tran
 - **SM-10** : la Baseline bat la référence naïve sur le test temporel (Brier 0,011922 contre 0,013638). Elle perd en revanche sur les projets tenus à l'écart (0,047625 contre 0,045207, soit un écart de 0,0024). Voir `evaluation/zenodo/RAPPORT.md`. Le résultat est publié tel quel et la Baseline n'a pas été retouchée.
 - **AD-16** : `version_donnees` inclut le manifeste d'injection (Story 2.6). C'est un écart à la lettre du Glossaire, qui prévoit « SHA-256 du Journal + `horodatage_extraction` ».
 - **Nouveau, Rejeu** : `nb_alignements` au manifeste (voir plus haut).
+
+## Clôture par l'orchestrateur (13/10/2026)
+
+- CI GitHub verte (Ubuntu et Windows) sur `b00c5d7`, poussé le 13/10 : la porte M3 est passée.
+- Rejeu entre le premier Passage après réinjection (`ec5fab`) et le suivant : écart sur `manifeste.nb_alignements` (20 014 contre 0). Décision technique : on garde la règle « Rejeu sur entrepôt stable ». Le premier Passage après une réinjection construit l'entrepôt et n'entre donc pas dans le Rejeu. Les contrats ne changent pas.
