@@ -14,3 +14,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-0-9-gel-des-contrats-v1.md`
   summary: Vérifier si `entite` (et les attributs de rattachement) doivent rejoindre `non_nulles` dans `SCHEMA_INSTANTANE` et `SCHEMA_TICKET_ETAT`.
   evidence: Non vérifié (sévérité medium si avéré). D3 a déclaré un ensemble prudent ; si aucun producteur du domaine n'émet `entite` à null, le resserrer après le gel serait un changement majeur. À trancher en relisant `domaine/instantanes.py` et le générateur avant le premier ajout de colonne en L3.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-etapes-deterministes-completes-et-passage-autoportant.md`
+  summary: Câbler `EtapePrevision` dans le registre de `composition.py` dès que `domaine/prevision` (Stories 4.1 et 4.2) est sur `main`.
+  evidence: l'étape `prevision` reste `EtapeBouchon()` ; un Passage réel n'a ni `previsions.json` ni `trace/previsions.jsonl`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-5-1-etapes-deterministes-completes-et-passage-autoportant.md`
+  summary: Configurer la journalisation et l'encodage UTF-8 de la console de la CLI en Story 5.5 (rétrospective de l'Epic 0, constat 15).
+  evidence: aucune configuration de `logging` ni de `sys.stdout` ; sortie « Journal �crit » sous Git Bash.

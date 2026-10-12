@@ -17,7 +17,11 @@ L'étape `extraction` verse Jira dans `donnees/entrepot.duckdb` (`EtapeExtractio
 présent (`mode: cloud` : `JIRA_TOKEN_LECTURE`, puis `JIRA_EMAIL` exigé ; `mode: dc` :
 `JIRA_DC_PAT`) ; l'adaptateur (`SourceJiraCloud` ou `SourceJiraDC`) suit `mode`. Sinon elle
 reste un bouchon et le Journal est la seule source. `instantanes` lit toujours le Journal
-(source composite : Story 2.6). Les services de l'UI vivent dans
+(source composite : Story 2.6). `instantanes` et `meteo` couvrent chaque Jour ouvré depuis
+`EnteteJournal.ancrage_semaines`, aussi ancrage des semaines ; `kpi` (KPI et Tendances),
+chaque Jour ouvré du premier jour où un ticket existe à la Date d'arrêté, aucun avant ;
+`prevision` reste un bouchon tant que `domaine/prevision` (lane L4) n'est pas sur `main`,
+puis sera une `EtapePrevision`. Les services de l'UI vivent dans
 `ui/cli.py`, l'écriture du Journal dans `generateur.journal.ecrire_journal`.
 """
 
@@ -47,7 +51,7 @@ from usine.adaptateurs.pseudonymisation import (
 )
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.chaine.ecrivain import EcrivainPassage
-from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeMeteo, EtapeSautee
+from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeKpi, EtapeMeteo, EtapeSautee
 from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
 from usine.config import Secrets, charger_secrets, charger_yaml
@@ -298,8 +302,10 @@ def construire_rapport(
     registre: dict[Etape, PortEtape] = {
         Etape.extraction: EtapeBouchon(),
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
-        Etape.kpi: EtapeBouchon(),
+        Etape.kpi: EtapeKpi(entites, premier_jour),
         Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
+        # Bouchon tant que `domaine/prevision` (lane L4, Stories 4.1 et 4.2) n'est pas sur
+        # `main` ; ensuite `EtapePrevision(prevoir, empreinte_donnees, horloge)`.
         Etape.prevision: EtapeBouchon(),
         Etape.rendu: EtapeRendu(gabarit),
     }
