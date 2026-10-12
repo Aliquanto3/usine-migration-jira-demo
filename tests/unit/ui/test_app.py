@@ -14,6 +14,7 @@ from streamlit.testing.v1 import AppTest
 from usine.contrats.meteo import LIBELLES_COULEURS
 from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
 from usine.ui import lancement
+from usine.ui.carte import tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.navigation import STORY_A_VENIR, Ecran
 
@@ -71,7 +72,9 @@ def test_carte_meteo(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert _entites(tableau) == [m.entite for m in consultation.meteo()]
     for ligne, meteo in zip(tableau.splitlines()[2:], consultation.meteo(), strict=True):
         assert LIBELLES_COULEURS[meteo.couleur] in ligne.split("|")[2]
-    assert "J-1 ↗ · J-5 ↗" in tableau.splitlines()[2]
+    evolutions = {e.entite: e for e in consultation.evolution_meteo()}
+    for ligne, meteo in zip(tableau.splitlines()[2:], consultation.meteo(), strict=True):
+        assert tendance(evolutions[meteo.entite]) in ligne
     assert "09/10/2026" in page.caption[0].value
     assert "aggravation" in page.caption[1].value  # légende des flèches
     assert [bouton.label for bouton in page.button] == ["Détail ENT-A", "Détail ENT-B"]

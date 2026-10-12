@@ -102,15 +102,22 @@ def test_carte_du_passage_publie(racine_publiee: Path) -> None:
     assert [ligne["Entité"] for ligne in lignes] == ["ENT-A", "ENT-B"]
     for ligne, meteo in zip(lignes, consultation.meteo(), strict=True):
         assert ligne["Météo"].endswith(LIBELLES_COULEURS[meteo.couleur])
-    ent_a, ent_b = lignes
-    assert ent_a["Météo"] == "🔴 Rouge"
-    assert ent_a["Tendance"] == "J-1 ↗ · J-5 ↗"
-    assert ent_a["Règle principale"].startswith("IND-2 : 11 (seuil ")
-    assert "(+" not in ent_a["Règle principale"]
-    assert len(LIEN.findall(ent_a["Tickets en cause"])) == 1
-    assert ent_b["Tendance"] == "J-1 → · J-5 →"
-    assert ent_b["Règle principale"].startswith("IND-1 : ")
-    assert ent_b["Règle principale"].endswith("(+2)")
+    # Attendus tirés du Passage lui-même : le jeu d'essai peut être recalé (Epic 1).
+    evolutions = {e.entite: e for e in consultation.evolution_meteo()}
+    for ligne, meteo in zip(lignes, consultation.meteo(), strict=True):
+        evolution = evolutions[meteo.entite]
+        assert ligne["Tendance"] == (
+            f"J-1 {fleche(evolution.couleur_j1, meteo.couleur)}"
+            f" · J-5 {fleche(evolution.couleur_j5, meteo.couleur)}"
+        )
+        if not meteo.regles:
+            assert ligne["Règle principale"] == "—"
+            continue
+        principale, *autres = meteo.regles
+        assert ligne["Règle principale"].startswith(f"{principale.code.value} : ")
+        assert ligne["Règle principale"].endswith(f"(+{len(autres)})") == bool(autres)
+        attendus = min(len(principale.tickets_en_cause), 3)
+        assert len(LIEN.findall(ligne["Tickets en cause"])) == attendus
     assert date_carte(consultation) == "09/10/2026"
 
 
