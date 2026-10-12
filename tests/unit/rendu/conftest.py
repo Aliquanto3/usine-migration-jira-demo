@@ -22,7 +22,7 @@ from tests.unit.chaine.environnement import (
 from usine.composition import lancer_rapport
 from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
-from usine.contrats.config import GrilleMeteo
+from usine.contrats.config import ConfigJira, GrilleMeteo
 from usine.contrats.llm import (
     SCHEMA_REPARTITION_CAUSES,
     SortieClassification,
@@ -38,8 +38,8 @@ from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.contrats.versions import CLE_VERSION, CONTRATS_VERSION
 from usine.rendu.commun import ContexteRendu
 
-URL_JIRA = "https://jira.example.invalid"
-"""URL du site Jira de `config/jira.yaml` (fictive)."""
+URL_JIRA = charger_yaml(RACINE_DEPOT / "config" / "jira.yaml", ConfigJira).url_site
+"""URL du site Jira de `config/jira.yaml`, celle des Passages publiés."""
 
 GRILLE = charger_yaml(RACINE_DEPOT / "config" / "grille_meteo.yaml", GrilleMeteo)
 """Grille livrée, celle des Passages d'essai."""
@@ -91,7 +91,7 @@ def passage_sans_jira(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture
 def consultation(passage: Path) -> ConsultationPassage:
     """Consultation du Passage publié, avec l'URL du site Jira de `config/jira.yaml`."""
-    return ConsultationPassage(passage, url_jira="https://jira.example.invalid")
+    return ConsultationPassage(passage, url_jira=URL_JIRA)
 
 
 REGLE_JAUNE = RegleDeclenchante(

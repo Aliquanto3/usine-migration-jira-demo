@@ -328,7 +328,7 @@ def test_jira_yaml_livre_valide(racine_depot: Path) -> None:
     texte = (racine_depot / "config" / "jira.yaml").read_text(encoding="utf-8")
     jira = ConfigJira.model_validate(yaml.safe_load(texte))
     assert (jira.url_site, jira.mode, jira.cle_projet) == (
-        "https://jira.example.invalid",
+        "https://anaelyahi.atlassian.net",
         "cloud",
         "DEMO",
     )

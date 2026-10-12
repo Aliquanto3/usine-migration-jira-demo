@@ -118,6 +118,8 @@ def test_garde_laisse_passer_le_client_de_lecture() -> None:
 _AUTORISES = (
     re.compile(r"^adaptateurs/jira_[a-z_]+/.+\.py$"),
     re.compile(r"^contrats/config\.py$"),
+    # L'injecteur, seul écrivain Jira (AD-5), applique la correspondance à rebours (Story 1.6).
+    re.compile(r"^generateur/injecteur/(plan|site|injection)\.py$"),
 )
 _NOMS_JIRA = re.compile(r"types_tickets|customfield_")
 
