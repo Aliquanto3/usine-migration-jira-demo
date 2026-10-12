@@ -1,7 +1,10 @@
 """État des tickets et Instantanés, reconstitués depuis les événements (FR-10, AD-17).
 
 Fonctions pures : la liste des dates arrive en paramètre. Un événement compte en D si son
-Jour ouvré de rattachement (`calendrier.jour_ouvre_de`) est ≤ D.
+Jour ouvré de rattachement (`calendrier.jour_ouvre_de`) est ≤ D. Le flux est dédoublonné par
+`id_evenement` (première occurrence gardée, AD-3) et les lignes suivent un ordre canonique
+(date dans l'ordre fourni, puis `rang_cle`), indépendant de l'ordre d'arrivée des créations :
+deux calculs sur le même flux donnent des DataFrames identiques, ordre des lignes compris.
 """
 
 from collections.abc import Iterable, Sequence
@@ -10,7 +13,7 @@ from datetime import date
 import polars as pl
 
 from usine.contrats.calcul import SCHEMA_INSTANTANE
-from usine.contrats.calendrier import jour_ouvre_de
+from usine.contrats.calendrier import est_jour_ouvre, jour_ouvre_de
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement, evenements_en_table
 from usine.contrats.schemas import valider
@@ -20,6 +23,7 @@ from usine.contrats.tickets import (
     STATUTS_FERMES,
     Champ,
     TypeTicket,
+    rang_cle,
 )
 
 CHAMPS_ETAT: tuple[Champ, ...] = (
@@ -37,13 +41,28 @@ CHAMPS_ETAT: tuple[Champ, ...] = (
 _FERMES = [statut.value for statut in STATUTS_FERMES]
 
 
+def _sans_doublons(evenements: Iterable[Evenement]) -> list[Evenement]:
+    """Première occurrence de chaque `id_evenement`, dans l'ordre reçu (AD-3)."""
+    vus: set[str] = set()
+    liste: list[Evenement] = []
+    for evenement in evenements:
+        if evenement.id_evenement not in vus:
+            vus.add(evenement.id_evenement)
+            liste.append(evenement)
+    return liste
+
+
 def _table_evenements(evenements: Iterable[Evenement]) -> pl.DataFrame:
-    """Table `SCHEMA_EVENEMENT` + `jour` (Jour ouvré de rattachement) + `rang` (ordre reçu)."""
-    liste = list(evenements)
+    """Table `SCHEMA_EVENEMENT` + `jour` (Jour ouvré de rattachement) + `rang` (ordre reçu,
+    après dédoublonnage par `id_evenement`) + `ordre_cle` (rang de la clé selon `rang_cle`).
+    """
+    liste = _sans_doublons(evenements)
+    ordre = {cle: i for i, cle in enumerate(sorted({e.cle_ticket for e in liste}, key=rang_cle))}
     table = evenements_en_table(liste)
     return table.with_columns(
         pl.Series("jour", [jour_ouvre_de(e.horodatage) for e in liste], dtype=pl.Date()),
         pl.int_range(pl.len(), dtype=pl.Int64).alias("rang"),
+        pl.Series("ordre_cle", [ordre[e.cle_ticket] for e in liste], dtype=pl.Int64),
     ).sort(["horodatage", "rang"])
 
 
@@ -53,7 +72,7 @@ def _etats_en(table: pl.DataFrame, jour: date) -> pl.DataFrame:
     creations = (
         vus.filter(pl.col("nature") == NatureEvenement.creation.value)
         .group_by("cle_ticket", maintain_order=True)
-        .agg(pl.col("type_ticket").first(), pl.col("rang").first().alias("rang_creation"))
+        .agg(pl.col("type_ticket").first(), pl.col("ordre_cle").first())
     )
     valeurs = (
         vus.filter(pl.col("champ").is_in([c.value for c in CHAMPS_ETAT]))
@@ -84,7 +103,7 @@ def _etats_en(table: pl.DataFrame, jour: date) -> pl.DataFrame:
     etats = etats.with_columns(pl.lit(None, dtype=pl.Utf8).alias(c) for c in manquantes)
     est_anomalie = pl.col("type_ticket") == TypeTicket.anomalie.value
     return (
-        etats.sort("rang_creation")
+        etats.sort("ordre_cle")
         .with_columns(
             pl.lit(jour, dtype=pl.Date()).alias("date"),
             pl.when(est_anomalie).then(pl.col("date_derniere_entree")),
@@ -103,11 +122,15 @@ def tickets_etats(evenements: Iterable[Evenement], dates: Sequence[date]) -> pl.
     Chaque champ prend la dernière valeur `vers` reçue en D (ordre : horodatage, puis rang
     dans le flux). `date_derniere_entree` = Jour ouvré de la création, ou de la dernière
     transition qui sort de `STATUTS_FERMES` ; nulle hors Anomalies (l'Entrée est un concept
-    d'Anomalie). Les colonnes sans objet pour le type restent nulles.
+    d'Anomalie). Les colonnes sans objet pour le type restent nulles. Lignes triées par date
+    (dans l'ordre de `dates`), puis par `rang_cle`. Toute date doit être un Jour ouvré.
     """
     doublons = sorted({jour for jour in dates if list(dates).count(jour) > 1})
     if doublons:
         raise UsineErreur(f"dates en double : {', '.join(jour.isoformat() for jour in doublons)}")
+    for jour in dates:
+        if not est_jour_ouvre(jour):
+            raise UsineErreur(f"{jour.isoformat()} n'est pas un Jour ouvré")
     table = _table_evenements(evenements)
     morceaux = [_etats_en(table, jour) for jour in dates]
     if not morceaux:
@@ -124,13 +147,14 @@ def tickets_textes(evenements: Iterable[Evenement], date_arrete: date) -> pl.Dat
 
     Chaque champ prend la dernière valeur `vers` rattachée au plus tard à la Date d'arrêté
     (ordre : horodatage, puis rang dans le flux) ; un champ jamais renseigné reste nul.
+    Lignes triées par `rang_cle`.
     """
     table = _table_evenements(evenements)
     vus = table.filter(pl.col("jour") <= date_arrete)
     creations = (
         vus.filter(pl.col("nature") == NatureEvenement.creation.value)
         .group_by("cle_ticket", maintain_order=True)
-        .agg(pl.col("type_ticket").first(), pl.col("rang").first().alias("rang_creation"))
+        .agg(pl.col("type_ticket").first(), pl.col("ordre_cle").first())
     )
     valeurs = (
         vus.filter(pl.col("champ").is_in([c.value for c in CHAMPS_TEXTE]))
@@ -146,7 +170,7 @@ def tickets_textes(evenements: Iterable[Evenement], date_arrete: date) -> pl.Dat
     manquantes = [c.value for c in CHAMPS_TEXTE if c.value not in textes.columns]
     textes = textes.with_columns(pl.lit(None, dtype=pl.Utf8).alias(c) for c in manquantes)
     textes = (
-        textes.sort("rang_creation")
+        textes.sort("ordre_cle")
         .with_columns(pl.col(c.value).cast(pl.Utf8) for c in CHAMPS_TEXTE)
         .select(list(SCHEMA_TICKET_TEXTE.colonnes))
     )

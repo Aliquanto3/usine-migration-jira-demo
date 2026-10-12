@@ -90,8 +90,8 @@ development_status:
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
 
-  epic-3: backlog  # lane L3 Calcul
-  3-1-instantanés-quotidiens-complets: backlog
+  epic-3: in-progress  # lane L3 Calcul
+  3-1-instantanés-quotidiens-complets: done
   3-2-kpi-quotidiens: backlog
   3-3-tendances-hebdomadaires: backlog
   3-4-grille-de-météo-complète-et-validation: backlog
@@ -152,8 +152,8 @@ development_status:
   7-12-répétitions-chronométrées-de-la-démo: backlog
   epic-7-retrospective: optional
 
-  epic-8: backlog  # lane L8 Portage
-  8-1-fiche-outillage-demandé-et-note-de-portage-courte: backlog
+  epic-8: in-progress  # lane L8 Portage
+  8-1-fiche-outillage-demandé-et-note-de-portage-courte: done
   8-2-validation-par-le-responsable-de-mission-m7: backlog  # prérequis : 7.12 — dernier indispensable
   8-3-bonus-conteneur-et-note-de-portage-détaillée: backlog  # BONUS — après tous les indispensables
   epic-8-retrospective: optional
