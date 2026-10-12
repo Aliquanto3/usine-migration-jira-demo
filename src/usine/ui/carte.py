@@ -6,18 +6,8 @@ from types import MappingProxyType
 from typing import Protocol
 
 from usine.contrats.format import formater_date
-from usine.contrats.meteo import Couleur, MeteoEntite
+from usine.contrats.meteo import LIBELLES_COULEURS, Couleur, MeteoEntite
 from usine.contrats.passage import ManifestePassage
-
-LIBELLES_COULEURS: Mapping[Couleur, str] = MappingProxyType(
-    {
-        Couleur.vert: "Vert",
-        Couleur.jaune: "Jaune",
-        Couleur.orange: "Orange",
-        Couleur.rouge: "Rouge",
-    }
-)
-"""Libellé français de chaque couleur de Météo."""
 
 PASTILLES: Mapping[Couleur, str] = MappingProxyType(
     {Couleur.vert: "🟢", Couleur.jaune: "🟡", Couleur.orange: "🟠", Couleur.rouge: "🔴"}

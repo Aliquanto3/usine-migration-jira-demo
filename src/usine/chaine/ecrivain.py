@@ -19,6 +19,10 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import SCHEMA_REPARTITION_CAUSES
 from usine.contrats.passage import (
     CONTENUS_JSON,
+    PREFIXE_EN_COURS,
+    SOUS_REPERTOIRE_ECHECS,
+    SOUS_REPERTOIRE_PASSAGES,
+    SOUS_REPERTOIRE_PROGRESSION,
     EnveloppeFichier,
     Etape,
     EvenementProgression,
@@ -52,9 +56,6 @@ FICHIERS_TRACE: Mapping[TypeTrace, str] = MappingProxyType(
 
 _RESERVES = frozenset({"manifeste", *FICHIERS_TRACE.values()})
 """Fichiers écrits par l'écrivain lui-même, jamais rendus comme sortie d'étape."""
-
-PREFIXE_EN_COURS = ".en-cours-"
-"""Préfixe du répertoire d'un Passage en construction."""
 
 
 def _maintenant() -> datetime:
@@ -104,12 +105,12 @@ class EcrivainPassage:
     @property
     def repertoire(self) -> Path:
         """Répertoire de construction `sorties/passages/.en-cours-<passage_id>/`."""
-        return self._racine / "passages" / f"{PREFIXE_EN_COURS}{self.passage_id}"
+        return self._racine / SOUS_REPERTOIRE_PASSAGES / f"{PREFIXE_EN_COURS}{self.passage_id}"
 
     @property
     def chemin_progression(self) -> Path:
         """Fichier de progression `sorties/progression/<passage_id>.jsonl`, hors du Passage."""
-        return self._racine / "progression" / f"{self.passage_id}.jsonl"
+        return self._racine / SOUS_REPERTOIRE_PROGRESSION / f"{self.passage_id}.jsonl"
 
     @property
     def ecrits(self) -> frozenset[str]:
@@ -225,7 +226,8 @@ class EcrivainPassage:
     @property
     def chemin_publication(self) -> Path:
         """Répertoire de publication `sorties/passages/<date_arrete>/<passage_id>/`."""
-        return self._racine / "passages" / self.date_arrete.isoformat() / self.passage_id
+        passages = self._racine / SOUS_REPERTOIRE_PASSAGES
+        return passages / self.date_arrete.isoformat() / self.passage_id
 
     @property
     def repertoire_publie(self) -> Path | None:
@@ -236,7 +238,7 @@ class EcrivainPassage:
         """Déplace le Passage en construction sous `sorties/echecs/<passage_id>/`."""
         if self._passage_id is None or self._termine is not None or not self.repertoire.exists():
             return None
-        cible = self._deplacer(self._racine / "echecs" / self.passage_id, "abandon")
+        cible = self._deplacer(self._racine / SOUS_REPERTOIRE_ECHECS / self.passage_id, "abandon")
         self._termine = "abandonné"
         return cible
 

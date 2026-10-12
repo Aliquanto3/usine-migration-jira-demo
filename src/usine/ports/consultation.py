@@ -1,8 +1,8 @@
 """Port `Consultation` : lecteur unique d'un Passage (AD-11).
 
-Un `date_arrete` à `None` désigne la Date d'arrêté du Passage lu. Les lectures LLM prennent
-un filtre `palier` (FR-46) : `palier=1` renvoie une sortie vide. Les tables sont validées par
-leur `SCHEMA_X`.
+Un `date_arrete` à `None` désigne la Date d'arrêté du Passage lu. Toute lecture qui porte une
+sortie du Palier 2 prend un filtre `palier` (FR-46) : `palier=1` la renvoie vide, ou sans la
+cause racine proposée pour `anomalies`. Les tables sont validées par leur `SCHEMA_X`.
 """
 
 from datetime import date
@@ -25,8 +25,14 @@ Palier = Literal[1, 2]
 class Consultation(Protocol):
     """Lectures d'un Passage, publié ou en cours, pour les étapes, le rendu, l'UI et l'Agent."""
 
-    def dernier_passage(self) -> ManifestePassage | None:
-        """Dernier Passage publié : maximum de `(date_arrete, horodatage_fin)` (AD-7)."""
+    def dernier_passage(
+        self, sans_classification_initiale: bool = False
+    ) -> ManifestePassage | None:
+        """Dernier Passage publié : maximum de `(date_arrete, horodatage_fin)` (AD-7).
+
+        `sans_classification_initiale=True` écarte les Passages qui ont fait la classification
+        initiale (mesure de FR-44, AD-8).
+        """
         ...
 
     def manifeste(self) -> ManifestePassage:
@@ -83,11 +89,12 @@ class Consultation(Protocol):
         phase: Phase | None = None,
         domaine: str | None = None,
         limite: int | None = None,
+        palier: Palier = 2,
     ) -> ResultatListAnomalies:
         """Anomalies ouvertes filtrées (FR-26 onglet 5, FR-39).
 
         `limite` borne le nombre d'Anomalies rendues (`None` : toutes) ; `total` les compte
-        avant la limite.
+        avant la limite. En `palier=1`, `cause_racine_proposee` vaut `None` partout (FR-46).
         """
         ...
 

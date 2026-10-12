@@ -24,6 +24,7 @@ SCHEMA_SERIE_STOCK = SchemaTable(
         "entrees": pl.Int64(),
         "sorties": pl.Int64(),
     },
+    non_nulles=frozenset({"serie", "date", "stock", "entrees", "sorties"}),
 )
 """`SerieStock` : stock, Entrées et Sorties par Jour ouvré d'une série (Entité ou projet)."""
 

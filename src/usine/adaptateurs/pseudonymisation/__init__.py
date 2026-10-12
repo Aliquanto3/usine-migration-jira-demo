@@ -19,41 +19,21 @@ from collections.abc import Collection, Iterator, Mapping, Sequence
 from typing import Protocol
 
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import (
+    CANDIDAT_JETON,
+    LONGUEUR_EMPREINTE_JETON,
+    est_type_jeton,
+    variantes_jeton,
+)
 from usine.contrats.tickets import MOTIF_CLE_TICKET
 
 MOTIFS_PAR_DEFAUT: Mapping[str, str] = {"COMPTE": r"FR\d{2}(?: \d{4}){5} \d{3}"}
 """Motifs d'amorce, sans `config/pseudonymisation.yaml` ; remplacés par la lane L6."""
 
-LONGUEUR_EMPREINTE = 6
-"""Nombre de caractères hexadécimaux du HMAC gardés dans le jeton."""
-
 LONGUEUR_MIN_CLE = 16
 """Longueur minimale de `USINE_CLE_PSEUDO`."""
 
 _CLE_TICKET = re.compile(rf"\b{MOTIF_CLE_TICKET}\b")
-_MOTIF_TYPE_JETON = r"[A-Z](?:[A-Z_]*[A-Z])?"
-_TYPE_JETON = re.compile(_MOTIF_TYPE_JETON)
-CANDIDAT_JETON = re.compile(
-    rf"(?<![A-Z_])([A-Z][A-Z_]*)_([0-9a-f]{{{LONGUEUR_EMPREINTE}}})(?![0-9a-f])"
-)
-"""Jeton candidat, même collé à des lettres ou précédé d'un préfixe `MAJUSCULES_`.
-
-Le groupe 1 peut porter un préfixe en plus du type (`ID_COMPTE`) : voir `variantes_jeton`.
-"""
-
-
-def variantes_jeton(candidat: re.Match[str]) -> list[str]:
-    """Jetons possibles d'un candidat, du plus long au plus court.
-
-    `ID_COMPTE_abc123` → `ID_COMPTE_abc123`, puis `COMPTE_abc123`.
-    """
-    parties = candidat.group(1).split("_")
-    empreinte = candidat.group(2)
-    return [
-        f"{'_'.join(parties[rang:])}_{empreinte}"
-        for rang in range(len(parties))
-        if parties[rang] and _TYPE_JETON.fullmatch("_".join(parties[rang:]))
-    ]
 
 
 def verifier_cle(cle: bytes) -> None:
@@ -114,7 +94,7 @@ class PseudonymiseurHmac:
     def __init__(self, cle: bytes, motifs: Mapping[str, str], table: TablePseudonymes) -> None:
         verifier_cle(cle)
         self._cle = cle
-        invalides = sorted(t for t in motifs if not _TYPE_JETON.fullmatch(t))
+        invalides = sorted(t for t in motifs if not est_type_jeton(t))
         if invalides:
             raise UsineErreur(
                 f"Pseudonymisation : type de jeton invalide {invalides}"
@@ -129,7 +109,7 @@ class PseudonymiseurHmac:
     def jeton(self, type_jeton: str, valeur: str) -> str:
         """Jeton `<TYPE>_<6 hex>` de `valeur`."""
         empreinte = hmac.new(self._cle, valeur.encode("utf-8"), hashlib.sha256).hexdigest()
-        return f"{type_jeton}_{empreinte[:LONGUEUR_EMPREINTE]}"
+        return f"{type_jeton}_{empreinte[:LONGUEUR_EMPREINTE_JETON]}"
 
     def _plages(self, texte: str) -> list[tuple[int, int, str]]:
         """Plages à remplacer, triées et disjointes, avec leur type de jeton.

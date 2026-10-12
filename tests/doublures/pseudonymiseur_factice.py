@@ -2,7 +2,7 @@
 
 Jeton = `<TYPE>_<6 hex de HMAC-SHA256(cle, valeur)>` ; une clé de ticket n'est jamais touchée :
 seules les parties d'une correspondance hors des clés de ticket sont pseudonymisées.
-La correspondance reste en mémoire.
+La correspondance reste en mémoire. La grammaire des jetons est celle de `contrats.llm`.
 """
 
 import hashlib
@@ -12,10 +12,10 @@ from collections.abc import Mapping
 
 from usine.adaptateurs.pseudonymisation import fragments_hors_cles
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import CANDIDAT_JETON, LONGUEUR_EMPREINTE_JETON, variantes_jeton
 from usine.contrats.tickets import MOTIF_CLE_TICKET
 
 _CLE_TICKET = re.compile(rf"\b{MOTIF_CLE_TICKET}\b")
-_JETON = re.compile(r"\b([A-Z](?:[A-Z_]*[A-Z])?)_([0-9a-f]{6})\b")
 
 
 class PseudonymiseurFactice:
@@ -28,7 +28,7 @@ class PseudonymiseurFactice:
 
     def _jeton(self, type_jeton: str, valeur: str) -> str:
         empreinte = hmac.new(self._cle, valeur.encode("utf-8"), hashlib.sha256).hexdigest()
-        return f"{type_jeton}_{empreinte[:6]}"
+        return f"{type_jeton}_{empreinte[:LONGUEUR_EMPREINTE_JETON]}"
 
     def _remplacer(self, texte: str, enregistrer: bool) -> str:
         proteges = [m.span() for m in _CLE_TICKET.finditer(texte)]
@@ -60,8 +60,19 @@ class PseudonymiseurFactice:
         return self._remplacer(texte, enregistrer=True)
 
     def reidentifier(self, texte: str) -> str:
-        """Remplace les jetons connus par leur valeur ; les autres restent tels quels."""
-        return _JETON.sub(lambda m: self.table.get(m.group(0), m.group(0)), texte)
+        """Remplace les jetons connus par leur valeur ; les autres restent tels quels.
+
+        Un jeton préfixé (`ID_COMPTE_abc123`) est reconnu : la plus longue variante connue est
+        remplacée, le préfixe reste.
+        """
+
+        def remplacer(candidat: re.Match[str]) -> str:
+            for variante in variantes_jeton(candidat):
+                if variante in self.table:
+                    return candidat.group(0)[: -len(variante)] + self.table[variante]
+            return candidat.group(0)
+
+        return CANDIDAT_JETON.sub(remplacer, texte)
 
     def apercu(self, texte: str) -> str:
         """Comme `pseudonymiser`, sans écrire la correspondance."""

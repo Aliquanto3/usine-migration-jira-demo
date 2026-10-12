@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, Self, get_args, get_origin
 
@@ -169,16 +170,90 @@ def chemin_fichier_passage(nom: str, date_arrete: date) -> str:
     return FICHIERS_PASSAGE[nom].format(date_arrete=date_arrete.isoformat())
 
 
-EXCLUSIONS_REJEU: frozenset[str] = frozenset(
+_EXCLUSION_ENVELOPPE = frozenset({"passage_id"})
+
+EXCLUSIONS_REJEU: Mapping[str, frozenset[str]] = MappingProxyType(
     {
-        "passage_id",
-        "horodatage_debut",
-        "horodatage_fin",
-        "horodatage_extraction",
-        "version_donnees",
+        "manifeste": frozenset(
+            {
+                "passage_id",
+                "horodatage_debut",
+                "horodatage_fin",
+                "horodatage_extraction",
+                "version_donnees",
+                "etapes[].horodatage_debut",
+                "etapes[].horodatage_fin",
+                "classification_initiale",
+                "cout_llm_eur",
+            }
+        ),
+        "meteo": _EXCLUSION_ENVELOPPE,
+        "previsions": _EXCLUSION_ENVELOPPE,
+        "classification": _EXCLUSION_ENVELOPPE,
+        "explications": _EXCLUSION_ENVELOPPE,
+        "narrations": _EXCLUSION_ENVELOPPE,
+        "trace_llm": frozenset(
+            {
+                "horodatage",
+                "passage_id",
+                "version_donnees",
+                "depuis_cache",
+                "jetons_entree",
+                "jetons_sortie",
+                "cout_estime_eur",
+            }
+        ),
+        "trace_previsions": frozenset({"horodatage", "passage_id", "version_donnees"}),
     }
 )
-"""Champs ignorés par la comparaison du Rejeu (AD-7) ; la durée des étapes s'en déduit."""
+"""Champs ignorés par la comparaison du Rejeu, par fichier (AD-7).
+
+Clé : nom logique de `FICHIERS_PASSAGE`. Valeur : chemins de champ depuis la racine de
+l'enregistrement (la ligne d'un JSONL, l'enveloppe d'un JSON, l'objet du manifeste) ; `[]`
+désigne chaque élément d'une liste (`etapes[].horodatage_debut`). Un champ exclu dans un
+fichier reste comparé dans tous les autres. Les tables Parquet n'ont aucune exclusion.
+"""
+
+# --- Chemins de `donnees/` et `sorties/`, relatifs à la racine du dépôt ---
+
+REPERTOIRE_DONNEES = Path("donnees")
+"""Données locales, ignorées par git sauf `donnees/corpus/`."""
+
+CHEMIN_JOURNAL = REPERTOIRE_DONNEES / "journal.jsonl"
+"""Journal d'événements lu par la Chaîne, écrit par `usine donnees generer`."""
+
+CHEMIN_VERITE_TERRAIN = REPERTOIRE_DONNEES / "verite_terrain.json"
+"""Vérité terrain des Causes racines, écrite à côté du Journal."""
+
+CHEMIN_VERROU = REPERTOIRE_DONNEES / ".verrou-passage"
+"""Verrou exclusif d'un Passage (AD-6)."""
+
+CHEMIN_CACHE_LLM = REPERTOIRE_DONNEES / "cache_llm.sqlite"
+"""Cache des réponses LLM (WAL, AD-12) ; seule la passerelle y accède."""
+
+CHEMIN_PSEUDONYMES = REPERTOIRE_DONNEES / "pseudonymes.sqlite"
+"""Table jeton → valeur de la Pseudonymisation (WAL, AD-15) ; hors git."""
+
+REPERTOIRE_SORTIES = Path("sorties")
+"""Racine des sorties : Passages, échecs, progression."""
+
+SOUS_REPERTOIRE_PASSAGES = "passages"
+"""Passages sous `sorties/` : `<date_arrete>/<passage_id>/` publiés, `.en-cours-<id>/`."""
+
+SOUS_REPERTOIRE_ECHECS = "echecs"
+"""Passages en échec sous `sorties/` : `<passage_id>/`."""
+
+SOUS_REPERTOIRE_PROGRESSION = "progression"
+"""Progression sous `sorties/` : `<passage_id>.jsonl`, hors du Passage (AD-8)."""
+
+REPERTOIRE_PASSAGES = REPERTOIRE_SORTIES / SOUS_REPERTOIRE_PASSAGES
+"""`sorties/passages/`."""
+
+REPERTOIRE_PROGRESSION = REPERTOIRE_SORTIES / SOUS_REPERTOIRE_PROGRESSION
+"""`sorties/progression/`."""
+
+PREFIXE_EN_COURS = ".en-cours-"
+"""Préfixe du répertoire d'un Passage en construction, sous `sorties/passages/`."""
 
 MOTIF_PASSAGE_ID = re.compile(MOTIF_PASSAGE_ID_TEXTE)
 """`AAAAMMJJTHHMMSSZ-<6 hex>` (à appliquer avec `fullmatch`)."""
@@ -228,6 +303,16 @@ def lire_enveloppe[T](texte: str | bytes, type_contenu: type[T]) -> EnveloppeFic
         raise UsineErreur(
             f"enveloppe de fichier invalide ({exc.error_count()} erreur(s)) : {exc}"
         ) from exc
+
+
+@dataclass(frozen=True)
+class DonneesPassage:
+    """Identité des données d'un Passage, calculée par la composition et passée à la Chaîne."""
+
+    source: str
+    """Source des événements (`journal`, `composite`…), recopiée au manifeste."""
+    version_grille: str
+    version_donnees: str
 
 
 @dataclass(frozen=True)

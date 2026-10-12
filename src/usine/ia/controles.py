@@ -12,7 +12,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from usine.contrats.tickets import MOTIF_CLE_TICKET
+from usine.contrats.tickets import MOTIF_CLE_TICKET, rang_cle
 
 _CLE_TICKET = re.compile(rf"\b{MOTIF_CLE_TICKET}\b")
 _FIN_DE_PHRASE = re.compile(r"(?<=[.!?])\s+|\s*\n\s*")
@@ -45,14 +45,6 @@ def projet(cle: str) -> str:
 def citations(phrase: str, projets: frozenset[str]) -> frozenset[str]:
     """Clés de ticket citées par `phrase` dont le projet figure dans `projets`."""
     return frozenset(cle for cle in _CLE_TICKET.findall(phrase) if projet(cle) in projets)
-
-
-def rang_cle(cle: str) -> tuple[str, int, str]:
-    """Clé de tri `DEMO-12` → `("DEMO", 12, "")` : ordre numérique dans un projet."""
-    prefixe, _, numero = cle.rpartition("-")
-    if numero.isdigit():
-        return (prefixe, int(numero), "")
-    return (cle, -1, cle)
 
 
 def controler_citations(texte: str, tickets_autorises: Iterable[str]) -> ControleCitations:

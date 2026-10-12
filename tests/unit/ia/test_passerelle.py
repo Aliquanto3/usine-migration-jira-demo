@@ -21,13 +21,13 @@ from tests.unit.ia.espions import (
 )
 from usine.contrats.llm import (
     ParametresAppel,
+    ReponseExplication,
     ReponseStructuree,
     SortieExplication,
     StatutControle,
     Tache,
 )
 from usine.contrats.trace import TypeTrace
-from usine.ia.explication import ReponseExplication
 from usine.ia.passerelle import ContexteAppel, Controle, Passerelle, ResultatAppel, cle_cache
 from usine.ports.fournisseur_llm import FournisseurLLM
 

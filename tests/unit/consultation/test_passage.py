@@ -13,7 +13,7 @@ import pytest
 
 from tests.unit.chaine.environnement import DATE_ARRETE, horloge_figee, preparer_racine
 from usine.composition import PassageLance, lancer_rapport
-from usine.consultation.passage import ConsultationPassage, _date_iso
+from usine.consultation.passage import ConsultationPassage
 from usine.contrats.agent import AnomalieResume
 from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.erreurs import UsineErreur
@@ -403,9 +403,45 @@ def test_url_ticket(tmp_path: Path) -> None:
     assert ConsultationPassage(tmp_path).url_ticket("DEMO-7") is None
 
 
-@pytest.mark.parametrize(
-    ("nom", "attendu"),
-    [("2026-10-09", date(2026, 10, 9)), ("20261009", None), ("2026-W41-5", None), ("x", None)],
-)
-def test_nom_de_repertoire_date(nom: str, attendu: date | None) -> None:
-    assert _date_iso(nom) == attendu
+def test_dernier_passage_sans_classification_initiale(passage: Path) -> None:
+    """FR-44 : la mesure écarte les Passages qui ont fait la classification initiale."""
+    racine = passage.parents[1]
+    manifeste = json.loads((passage / "manifeste.json").read_text(encoding="utf-8"))
+    passage_id = "20261012T090000Z-000002"
+    cible = racine / DATE_ARRETE.isoformat() / passage_id
+    shutil.copytree(passage, cible)
+    contenu = {
+        **manifeste,
+        "passage_id": passage_id,
+        "horodatage_fin": "2026-10-12T09:30:00Z",
+        "classification_initiale": True,
+    }
+    (cible / "manifeste.json").write_text(json.dumps(contenu), encoding="utf-8")
+    consultation = ConsultationPassage(passage)
+    tous = consultation.dernier_passage()
+    assert tous is not None
+    assert tous.passage_id == passage_id
+    sans = consultation.dernier_passage(sans_classification_initiale=True)
+    assert sans is not None
+    assert sans.passage_id == passage.name
+    assert not sans.classification_initiale
+
+
+def test_anomalies_cause_proposee_selon_palier(passage: Path) -> None:
+    """FR-46 : en Palier 1, aucune cause racine proposée n'est rendue."""
+    premiere = ConsultationPassage(passage).anomalies().anomalies[0]
+    classification = SortieClassification(
+        cle_ticket=premiere.cle_ticket, cause_racine=CauseRacine.parametrage
+    )
+    modele = EnveloppeFichier[tuple[SortieClassification, ...]]
+    enveloppe = modele(passage_id=passage.name, date_arrete=DATE_ARRETE, contenu=(classification,))
+    (passage / "llm").mkdir()
+    (passage / "llm" / "classification.json").write_text(
+        enveloppe.model_dump_json(), encoding="utf-8"
+    )
+    consultation = ConsultationPassage(passage)
+    palier_2 = consultation.anomalies()
+    assert palier_2.anomalies[0].cause_racine_proposee is CauseRacine.parametrage
+    palier_1 = consultation.anomalies(palier=1)
+    assert palier_1.total == palier_2.total
+    assert all(a.cause_racine_proposee is None for a in palier_1.anomalies)

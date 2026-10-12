@@ -24,6 +24,7 @@ from usine.contrats.tickets import (
     StatutCertification,
     StatutTest,
     TypeTicket,
+    rang_cle,
 )
 
 ENUMERATIONS: tuple[type[StrEnum], ...] = (
@@ -141,3 +142,17 @@ def test_motif_cle_ticket() -> None:
     assert re.fullmatch(MOTIF_CLE_TICKET, "DEMO-123")
     assert not re.fullmatch(MOTIF_CLE_TICKET, "demo-123")
     assert not re.fullmatch(MOTIF_CLE_TICKET, "ENT-A")
+
+
+def test_rang_cle() -> None:
+    cles = ["DEMO-10", "AUTRE-1", "DEMO-2", "DEMO-X", "DEMO-²", "DEMO-1"]
+    assert sorted(cles, key=rang_cle) == [
+        "AUTRE-1",
+        "DEMO-X",
+        "DEMO-²",
+        "DEMO-1",
+        "DEMO-2",
+        "DEMO-10",
+    ]
+    assert rang_cle("DEMO-12") == ("DEMO", 12, "DEMO-12")
+    assert rang_cle("SANSTIRET") == ("", -1, "SANSTIRET")

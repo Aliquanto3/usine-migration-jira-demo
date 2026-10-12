@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping
 from decimal import Decimal
 from fractions import Fraction
+from types import MappingProxyType
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -18,8 +19,9 @@ from pydantic import (
     model_validator,
 )
 
-from usine.contrats.llm import Tache
+from usine.contrats.llm import MOTIF_TYPE_JETON, Tache
 from usine.contrats.meteo import CodeIndicateur, Couleur, Operateur
+from usine.contrats.modele import MappingFige
 from usine.contrats.tickets import DOMAINES_CANONIQUES, Champ, Phase, TypeTicket
 
 
@@ -170,7 +172,7 @@ class RegleIndicateur(_ModeleConfig):
 
     libelle: str = Field(min_length=1)
     active: bool = True
-    seuils: Mapping[Couleur, SeuilGrille]
+    seuils: MappingFige[Couleur, SeuilGrille]
 
     @field_validator("seuils")
     @classmethod
@@ -192,7 +194,7 @@ class GrilleMeteo(_ModeleConfig):
     """Ordre de gravité croissante, rappelé pour le lecteur du YAML."""
     regle_agregation: Literal["pire_couleur"]
     garde_fous: GardeFous
-    indicateurs: Mapping[CodeIndicateur, RegleIndicateur] = Field(min_length=1)
+    indicateurs: MappingFige[CodeIndicateur, RegleIndicateur] = Field(min_length=1)
 
     @field_validator("couleurs")
     @classmethod
@@ -214,11 +216,11 @@ class ConfigJira(_ModeleConfig):
     cle_projet: str = Field(pattern=r"^[A-Z][A-Z0-9]+$")
     marge_extraction_minutes: int = Field(ge=0)
     tentatives_max: int = Field(default=5, ge=1)
-    champs: Mapping[Champ, str]
+    champs: MappingFige[Champ, str]
     """Identifiant Jira de chaque `Champ` (ex. `customfield_10031`), propre à ce `Champ`."""
-    types_tickets: Mapping[str, TypeTicket]
+    types_tickets: MappingFige[str, TypeTicket]
     """Type de ticket Jira → type canonique."""
-    valeurs: Mapping[Champ, Mapping[str, str]]
+    valeurs: MappingFige[Champ, MappingFige[str, str]]
     """Pour chaque `Champ` à domaine fermé : valeur Jira → valeur canonique."""
 
     @model_validator(mode="after")
@@ -271,7 +273,7 @@ class ConfigLLM(_ModeleConfig):
 
     fournisseur: str = Field(min_length=1)
     modele: str = Field(min_length=1)
-    modeles_par_tache: Mapping[Tache, str] = Field(default_factory=dict)
+    modeles_par_tache: MappingFige[Tache, str] = Field(default_factory=lambda: MappingProxyType({}))
     plafond_cout_passage_eur: Decimal = Field(ge=0)
     tentatives_max: int = Field(default=5, ge=1)
     temperature: float = Field(default=0.0, ge=0.0)
@@ -290,7 +292,7 @@ class ConfigLLM(_ModeleConfig):
 class Reconnaisseur(_ModeleConfig):
     """Reconnaisseur maison : expression régulière et type de jeton produit."""
 
-    type_jeton: str = Field(pattern=r"^[A-Z](?:[A-Z_]*[A-Z])?$")
+    type_jeton: str = Field(pattern=f"^{MOTIF_TYPE_JETON}$")
     motif: str = Field(min_length=1)
     score: float = Field(default=0.85, gt=0.0, le=1.0)
 

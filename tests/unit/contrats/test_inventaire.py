@@ -34,6 +34,8 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "LIBELLES",
         "SCHEMA_TICKET_ETAT",
         "SCHEMA_TICKET_TEXTE",
+        "MOTIF_CLE_TICKET",
+        "rang_cle",
     ),
     "calcul": (
         "StatutIndicateur",
@@ -50,6 +52,7 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "RegleDeclenchante",
         "MeteoEntite",
         "EvolutionMeteo",
+        "LIBELLES_COULEURS",
     ),
     "prevision": (
         "SCHEMA_SERIE_STOCK",
@@ -75,6 +78,13 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "SortieNarration",
         "ReponseAgent",
         "ReponseAgentEnregistree",
+        "EnveloppeCache",
+        "ReponseExplication",
+        "LONGUEUR_EMPREINTE_JETON",
+        "MOTIF_TYPE_JETON",
+        "CANDIDAT_JETON",
+        "est_type_jeton",
+        "variantes_jeton",
     ),
     "agent": (
         "ArgumentsGetMeteo",
@@ -106,6 +116,20 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "lire_enveloppe",
         "ContextePassage",
         "ResultatEtape",
+        "DonneesPassage",
+        "REPERTOIRE_DONNEES",
+        "CHEMIN_JOURNAL",
+        "CHEMIN_VERITE_TERRAIN",
+        "CHEMIN_VERROU",
+        "CHEMIN_CACHE_LLM",
+        "CHEMIN_PSEUDONYMES",
+        "REPERTOIRE_SORTIES",
+        "SOUS_REPERTOIRE_PASSAGES",
+        "SOUS_REPERTOIRE_ECHECS",
+        "SOUS_REPERTOIRE_PROGRESSION",
+        "REPERTOIRE_PASSAGES",
+        "REPERTOIRE_PROGRESSION",
+        "PREFIXE_EN_COURS",
     ),
     "config": (
         "ConfigProgramme",
@@ -128,6 +152,7 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "fenetre_glissante",
         "semaine_programme",
         "dernier_jour_ouvre_ecoule",
+        "analyser_date_iso",
     ),
     "format": (
         "formater_nombre",
@@ -163,6 +188,7 @@ def test_forme_du_contrat(module: str, nom: str, objet: object) -> None:
     if nom.startswith("SCHEMA_"):
         assert isinstance(objet, SchemaTable)
         assert objet.nom == nom
+        assert objet.non_nulles, f"{module}.{nom} : aucune colonne non nulle déclarée (D3)"
     elif isinstance(objet, type) and issubclass(objet, BaseModel):
         configuration = objet.model_config
         assert configuration.get("frozen") is True, f"{module}.{nom} non gelé"
@@ -183,7 +209,7 @@ def test_enregistrement_refuse_l_affectation() -> None:
         meteo.entite = "ENT-B"  # type: ignore[misc]
 
 
-@pytest.mark.parametrize("nom", ["ContextePassage", "ResultatEtape"])
+@pytest.mark.parametrize("nom", ["ContextePassage", "ResultatEtape", "DonneesPassage"])
 def test_dataclasses_gelees(nom: str) -> None:
     from usine.contrats import passage
 
@@ -191,3 +217,22 @@ def test_dataclasses_gelees(nom: str) -> None:
     assert is_dataclass(classe)
     assert vars(classe)["__dataclass_params__"].frozen
     assert fields(classe)
+
+
+def test_aucun_mapping_modifiable_dans_un_enregistrement() -> None:
+    """D4 : tout champ `Mapping` d'un modèle gelé est un `MappingFige`."""
+    from collections.abc import Mapping
+    from typing import get_origin
+
+    from pydantic import AfterValidator
+
+    fautifs = []
+    for module, nom, objet in OBJETS:
+        if not (isinstance(objet, type) and issubclass(objet, BaseModel)):
+            continue
+        for champ, info in objet.model_fields.items():
+            if get_origin(info.annotation) is Mapping and not any(
+                isinstance(m, AfterValidator) for m in info.metadata
+            ):
+                fautifs.append(f"{module}.{nom}.{champ}")
+    assert fautifs == []

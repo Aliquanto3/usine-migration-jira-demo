@@ -1,9 +1,13 @@
 """Contrats de la couche LLM : appels, réponses du fournisseur, sorties contrôlées (AD-12, AD-13).
 
 Le LLM lit, classe et rédige ; il ne calcule jamais un chiffre. Chaque sortie porte son
-`statut_controle`, fixé par le contrôle déterministe de la passerelle.
+`statut_controle`, fixé par le contrôle déterministe de la passerelle. Le schéma demandé au
+fournisseur est, pour chaque tâche, un `Reponse<Tache>` de ce module ; la sortie publiée reste
+`Sortie<Tache>`. La grammaire des jetons de Pseudonymisation (AD-15) est définie ici une seule
+fois, pour les adaptateurs, la passerelle et les doublures.
 """
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -14,7 +18,7 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from usine.contrats.calendrier import Horodatage
-from usine.contrats.modele import Enregistrement, PassageId, VersionContrats
+from usine.contrats.modele import Enregistrement, MappingFige, PassageId, VersionContrats
 from usine.contrats.schemas import SchemaTable, enum_polars
 from usine.contrats.tickets import CauseRacine
 from usine.contrats.versions import CONTRATS_VERSION
@@ -38,6 +42,49 @@ class StatutControle(StrEnum):
     """Conforme après retrait de phrases fautives."""
     rejete = "rejete"
     """Remplacée par un libellé explicite (« explication indisponible », Prévision brute)."""
+
+
+# --- Grammaire des jetons de Pseudonymisation (AD-15) ---
+
+LONGUEUR_EMPREINTE_JETON = 6
+"""Caractères hexadécimaux du HMAC-SHA256 gardés dans un jeton `<TYPE>_<6 hex>`."""
+
+MOTIF_TYPE_JETON = r"[A-Z](?:[A-Z_]*[A-Z])?"
+"""Type d'un jeton : majuscules et `_`, sans `_` en tête ni en fin (`COMPTE`, `ID_CLIENT`)."""
+
+_TYPE_JETON = re.compile(MOTIF_TYPE_JETON)
+
+CANDIDAT_JETON = re.compile(
+    rf"(?<![A-Z_])([A-Z][A-Z_]*)_([0-9a-f]{{{LONGUEUR_EMPREINTE_JETON}}})(?![0-9a-f])"
+)
+"""Jeton candidat, même collé à des lettres ou précédé d'un préfixe `MAJUSCULES_`.
+
+Le groupe 1 peut porter un préfixe en plus du type (`ID_COMPTE`), le groupe 2 est
+l'empreinte : `variantes_jeton` donne les jetons possibles.
+"""
+
+
+def est_type_jeton(type_jeton: str) -> bool:
+    """Vrai si `type_jeton` suit `MOTIF_TYPE_JETON` (`COMPTE` oui, `compte` ou `_X` non)."""
+    return _TYPE_JETON.fullmatch(type_jeton) is not None
+
+
+def variantes_jeton(candidat: re.Match[str]) -> tuple[str, ...]:
+    """Jetons possibles d'un candidat de `CANDIDAT_JETON`, du plus long au plus court.
+
+    `ID_COMPTE_abc123` → `ID_COMPTE_abc123`, puis `COMPTE_abc123`. Une variante dont le type
+    ne suit pas `MOTIF_TYPE_JETON` n'est jamais un jeton.
+    """
+    parties = candidat.group(1).split("_")
+    empreinte = candidat.group(2)
+    return tuple(
+        f"{'_'.join(parties[rang:])}_{empreinte}"
+        for rang in range(len(parties))
+        if parties[rang] and est_type_jeton("_".join(parties[rang:]))
+    )
+
+
+# --- Appels au fournisseur (AD-13) ---
 
 
 class ParametresAppel(Enregistrement):
@@ -67,7 +114,7 @@ class AppelOutil(Enregistrement):
 
     id_appel: str = Field(min_length=1)
     nom_outil: str = Field(min_length=1)
-    arguments: Mapping[str, JsonValue]
+    arguments: MappingFige[str, JsonValue]
 
 
 class MessageAgent(Enregistrement):
@@ -112,6 +159,23 @@ class ReponseAgentBrute(Enregistrement):
     version_modele: str = Field(min_length=1)
 
 
+class EnveloppeCache(Enregistrement):
+    """Valeur stockée par le port `CacheLLM` (AD-12), sérialisée en JSON.
+
+    La réponse brute du fournisseur, avant contrôle, et le `version_modele` qui l'a produite.
+    """
+
+    brut: str
+    version_modele: str = Field(min_length=1)
+
+
+class ReponseExplication(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `explication` ; publiée : `SortieExplication`."""
+
+    texte: str
+    brouillon_commentaire: str = ""
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
@@ -129,6 +193,7 @@ SCHEMA_REPARTITION_CAUSES = SchemaTable(
         "cause_racine": enum_polars(CauseRacine),
         "nombre": pl.Int64(),
     },
+    non_nulles=frozenset({"date", "entite", "cause_racine", "nombre"}),
 )
 """`RepartitionCauses` : Anomalies ouvertes par Cause racine proposée et par Entité."""
 

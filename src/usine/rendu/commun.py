@@ -15,14 +15,6 @@ from usine.contrats.meteo import Couleur, Operateur, RegleDeclenchante
 AUTEUR = "Usine de migration (démonstrateur)"
 """Auteur fixe des documents rendus (`docProps`)."""
 
-LIBELLES_COULEURS: dict[Couleur, str] = {
-    Couleur.vert: "Vert",
-    Couleur.jaune: "Jaune",
-    Couleur.orange: "Orange",
-    Couleur.rouge: "Rouge",
-}
-"""Libellé français de chaque couleur de Météo."""
-
 TEINTES_COULEURS: dict[Couleur, str] = {
     Couleur.vert: "2E7D32",
     Couleur.jaune: "F9A825",

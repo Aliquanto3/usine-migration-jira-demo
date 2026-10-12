@@ -2,6 +2,13 @@
 
 from usine.config.chargeur import MODELES, charger, charger_yaml
 from usine.config.commentaires import cles_sans_commentaire
-from usine.config.secrets import Secrets
+from usine.config.secrets import Secrets, charger_secrets
 
-__all__ = ["MODELES", "Secrets", "charger", "charger_yaml", "cles_sans_commentaire"]
+__all__ = [
+    "MODELES",
+    "Secrets",
+    "charger",
+    "charger_secrets",
+    "charger_yaml",
+    "cles_sans_commentaire",
+]

@@ -1,5 +1,6 @@
 """Contrats de la couche LLM et de la trace (AD-12, AD-13, AD-16)."""
 
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -7,14 +8,20 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from usine.contrats.llm import (
+    CANDIDAT_JETON,
+    LONGUEUR_EMPREINTE_JETON,
     AppelOutil,
+    EnveloppeCache,
     MessageAgent,
     ReponseAgent,
     ReponseAgentEnregistree,
+    ReponseExplication,
     ReponseStructuree,
     SortieClassification,
     StatutControle,
     Tache,
+    est_type_jeton,
+    variantes_jeton,
 )
 from usine.contrats.tickets import CauseRacine
 from usine.contrats.trace import EntreeTrace, TypeTrace
@@ -129,3 +136,48 @@ def test_reponse_structuree_accepte_tout_modele() -> None:
         sortie=_Libre(x=1), brut="{}", jetons_entree=0, jetons_sortie=0, version_modele="a:b"
     )
     assert reponse.sortie.x == 1
+
+
+def test_appel_outil_arguments_figes() -> None:
+    """D4 : `arguments` est figé ; l'aller-retour JSON redonne le même modèle."""
+    appel = AppelOutil(
+        id_appel="a1", nom_outil="list_anomalies", arguments={"entite": "ENT-A", "limite": 3}
+    )
+    with pytest.raises(TypeError):
+        appel.arguments["x"] = 1  # type: ignore[index]
+    texte = appel.model_dump_json()
+    assert json.loads(texte)["arguments"] == {"entite": "ENT-A", "limite": 3}
+    assert AppelOutil.model_validate_json(texte) == appel
+
+
+@pytest.mark.parametrize(
+    ("type_jeton", "attendu"),
+    [("COMPTE", True), ("ID_CLIENT", True), ("A", True), ("compte", False), ("_X", False)],
+)
+def test_type_de_jeton(type_jeton: str, attendu: bool) -> None:
+    assert est_type_jeton(type_jeton) is attendu
+
+
+@pytest.mark.parametrize(
+    ("texte", "variantes"),
+    [
+        ("le COMPTE_abc123 est bloqué", [("COMPTE_abc123",)]),
+        ("ID_COMPTE_abc123", [("ID_COMPTE_abc123", "COMPTE_abc123")]),
+        ("xCOMPTE_abc123", [("COMPTE_abc123",)]),
+        ("COMPTE_abc1234", []),
+        ("COMPTE_ABC123", []),
+        ("DEMO-12 et ENT-A", []),
+    ],
+)
+def test_grammaire_des_jetons(texte: str, variantes: list[tuple[str, ...]]) -> None:
+    assert [variantes_jeton(m) for m in CANDIDAT_JETON.finditer(texte)] == variantes
+    assert LONGUEUR_EMPREINTE_JETON == 6
+
+
+def test_enveloppe_cache_et_reponse_explication() -> None:
+    enveloppe = EnveloppeCache(brut='{"texte": "DEMO-3 bloque."}', version_modele="factice:v1")
+    assert EnveloppeCache.model_validate_json(enveloppe.model_dump_json()) == enveloppe
+    with pytest.raises(ValidationError):
+        EnveloppeCache(brut="x", version_modele="")
+    reponse = ReponseExplication.model_validate_json(enveloppe.brut)
+    assert reponse.brouillon_commentaire == ""

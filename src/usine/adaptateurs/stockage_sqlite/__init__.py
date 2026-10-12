@@ -1,9 +1,10 @@
 """Stockage SQLite : cache LLM et table des pseudonymes (AD-12, AD-15).
 
-- `CacheLLMSqlite` (`donnees/cache_llm.sqlite`) satisfait structurellement
-  `usine.ia.passerelle.CacheLLM` ; seule la passerelle LLM y accède.
+- `CacheLLMSqlite` (`donnees/cache_llm.sqlite`) implémente le port `CacheLLM` ; seule la
+  passerelle LLM y accède.
 - `TablePseudonymesSqlite` (`donnees/pseudonymes.sqlite`) garde la correspondance
-  jeton → valeur d'origine, pour la ré-identification locale ; hors git.
+  jeton → valeur d'origine, pour la ré-identification locale ; hors git. Elle satisfait le
+  `Protocol` local `TablePseudonymes` d'`adaptateurs/pseudonymisation` (AD-15).
 
 Chaque base est en mode WAL ; la connexion est ouverte et fermée à chaque opération (rien ne
 reste ouvert, ce qui compte sous Windows). Toute erreur `sqlite3` devient une `UsineErreur`

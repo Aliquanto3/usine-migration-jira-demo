@@ -20,12 +20,18 @@ from importlib import resources
 import polars as pl
 
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import ParametresAppel, SortieExplication, StatutControle, Tache
+from usine.contrats.llm import (
+    ParametresAppel,
+    ReponseExplication,
+    SortieExplication,
+    StatutControle,
+    Tache,
+)
 from usine.contrats.meteo import MeteoEntite
-from usine.contrats.modele import Enregistrement
+from usine.contrats.tickets import rang_cle
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
-from usine.ia.controles import controler_citations, rang_cle, retirer_citations_hors
+from usine.ia.controles import controler_citations, retirer_citations_hors
 from usine.ia.passerelle import ContexteAppel, Controle, Passerelle
 
 TEXTE_INDISPONIBLE = "explication indisponible"
@@ -43,13 +49,6 @@ _VARIABLE = re.compile(r"\{\{(\w+)\}\}")
 
 DELIMITEUR = "```"
 """Délimiteur du bloc de données des tickets ; neutralisé dans les textes des tickets."""
-
-
-class ReponseExplication(Enregistrement):
-    """Schéma demandé au fournisseur ; la sortie publiée reste `SortieExplication`."""
-
-    texte: str
-    brouillon_commentaire: str = ""
 
 
 def lire_prompt() -> bytes:

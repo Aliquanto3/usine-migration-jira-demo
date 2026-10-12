@@ -5,6 +5,7 @@ dans le fuseau du Programme (H-25). Fenêtre glissante = 5 derniers Jours ouvré
 comprise (H-19).
 """
 
+import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -20,6 +21,8 @@ TAILLE_FENETRE_GLISSANTE = 5
 """Nombre de Jours ouvrés d'une Fenêtre glissante (H-19)."""
 
 _UN_JOUR = timedelta(days=1)
+
+_MOTIF_DATE_ISO = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 
 def _en_utc(horodatage: datetime) -> datetime:
@@ -118,3 +121,17 @@ def verifier_lundi(d: date) -> date:
 def dernier_jour_ouvre_ecoule(aujourd_hui: date) -> date:
     """Dernier Jour ouvré strictement antérieur à `aujourd_hui` (Date d'arrêté par défaut)."""
     return jour_ouvre_precedent(aujourd_hui, 1)
+
+
+def analyser_date_iso(texte: str) -> date | None:
+    """Date d'un texte `AAAA-MM-JJ` (forme étendue seulement), sinon `None`.
+
+    Sert aux options de CLI et aux noms de répertoires de Passage ; `20261009`, `2026-1-9`
+    ou `2026-13-01` donnent `None`. L'appelant formule l'erreur qui nomme l'option.
+    """
+    if _MOTIF_DATE_ISO.fullmatch(texte) is None:
+        return None
+    try:
+        return date.fromisoformat(texte)
+    except ValueError:
+        return None

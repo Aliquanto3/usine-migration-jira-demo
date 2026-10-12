@@ -11,10 +11,10 @@ from datetime import date
 from openpyxl import Workbook  # type: ignore[import-untyped]
 from openpyxl.styles import Alignment, Font, PatternFill  # type: ignore[import-untyped]
 
+from usine.contrats.meteo import LIBELLES_COULEURS
 from usine.ports.consultation import Consultation
 from usine.rendu.commun import (
     AUTEUR,
-    LIBELLES_COULEURS,
     TEINTES_COULEURS,
     TEXTES_COULEURS,
     archive_deterministe,

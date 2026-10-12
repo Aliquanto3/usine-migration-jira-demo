@@ -6,9 +6,9 @@ fournisseur ni le cache sans être pseudonymisé ; la trace ne contient que des 
 pseudonymisés (entrée, et sortie contrôlée avant ré-identification). Seuls les jetons présents
 dans l'entrée pseudonymisée de l'appel sont ré-identifiés ; tout autre jeton reste tel quel.
 
-Le cache est reçu par injection : `CacheLLM` est un `Protocol` à types primitifs que
-l'adaptateur SQLite satisfait structurellement (la couche `ia` n'importe pas `adaptateurs`).
-La valeur stockée est une `EnveloppeCache` JSON : réponse brute et `version_modele` reçu.
+Le cache est reçu par injection, par le port `CacheLLM` (implémenté par
+`adaptateurs/stockage_sqlite`). La valeur stockée est une `contrats.llm.EnveloppeCache` JSON :
+réponse brute et `version_modele` reçu. Les jetons suivent la grammaire de `contrats.llm`.
 """
 
 import hashlib
@@ -18,38 +18,22 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 
-from usine.contrats.llm import ParametresAppel, StatutControle
+from usine.contrats.llm import (
+    CANDIDAT_JETON,
+    EnveloppeCache,
+    ParametresAppel,
+    StatutControle,
+    variantes_jeton,
+)
 from usine.contrats.trace import EntreeTrace, TypeTrace
+from usine.ports.cache_llm import CacheLLM
 from usine.ports.fournisseur_llm import FournisseurLLM
 from usine.ports.pseudonymiseur import Pseudonymiseur
 
 journal = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class CacheLLM(Protocol):
-    """Cache des réponses brutes du fournisseur, avant contrôle (AD-12)."""
-
-    def lire(self, cle: str) -> str | None:
-        """Réponse brute enregistrée sous `cle`, ou `None`."""
-        ...
-
-    def ecrire(self, cle: str, brut: str) -> None:
-        """Enregistre (ou remplace) la réponse brute sous `cle`."""
-        ...
-
-
-class EnveloppeCache(BaseModel):
-    """Valeur stockée en cache : réponse brute avant contrôle et modèle qui l'a produite."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    brut: str
-    version_modele: str = Field(min_length=1)
 
 
 @dataclass(frozen=True)
@@ -113,24 +97,12 @@ def cle_cache(
     )
 
 
-_CANDIDAT_JETON = re.compile(r"(?<![A-Z_])([A-Z][A-Z_]*)_([0-9a-f]{6})(?![0-9a-f])")
-"""Jeton candidat `<TYPE>_<6 hex>`, éventuellement précédé d'un préfixe `MAJUSCULES_`."""
 _MASQUE = re.compile("\x00([0-9]+)\x00")
 
 
-def _variantes(candidat: re.Match[str]) -> frozenset[str]:
-    """Jetons possibles d'un candidat : `ID_COMPTE_abc123` → lui-même et `COMPTE_abc123`."""
-    parties = candidat.group(1).split("_")
-    return frozenset(
-        f"{'_'.join(parties[rang:])}_{candidat.group(2)}"
-        for rang in range(len(parties))
-        if parties[rang]
-    )
-
-
 def jetons_de(texte: str) -> frozenset[str]:
-    """Jetons (et variantes) présents dans `texte`."""
-    return frozenset().union(*(_variantes(m) for m in _CANDIDAT_JETON.finditer(texte)))
+    """Jetons (et variantes) présents dans `texte`, selon la grammaire de `contrats.llm`."""
+    return frozenset(v for m in CANDIDAT_JETON.finditer(texte) for v in variantes_jeton(m))
 
 
 def _reidentifier_texte(
@@ -144,12 +116,12 @@ def _reidentifier_texte(
     masques: list[str] = []
 
     def masquer(candidat: re.Match[str]) -> str:
-        if _variantes(candidat) & autorises:
+        if autorises.intersection(variantes_jeton(candidat)):
             return candidat.group(0)
         masques.append(candidat.group(0))
         return f"\x00{len(masques) - 1}\x00"
 
-    resultat = pseudonymiseur.reidentifier(_CANDIDAT_JETON.sub(masquer, texte))
+    resultat = pseudonymiseur.reidentifier(CANDIDAT_JETON.sub(masquer, texte))
     return _MASQUE.sub(lambda m: masques[int(m.group(1))], resultat)
 
 

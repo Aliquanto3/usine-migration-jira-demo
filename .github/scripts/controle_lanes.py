@@ -1,8 +1,9 @@
 """Contrôle CI : sur une branche `lane/<n>-*`, chaque fichier modifié appartient à la lane n.
 
-Carte des lanes du spine d'architecture (AD-21). Chaque lane écrit aussi dans
-`tests/unit/<chemin de ses répertoires source>` et, pour un module `<dir>/<nom>`, dans le
-test plat `tests/unit/<dir>/test_<nom>.py`.
+Recopie de la *Carte des lanes* du spine d'architecture (AD-21) : le spine fait foi, et
+`tests/depot/test_controle_lanes.py` vérifie que `LANES` lui est identique. Chaque lane écrit
+aussi dans `tests/unit/<chemin de ses répertoires source>` et, pour un module `<dir>/<nom>`,
+dans le test plat `tests/unit/<dir>/test_<nom>.py`.
 """
 
 import argparse
@@ -64,6 +65,7 @@ LANES: dict[int, Lane] = {
             f"{SRC}domaine/causes",
             f"{SRC}adaptateurs/llm",
             f"{SRC}adaptateurs/presidio",
+            f"{SRC}adaptateurs/pseudonymisation",
             f"{SRC}adaptateurs/stockage_sqlite",
             "config/llm.yaml",
             "config/pseudonymisation.yaml",

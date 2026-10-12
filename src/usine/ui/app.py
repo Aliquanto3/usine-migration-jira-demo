@@ -3,19 +3,19 @@
 La page lit le dernier Passage publié via `Consultation` seulement, et la progression d'un
 Passage lancé dans `sorties/progression/`. Elle n'écrit rien sous `sorties/` et n'exécute
 jamais la Chaîne dans son propre processus : `usine rapport` tourne dans un sous-processus.
-La racine est `USINE_RACINE` si elle est définie, sinon le répertoire courant.
+La racine est `USINE_RACINE` si elle est définie, sinon le répertoire courant. Racine, Mode
+repli et `Consultation` viennent des services de `ui/cli.py` (racine de composition).
 """
 
-import os
 import subprocess
 from pathlib import Path
 from typing import IO
 
 import streamlit as st
 
-from usine import composition
 from usine.contrats.erreurs import UsineErreur
 from usine.ui import carte, lancement, progression
+from usine.ui.cli import consultation_dernier_passage, mode_repli, racine_ui
 
 # Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
 INTERVALLE_SONDAGE = 1.0  # secondes entre deux lectures de la progression, Chaîne en cours
@@ -31,16 +31,10 @@ _FICHIER_ERREURS = "fichier_erreurs"
 _ECHEC_LANCEMENT = "echec_lancement"
 
 
-def racine_courante() -> Path:
-    """`USINE_RACINE` si elle est définie et non vide, sinon le répertoire courant."""
-    racine = os.environ.get("USINE_RACINE", "").strip()
-    return Path(racine) if racine else Path.cwd()
-
-
 def afficher_bandeau(racine: Path) -> None:
     """Bandeau permanent en tête de page quand `USINE_MODE_REPLI=1` (jamais automatique)."""
     try:
-        repli = composition.mode_repli(racine)
+        repli = mode_repli(racine)
     except UsineErreur as exc:
         st.error(str(exc))
         return
@@ -62,7 +56,7 @@ def afficher_carte(racine: Path) -> None:
         )
         return
     try:
-        consultation = composition.consultation_dernier_passage(racine)
+        consultation = consultation_dernier_passage(racine)
         if consultation is None:
             st.info("Aucun Passage publié : lancer la Chaîne pour produire une carte météo.")
             return
@@ -180,7 +174,11 @@ def afficher_lancement(racine: Path) -> None:
 def principal() -> None:
     """Page entière ; le bandeau Mode repli vient en premier, à chaque exécution."""
     st.set_page_config(page_title="Usine de migration", layout="wide")
-    racine = racine_courante()
+    try:
+        racine = racine_ui()
+    except UsineErreur as exc:
+        st.error(str(exc))
+        return
     afficher_bandeau(racine)
     st.title("Usine de migration")
     afficher_carte(racine)

@@ -21,7 +21,7 @@ from tests.unit.ia.espions import (
     textes,
 )
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import SortieExplication, StatutControle
+from usine.contrats.llm import ReponseExplication, SortieExplication, StatutControle
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
 from usine.ia import explication
@@ -29,7 +29,6 @@ from usine.ia.controles import ControleCitations, controler_citations
 from usine.ia.explication import (
     TEXTE_INDISPONIBLE,
     ContexteExplication,
-    ReponseExplication,
     expliquer,
     lire_prompt,
     rendre_prompt,

@@ -2,7 +2,8 @@
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
 `(config, graine, date_generation)` ; tout le hasard vient d'une seule instance de
-`Random` initialisée par la graine, tirée dans un ordre fixe.
+`Random` initialisée par la graine, tirée dans un ordre fixe. Seule `ecrire_journal` écrit
+sur disque : le Journal et la vérité terrain d'une `Generation`.
 """
 
 import json
@@ -10,6 +11,7 @@ import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 from types import MappingProxyType
 
 from usine.contrats.calendrier import (
@@ -22,6 +24,7 @@ from usine.contrats.calendrier import (
 from usine.contrats.config import ConfigProgramme, EntiteProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
+from usine.contrats.passage import CHEMIN_JOURNAL, CHEMIN_VERITE_TERRAIN
 from usine.contrats.tickets import (
     CHAMPS_PAR_TYPE,
     CauseRacine,
@@ -380,3 +383,19 @@ def serialiser_verite(generation: Generation) -> bytes:
     contenu = {cle: cause.value for cle, cause in generation.verite_terrain.items()}
     texte = json.dumps(contenu, ensure_ascii=False, indent=2, sort_keys=True)
     return (texte + "\n").encode("utf-8")
+
+
+def ecrire_journal(generation: Generation, repertoire: Path) -> Path:
+    """Écrit le Journal et la vérité terrain dans `repertoire` ; renvoie le chemin du Journal.
+
+    Les noms sont ceux de `contrats.passage` (`journal.jsonl`, `verite_terrain.json`). Une
+    erreur d'écriture lève une `UsineErreur` qui nomme le répertoire.
+    """
+    journal = repertoire / CHEMIN_JOURNAL.name
+    try:
+        repertoire.mkdir(parents=True, exist_ok=True)
+        journal.write_bytes(serialiser_journal(generation))
+        (repertoire / CHEMIN_VERITE_TERRAIN.name).write_bytes(serialiser_verite(generation))
+    except OSError as exc:
+        raise UsineErreur(f"{repertoire} : écriture impossible ({exc.strerror or exc})") from exc
+    return journal

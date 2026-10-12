@@ -8,7 +8,6 @@ L'horloge et l'aléa sont injectés.
 
 import logging
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +17,7 @@ from usine.contrats.config import ConfigUsine
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import (
     ContextePassage,
+    DonneesPassage,
     Etape,
     ExecutionEtape,
     ManifestePassage,
@@ -29,15 +29,6 @@ from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
 journal = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class DonneesPassage:
-    """Identité des données d'un Passage, calculée par la composition."""
-
-    source: str
-    version_grille: str
-    version_donnees: str
 
 
 def _message(exc: BaseException) -> str:

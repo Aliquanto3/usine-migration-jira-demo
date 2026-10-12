@@ -8,7 +8,7 @@ import pytest
 
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.contrats.erreurs import UsineErreur
-from usine.ia.passerelle import CacheLLM
+from usine.ports.cache_llm import CacheLLM
 
 
 def test_mode_wal_et_relecture(tmp_path: Path) -> None:

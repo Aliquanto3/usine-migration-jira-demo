@@ -1,4 +1,9 @@
-"""Sous-application `usine ui` : démarre l'interface de démo Streamlit."""
+"""Sous-application `usine ui` et services de la page Streamlit (racine de composition, AD-1).
+
+Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
+Mode repli et la `Consultation` du dernier Passage publié. La page n'importe ni `ports`, ni
+`config`, ni `adaptateurs` : elle passe par ces services.
+"""
 
 import subprocess
 import sys
@@ -6,10 +11,52 @@ from pathlib import Path
 
 import typer
 
+from usine import composition
+from usine.config import charger_secrets
+from usine.consultation.passage import ConsultationPassage
+from usine.contrats.passage import REPERTOIRE_PASSAGES
+from usine.ports.consultation import Consultation
+
 CHEMIN_APP = Path(__file__).resolve().with_name("app.py")
 """Page Streamlit lancée par `usine ui`."""
 
 app = typer.Typer(help="Interface de démo Streamlit.")
+
+
+def racine_ui() -> Path:
+    """`USINE_RACINE` (environnement ou `.env` du répertoire courant), sinon le répertoire courant.
+
+    Une variable illisible lève une `UsineErreur` qui la nomme.
+    """
+    courant = Path.cwd()
+    racine = (charger_secrets(courant).usine_racine or "").strip()
+    return Path(racine) if racine else courant
+
+
+def mode_repli(racine: Path) -> bool:
+    """Mode repli demandé par `USINE_MODE_REPLI` (environnement ou `racine/.env`), jamais déduit.
+
+    Une valeur illisible lève une `UsineErreur` qui nomme la variable.
+    """
+    return charger_secrets(racine).usine_mode_repli
+
+
+def consultation_dernier_passage(racine: Path) -> Consultation | None:
+    """`Consultation` du dernier Passage publié sous `racine/sorties/passages/`, ou `None`.
+
+    L'URL Jira vient de `composition.url_jira` : `None` en Mode repli.
+    """
+    racine_passages = racine / REPERTOIRE_PASSAGES
+    lecteur = ConsultationPassage(racine_passages, racine_passages=racine_passages)
+    manifeste = lecteur.dernier_passage()
+    if manifeste is None:
+        return None
+    return ConsultationPassage(
+        racine_passages / manifeste.date_arrete.isoformat() / manifeste.passage_id,
+        racine_passages=racine_passages,
+        url_jira=composition.url_jira(racine),
+        date_arrete=manifeste.date_arrete,
+    )
 
 
 def commande_streamlit() -> list[str]:

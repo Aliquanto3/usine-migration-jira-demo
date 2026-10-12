@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from usine.contrats.meteo import (
+    LIBELLES_COULEURS,
     CodeIndicateur,
     Couleur,
     EvolutionMeteo,
@@ -211,3 +212,9 @@ def test_evolution_dates_dans_l_ordre(date_j1: date, date_j5: date) -> None:
             date_j5=date_j5,
             couleur_j5=None,
         )
+
+
+def test_libelles_couleurs() -> None:
+    assert [LIBELLES_COULEURS[c] for c in Couleur] == ["Vert", "Jaune", "Orange", "Rouge"]
+    with pytest.raises(TypeError):
+        LIBELLES_COULEURS[Couleur.vert] = "Verte"  # type: ignore[index]

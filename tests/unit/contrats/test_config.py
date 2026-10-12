@@ -3,6 +3,7 @@
 from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import pytest
@@ -331,3 +332,34 @@ def test_jira_yaml_livre_valide(racine_depot: Path) -> None:
         "cloud",
         "DEMO",
     )
+
+
+def _figes(*mappings: object) -> None:
+    for mapping in mappings:
+        assert isinstance(mapping, MappingProxyType), type(mapping)
+        with pytest.raises(TypeError):
+            mapping["x"] = "y"  # type: ignore[index]
+
+
+def test_mappings_figes_et_aller_retour_json() -> None:
+    """D4 : les `Mapping` des modèles gelés sont figés ; la forme JSON reste un objet."""
+    grille = _grille()
+    jira = ConfigJira.model_validate(JIRA)
+    llm = ConfigLLM.model_validate(
+        {"fournisseur": "anthropic", "modele": "m", "plafond_cout_passage_eur": "0.50"}
+    )
+    _figes(
+        grille.indicateurs,
+        grille.indicateurs[CodeIndicateur.ind_4].seuils,
+        jira.champs,
+        jira.types_tickets,
+        jira.valeurs,
+        jira.valeurs[Champ.statut],
+        llm.modeles_par_tache,
+    )
+    # La Grille n'est lue que depuis le YAML (seuils « >= 0.20 ») : pas d'aller-retour JSON.
+    for modele in (jira, llm):
+        texte = modele.model_dump_json()
+        assert type(modele).model_validate_json(texte) == modele
+    assert ConfigJira.model_validate(jira.model_dump()) == jira
+    assert isinstance(jira.model_dump()["valeurs"], dict)

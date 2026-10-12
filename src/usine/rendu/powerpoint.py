@@ -15,10 +15,10 @@ from pptx.util import Emu, Pt
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date
+from usine.contrats.meteo import LIBELLES_COULEURS
 from usine.ports.consultation import Consultation
 from usine.rendu.commun import (
     AUTEUR,
-    LIBELLES_COULEURS,
     TEINTES_COULEURS,
     TEXTES_COULEURS,
     archive_deterministe,

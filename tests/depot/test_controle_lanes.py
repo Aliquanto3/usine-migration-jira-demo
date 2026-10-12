@@ -2,8 +2,10 @@
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 from types import ModuleType
 
@@ -21,6 +23,81 @@ def _charger_script() -> ModuleType:
 
 
 lanes = _charger_script()
+
+SPINE = (
+    Path(__file__).resolve().parents[2]
+    / "_bmad-output"
+    / "planning-artifacts"
+    / "architecture"
+    / "architecture-usine-migration-jira-demo-2026-10-10"
+    / "ARCHITECTURE-SPINE.md"
+)
+
+_LIGNE_LANE = re.compile(r"^\| L(\d+) [^|]+\|[^|]*\| (.+) \|$")
+_PAQUETS_SOURCE = (
+    "generateur",
+    "adaptateurs",
+    "domaine",
+    "chaine",
+    "consultation",
+    "rendu",
+    "ia",
+    "ui",
+)
+
+
+def _deplier(motif: str) -> list[str]:
+    """`a/{b,c}.yaml` → `a/b.yaml`, `a/c.yaml` (une seule paire d'accolades)."""
+    correspondance = re.fullmatch(r"(.*)\{([^}]*)\}(.*)", motif)
+    if correspondance is None:
+        return [motif]
+    avant, choix, apres = correspondance.groups()
+    return [f"{avant}{c}{apres}" for c in choix.split(",")]
+
+
+def _chemin(motif: str) -> str:
+    """Chemin du spine (`ia/`, `config/llm.yaml`) → chemin du dépôt (`src/usine/ia`)."""
+    motif = motif.rstrip("/")
+    if motif.split("/")[0] in _PAQUETS_SOURCE:
+        return f"{lanes.SRC}{motif}"
+    return motif
+
+
+def carte_du_spine() -> dict[int, tuple[set[str], set[str]]]:
+    """Chemins et exclusions de chaque lane, lus dans la *Carte des lanes* du spine."""
+    carte: dict[int, tuple[set[str], set[str]]] = {}
+    for ligne in SPINE.read_text(encoding="utf-8").splitlines():
+        correspondance = _LIGNE_LANE.match(ligne)
+        if correspondance is None:
+            continue
+        chemins: set[str] = set()
+        exclus: set[str] = set()
+        for element in correspondance.group(2).split(", "):
+            motifs = re.findall(r"`([^`]+)`", element)
+            if not motifs:
+                continue
+            chemins.update(_chemin(m) for m in _deplier(motifs[0]))
+            if " sauf " in element:
+                exclus.update(_chemin(m) for m in motifs[1:])
+        carte[int(correspondance.group(1))] = (chemins, exclus)
+    return carte
+
+
+def _memes_chemins(script: tuple[str, ...], spine: set[str]) -> bool:
+    """Chaque chemin du script relève d'un motif du spine (`jira_*` compris), et réciproquement."""
+    return all(any(fnmatch(c, m) for m in spine) for c in script) and all(
+        any(fnmatch(c, m) for c in script) for m in spine
+    )
+
+
+def test_carte_identique_au_spine() -> None:
+    """AD-21 : `LANES` recopie la *Carte des lanes* du spine, qui fait foi."""
+    spine = carte_du_spine()
+    assert sorted(spine) == sorted(lanes.LANES)
+    for numero, (chemins, exclus) in spine.items():
+        lane = lanes.LANES[numero]
+        assert _memes_chemins(lane.chemins, chemins), (lane.nom, lane.chemins, chemins)
+        assert _memes_chemins(lane.exclus, exclus), (lane.nom, lane.exclus, exclus)
 
 
 @pytest.mark.parametrize(
@@ -47,6 +124,8 @@ def test_numero_lane(branche: str, attendu: int | None) -> None:
         (3, "config/grille_meteo.yaml"),
         (6, "src/usine/ia/passerelle.py"),
         (6, "tests/unit/ia/test_passerelle.py"),
+        (6, "src/usine/adaptateurs/pseudonymisation/__init__.py"),
+        (6, "tests/unit/adaptateurs/pseudonymisation/test_hmac.py"),
         (7, "src/usine/ia/agent/outils.py"),
         (7, "evals/agent/test_agent.py"),
         (8, "docs/fiche-outillage.md"),
@@ -62,6 +141,7 @@ def test_fichier_dans_la_lane(numero: int, fichier: str) -> None:
     [
         (2, "src/usine/domaine/kpi.py"),
         (2, "src/usine/adaptateurs/llm/anthropic.py"),
+        (2, "src/usine/adaptateurs/pseudonymisation/__init__.py"),
         (2, "src/usine/adaptateurs/jira_cloud_bis.py"),
         (6, "src/usine/ia/agent/outils.py"),
         (6, "tests/unit/ia/agent/test_outils.py"),

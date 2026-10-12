@@ -11,10 +11,12 @@ from types import MappingProxyType
 from pydantic import ValidationError
 
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
-
-REPERTOIRE_PROGRESSION = Path("sorties") / "progression"
-"""Répertoire des fichiers de progression, relatif à la racine."""
+from usine.contrats.passage import (
+    REPERTOIRE_PROGRESSION,
+    Etape,
+    EvenementProgression,
+    StatutEtape,
+)
 
 EN_ATTENTE = "en_attente"
 """État d'une étape sans événement de progression."""

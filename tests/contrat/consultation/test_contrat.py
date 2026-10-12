@@ -86,6 +86,15 @@ def test_palier_1_sans_sortie_llm(cas: CasConsultation) -> None:
     assert c.explications(palier=1) == ()
     assert c.narrations(palier=1) == ()
     assert c.repartition_causes(palier=1).is_empty()
+    anomalies = c.anomalies(palier=1)
+    assert anomalies.total == c.anomalies().total
+    assert all(a.cause_racine_proposee is None for a in anomalies.anomalies)
+
+
+def test_dernier_passage_sans_classification_initiale(cas: CasConsultation) -> None:
+    """FR-44 : le filtre ne rend jamais un Passage de classification initiale."""
+    dernier = cas.consultation.dernier_passage(sans_classification_initiale=True)
+    assert dernier is None or not dernier.classification_initiale
 
 
 @pytest.mark.parametrize("cle", ["DEMO-1"])

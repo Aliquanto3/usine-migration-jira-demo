@@ -10,10 +10,10 @@ import pytest
 import streamlit
 from streamlit.testing.v1 import AppTest
 
-from usine.composition import consultation_dernier_passage, mode_repli
+from usine.contrats.meteo import LIBELLES_COULEURS
 from usine.contrats.passage import Etape, EvenementProgression, StatutEtape
 from usine.ui import lancement
-from usine.ui.carte import LIBELLES_COULEURS
+from usine.ui.cli import consultation_dernier_passage, mode_repli
 
 REPERTOIRE_UI = Path(lancement.__file__).parent
 APP = REPERTOIRE_UI / "app.py"

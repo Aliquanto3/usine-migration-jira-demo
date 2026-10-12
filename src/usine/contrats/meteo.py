@@ -1,8 +1,10 @@
 """Météo d'une Entité et Règles déclenchantes (FR-16, FR-17, FR-19)."""
 
+from collections.abc import Mapping
 from datetime import date
 from enum import StrEnum
 from fractions import Fraction
+from types import MappingProxyType
 from typing import Self
 
 from pydantic import Field, model_validator
@@ -49,6 +51,16 @@ class Couleur(StrEnum):
 
 
 _ORDRE_COULEURS: tuple[Couleur, ...] = tuple(Couleur)
+
+LIBELLES_COULEURS: Mapping[Couleur, str] = MappingProxyType(
+    {
+        Couleur.vert: "Vert",
+        Couleur.jaune: "Jaune",
+        Couleur.orange: "Orange",
+        Couleur.rouge: "Rouge",
+    }
+)
+"""Libellé français d'affichage de chaque couleur de Météo (rendu, UI)."""
 
 
 class CodeIndicateur(StrEnum):

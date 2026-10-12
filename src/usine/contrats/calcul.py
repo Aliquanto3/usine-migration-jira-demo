@@ -43,6 +43,7 @@ SCHEMA_INSTANTANE = SchemaTable(
         "statut": enum_polars(StatutAnomalie, StatutTest, StatutCertification),
         "nombre": pl.Int64(),
     },
+    non_nulles=frozenset({"date", "type_ticket", "nombre"}),
 )
 """Instantané : nombre de tickets par Entité et par combinaison d'attributs, à chaque date.
 
@@ -59,10 +60,10 @@ _COLONNES_MESURE: dict[str, pl.DataType] = {
     "denominateur": pl.Int64(),
 }
 
-SCHEMA_KPI = SchemaTable("SCHEMA_KPI", _COLONNES_MESURE)
+SCHEMA_KPI = SchemaTable("SCHEMA_KPI", _COLONNES_MESURE, frozenset(_COLONNES_MESURE))
 """KPI quotidiens ; `dimension` vaut `""` quand le KPI n'est pas ventilé."""
 
-SCHEMA_TENDANCE = SchemaTable("SCHEMA_TENDANCE", _COLONNES_MESURE)
+SCHEMA_TENDANCE = SchemaTable("SCHEMA_TENDANCE", _COLONNES_MESURE, frozenset(_COLONNES_MESURE))
 """Tendances hebdomadaires ; `date` = dernier Jour ouvré de la semaine (partielle comprise)."""
 
 SCHEMA_INDICATEUR = SchemaTable(
@@ -77,6 +78,9 @@ SCHEMA_INDICATEUR = SchemaTable(
         "denominateur": pl.Int64(),
         "couleur": enum_polars(Couleur),
     },
+    non_nulles=frozenset(
+        {"date", "entite", "code", "statut", "motif", "numerateur", "denominateur", "couleur"}
+    ),
 )
 """Indicateurs de météo ; `motif` = `""` si évalué, valeur `0/0` si non évaluable.
 

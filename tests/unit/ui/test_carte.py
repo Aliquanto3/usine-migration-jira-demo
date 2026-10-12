@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from usine.composition import consultation_dernier_passage, mode_repli
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigJira
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.meteo import Couleur, MeteoEntite
+from usine.contrats.meteo import LIBELLES_COULEURS, Couleur, MeteoEntite
 from usine.contrats.passage import ManifestePassage
-from usine.ui.carte import LIBELLES_COULEURS, date_carte, lignes_carte
+from usine.ui.carte import date_carte, lignes_carte
+from usine.ui.cli import consultation_dernier_passage, mode_repli
 
 
 def test_carte_du_passage_publie(racine_publiee: Path) -> None:

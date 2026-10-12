@@ -6,7 +6,12 @@ import polars as pl
 import pytest
 
 from usine.contrats import SchemaTable, UsineErreur, valider
-from usine.contrats.calcul import SCHEMA_INDICATEUR, SCHEMA_INSTANTANE, StatutIndicateur
+from usine.contrats.calcul import (
+    SCHEMA_INDICATEUR,
+    SCHEMA_INSTANTANE,
+    SCHEMA_KPI,
+    StatutIndicateur,
+)
 from usine.contrats.llm import SCHEMA_REPARTITION_CAUSES
 from usine.contrats.meteo import CodeIndicateur, Couleur
 from usine.contrats.schemas import enum_polars
@@ -122,3 +127,34 @@ def test_pire_couleur_par_gravite_dans_polars() -> None:
 def test_schema_gele() -> None:
     with pytest.raises(TypeError):
         SCHEMA_ESSAI.colonnes["x"] = pl.Int64()  # type: ignore[index]
+
+
+SCHEMA_NON_NUL = SchemaTable(
+    "SCHEMA_NON_NUL", {"date": pl.Date(), "nombre": pl.Int64()}, frozenset({"nombre"})
+)
+
+
+def test_colonne_non_nulle_refusee() -> None:
+    """D3 : une valeur nulle dans une colonne de `non_nulles` nomme schéma et colonne."""
+    df = pl.DataFrame(
+        {"date": [None, date(2026, 10, 12)], "nombre": [1, None]},
+        schema={"date": pl.Date, "nombre": pl.Int64},
+    )
+    with pytest.raises(UsineErreur) as erreur:
+        valider(df, SCHEMA_NON_NUL)
+    message = str(erreur.value)
+    assert "SCHEMA_NON_NUL" in message
+    assert "« nombre »" in message
+    sans_nul = df.with_columns(pl.col("nombre").fill_null(0))
+    assert valider(sans_nul, SCHEMA_NON_NUL).height == 2  # `date` reste nullable
+
+
+def test_ligne_nulle_refusee_par_le_kpi() -> None:
+    df = pl.DataFrame([{c: None for c in SCHEMA_KPI.colonnes}], schema=dict(SCHEMA_KPI.colonnes))
+    with pytest.raises(UsineErreur, match="SCHEMA_KPI"):
+        valider(df, SCHEMA_KPI)
+
+
+def test_non_nulles_inconnue_refusee() -> None:
+    with pytest.raises(UsineErreur, match="inconnue"):
+        SchemaTable("SCHEMA_X", {"a": pl.Utf8()}, frozenset({"b"}))

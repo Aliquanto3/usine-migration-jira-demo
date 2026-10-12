@@ -22,7 +22,13 @@ from usine.contrats.meteo import (
     RegleDeclenchante,
 )
 from usine.contrats.schemas import valider
-from usine.contrats.tickets import SCHEMA_TICKET_ETAT, STATUTS_FERMES, Gravite, TypeTicket
+from usine.contrats.tickets import (
+    SCHEMA_TICKET_ETAT,
+    STATUTS_FERMES,
+    Gravite,
+    TypeTicket,
+    rang_cle,
+)
 
 _COMPARAISONS: Mapping[Operateur, Callable[[Fraction, Fraction], bool]] = {
     Operateur.superieur_ou_egal: lambda valeur, seuil: valeur >= seuil,
@@ -76,15 +82,9 @@ def _ind1(etats: pl.DataFrame, date_arrete: date, entites: Sequence[str]) -> dic
     for entite, cle in ouvertes.select("entite", "cle_ticket").iter_rows():
         cles[entite].append(cle)
     return {
-        entite: _Mesure(len(liste), 1, tuple(sorted(liste, key=_cle_de_tri)))
+        entite: _Mesure(len(liste), 1, tuple(sorted(liste, key=rang_cle)))
         for entite, liste in cles.items()
     }
-
-
-def _cle_de_tri(cle: str) -> tuple[str, int, str]:
-    """`DEMO-2` avant `DEMO-10` : préfixe, puis numéro, puis clé entière."""
-    prefixe, _, numero = cle.rpartition("-")
-    return prefixe, int(numero) if numero.isdigit() else -1, cle
 
 
 def _mesures(

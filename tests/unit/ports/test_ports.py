@@ -1,4 +1,4 @@
-"""Les six ports sont des `typing.Protocol` complets (AD-2, AD-11, AD-13, AD-22)."""
+"""Les sept ports sont des `typing.Protocol` complets (AD-2, AD-11, AD-13, AD-22)."""
 
 import inspect
 from typing import Protocol, get_type_hints
@@ -6,7 +6,12 @@ from typing import Protocol, get_type_hints
 import pytest
 
 import usine.ports as ports
-from tests.doublures import FournisseurFactice, PseudonymiseurFactice, SourceEnMemoire
+from tests.doublures import (
+    CacheMemoire,
+    FournisseurFactice,
+    PseudonymiseurFactice,
+    SourceEnMemoire,
+)
 from usine.contrats.passage import ContextePassage, ResultatEtape
 
 PORTS = (
@@ -14,6 +19,7 @@ PORTS = (
     "EntrepotExtraction",
     "FournisseurLLM",
     "Pseudonymiseur",
+    "CacheLLM",
     "Consultation",
     "Etape",
 )
@@ -68,7 +74,7 @@ def test_consultation_complete() -> None:
 
 
 @pytest.mark.parametrize(
-    "lecture", ["classification", "repartition_causes", "explications", "narrations"]
+    "lecture", ["classification", "repartition_causes", "explications", "narrations", "anomalies"]
 )
 def test_lectures_llm_filtrees_par_palier(lecture: str) -> None:
     parametre = inspect.signature(getattr(ports.Consultation, lecture)).parameters["palier"]
@@ -81,6 +87,14 @@ def test_parametres_de_filtre() -> None:
     assert anomalies["limite"].default is None
     tendances = inspect.signature(ports.Consultation.tendances).parameters
     assert tendances["code_kpi"].default is None
+    dernier = inspect.signature(ports.Consultation.dernier_passage).parameters
+    assert dernier["sans_classification_initiale"].default is False
+
+
+def test_cache_llm_signature() -> None:
+    assert _membres(ports.CacheLLM) >= {"lire", "ecrire"}
+    assert get_type_hints(ports.CacheLLM.lire) == {"cle": str, "return": str | None}
+    assert get_type_hints(ports.CacheLLM.ecrire) == {"cle": str, "brut": str, "return": type(None)}
 
 
 def test_etape_signature() -> None:
@@ -93,3 +107,4 @@ def test_doublures_implementent_les_ports() -> None:
     assert isinstance(FournisseurFactice(), ports.FournisseurLLM)
     assert isinstance(PseudonymiseurFactice(b"k", {}), ports.Pseudonymiseur)
     assert isinstance(SourceEnMemoire([]), ports.SourceTickets)
+    assert isinstance(CacheMemoire(), ports.CacheLLM)

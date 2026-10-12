@@ -17,6 +17,16 @@ MOTIF_CLE_TICKET = r"[A-Z][A-Z0-9]+-\d+"
 """Forme d'une clé de ticket (`DEMO-123`) ; une clé n'est jamais pseudonymisée."""
 
 
+def rang_cle(cle: str) -> tuple[str, int, str]:
+    """Clé de tri d'une clé de ticket : projet, numéro, puis clé entière.
+
+    `DEMO-2` vient avant `DEMO-10`. Une clé sans numéro ASCII (`DEMO-X`) prend le numéro -1 :
+    elle précède les clés numérotées de son projet, et la clé entière départage.
+    """
+    projet, _, numero = cle.rpartition("-")
+    return projet, int(numero) if numero.isascii() and numero.isdigit() else -1, cle
+
+
 class TypeTicket(StrEnum):
     """Type de ticket Jira du Programme."""
 
@@ -208,6 +218,7 @@ SCHEMA_TICKET_ETAT = SchemaTable(
         "statut_certification": enum_polars(StatutCertification),
         "date_derniere_entree": pl.Date(),
     },
+    non_nulles=frozenset({"date", "cle_ticket", "type_ticket"}),
 )
 """`TicketEtat` : état de chaque ticket à chaque Jour ouvré (`tickets_etats.parquet`).
 
@@ -224,5 +235,6 @@ SCHEMA_TICKET_TEXTE = SchemaTable(
         "titre": pl.Utf8(),
         "description": pl.Utf8(),
     },
+    non_nulles=frozenset({"cle_ticket", "type_ticket"}),
 )
 """`TicketTexte` : titre et description à la Date d'arrêté (`tickets_textes.parquet`)."""

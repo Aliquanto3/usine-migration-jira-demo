@@ -8,7 +8,6 @@ obligatoire. Un `date_arrete` à `None` désigne la Date d'arrêté du Passage.
 
 import json
 import logging
-import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -18,7 +17,7 @@ from pydantic import ValidationError
 
 from usine.contrats.agent import AnomalieResume, ResultatListAnomalies
 from usine.contrats.calcul import SCHEMA_INDICATEUR, SCHEMA_INSTANTANE, SCHEMA_KPI, SCHEMA_TENDANCE
-from usine.contrats.calendrier import jour_ouvre_precedent, jours_ouvres
+from usine.contrats.calendrier import analyser_date_iso, jour_ouvre_precedent, jours_ouvres
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
     SCHEMA_REPARTITION_CAUSES,
@@ -44,6 +43,7 @@ from usine.contrats.tickets import (
     Phase,
     StatutAnomalie,
     TypeTicket,
+    rang_cle,
 )
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import CLE_VERSION, verifier_version
@@ -113,19 +113,6 @@ def lire_manifeste(chemin: Path) -> ManifestePassage:
         ) from exc
 
 
-_MOTIF_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
-
-
-def _date_iso(nom: str) -> date | None:
-    """Date d'un nom de répertoire `AAAA-MM-JJ` (forme étendue seulement), sinon `None`."""
-    if _MOTIF_DATE.fullmatch(nom) is None:
-        return None
-    try:
-        return date.fromisoformat(nom)
-    except ValueError:
-        return None
-
-
 class ConsultationPassage:
     """Lecteur d'un Passage (publié ou en construction) dans `repertoire`.
 
@@ -148,7 +135,8 @@ class ConsultationPassage:
         self._date_arrete = date_arrete
         if racine_passages is None:
             parent = repertoire.parent
-            racine_passages = parent.parent if _date_iso(parent.name) is not None else parent
+            publie = analyser_date_iso(parent.name) is not None
+            racine_passages = parent.parent if publie else parent
         self._racine_passages = racine_passages
         self._url_jira = url_jira.rstrip("/") if url_jira else None
         self._tables: dict[str, pl.DataFrame] = {}
@@ -223,8 +211,14 @@ class ConsultationPassage:
 
     # --- Passage ---
 
-    def dernier_passage(self) -> ManifestePassage | None:
-        """Manifeste de `(date_arrete, horodatage_fin)` maximal sous la racine des Passages."""
+    def dernier_passage(
+        self, sans_classification_initiale: bool = False
+    ) -> ManifestePassage | None:
+        """Manifeste de `(date_arrete, horodatage_fin)` maximal sous la racine des Passages.
+
+        `sans_classification_initiale=True` écarte les Passages dont le manifeste porte
+        `classification_initiale` (mesure de FR-44).
+        """
         racine = self._racine_passages
         if not racine.is_dir():
             return None
@@ -234,7 +228,7 @@ class ConsultationPassage:
             if (
                 not repertoire_date.is_dir()
                 or nom.startswith(_PREFIXE_CACHE)
-                or _date_iso(nom) is None
+                or analyser_date_iso(nom) is None
             ):
                 continue
             for repertoire in sorted(repertoire_date.iterdir()):
@@ -258,6 +252,8 @@ class ConsultationPassage:
                         nom,
                         repertoire.name,
                     )
+                    continue
+                if sans_classification_initiale and manifeste.classification_initiale:
                     continue
                 if meilleur is None or (manifeste.date_arrete, manifeste.horodatage_fin) > (
                     meilleur.date_arrete,
@@ -377,8 +373,11 @@ class ConsultationPassage:
         phase: Phase | None = None,
         domaine: str | None = None,
         limite: int | None = None,
+        palier: Palier = 2,
     ) -> ResultatListAnomalies:
         """Anomalies ouvertes à la date, filtrées, triées par numéro de clé.
+
+        La cause racine proposée vient de la classification (Palier 2) : `None` en `palier=1`.
 
         Sans `tickets_etats` dans le Passage, le résultat est vide ; si la Date d'arrêté est
         alors indéterminable (ni manifeste, ni Météo, ni `date_arrete`), lève une `UsineErreur`.
@@ -400,9 +399,9 @@ class ConsultationPassage:
         ):
             if valeur is not None:
                 table = table.filter(pl.col(colonne) == valeur)
-        causes = {c.cle_ticket: c.cause_racine for c in self.classification()}
+        causes = {c.cle_ticket: c.cause_racine for c in self.classification(palier)}
         lignes = sorted(
-            table.iter_rows(named=True), key=lambda ligne: _rang_cle(ligne["cle_ticket"])
+            table.iter_rows(named=True), key=lambda ligne: rang_cle(ligne["cle_ticket"])
         )
         total = len(lignes)
         if limite is not None:
@@ -530,14 +529,6 @@ class ConsultationPassage:
         if self._url_jira is None:
             return None
         return f"{self._url_jira}/browse/{cle}"
-
-
-def _rang_cle(cle: str) -> tuple[str, int, str]:
-    """Clé de tri `DEMO-12` → `("DEMO", 12, "")` : ordre numérique dans un projet."""
-    projet, _, numero = cle.rpartition("-")
-    if numero.isdigit():
-        return (projet, int(numero), "")
-    return (cle, -1, cle)
 
 
 def _age(date_derniere_entree: date | None, jour: date) -> int:

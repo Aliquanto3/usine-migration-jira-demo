@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from usine.contrats.calendrier import (
+    analyser_date_iso,
     dernier_jour_ouvre_ecoule,
     est_jour_ouvre,
     fenetre_glissante,
@@ -139,3 +140,20 @@ def test_seul_le_calendrier_definit_le_temps(racine_depot: Path) -> None:
         if interdit in chemin.read_text(encoding="utf-8")
     ]
     assert fautifs == []
+
+
+@pytest.mark.parametrize(
+    ("texte", "attendu"),
+    [
+        ("2026-10-09", date(2026, 10, 9)),
+        ("20261009", None),
+        ("2026-W41-5", None),
+        ("2026-1-9", None),
+        ("2026-13-01", None),
+        ("2026-02-30", None),
+        (" 2026-10-09", None),
+        ("x", None),
+    ],
+)
+def test_analyser_date_iso(texte: str, attendu: date | None) -> None:
+    assert analyser_date_iso(texte) == attendu

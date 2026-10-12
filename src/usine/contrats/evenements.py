@@ -5,7 +5,7 @@ création est suivie, au même horodatage, d'un `modification_champ` par attribu
 """
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Self
@@ -15,7 +15,7 @@ from pydantic import AfterValidator, Field, model_validator
 
 from usine.contrats.calendrier import Horodatage, verifier_lundi
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.modele import Enregistrement, VersionContrats
+from usine.contrats.modele import Enregistrement, MappingFige, VersionContrats
 from usine.contrats.schemas import SchemaTable, enum_polars, valider
 from usine.contrats.tickets import (
     CHAMPS_PAR_TYPE,
@@ -134,7 +134,7 @@ class ManifesteInjection(Enregistrement):
     debut_injection: Horodatage
     horodatage_fin_injection: Horodatage
     cle_projet: str = Field(pattern=r"^[A-Z][A-Z0-9]+$")
-    correspondance_cles: Mapping[CleTicket, CleTicket]
+    correspondance_cles: MappingFige[CleTicket, CleTicket]
     """Clé générée → clé Jira, appliquée à la lecture du Journal."""
 
     @model_validator(mode="after")
@@ -172,6 +172,9 @@ SCHEMA_EVENEMENT = SchemaTable(
         "vers": pl.Utf8(),
         "source": enum_polars(SourceEvenement),
     },
+    non_nulles=frozenset(
+        {"id_evenement", "cle_ticket", "type_ticket", "horodatage", "nature", "source"}
+    ),
 )
 """Table des `Evenement`, une ligne par événement.
 

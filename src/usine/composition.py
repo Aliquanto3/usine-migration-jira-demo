@@ -7,7 +7,9 @@ registre des étapes de la Chaîne selon le Palier. En Palier 2, elle câble la 
 autres étapes LLM restent sautées. Sans pseudonymiseur injecté, elle construit
 `PseudonymiseurHmac` sur la clé `USINE_CLE_PSEUDO`, les motifs de
 `config/pseudonymisation.yaml` (ou `MOTIFS_PAR_DEFAUT`) et la table
-`donnees/pseudonymes.sqlite`.
+`donnees/pseudonymes.sqlite`. Les secrets passent par `charger_secrets` (erreur nommant la
+variable) ; l'URL Jira se résout dans `url_jira` seulement. Les services de l'UI vivent dans
+`ui/cli.py`, l'écriture du Journal dans `generateur.journal.ecrire_journal`.
 """
 
 import secrets
@@ -18,8 +20,6 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
-from pydantic import ValidationError
-
 from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import (
     MOTIFS_PAR_DEFAUT,
@@ -29,9 +29,9 @@ from usine.adaptateurs.pseudonymisation import (
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeMeteo, EtapeSautee
-from usine.chaine.execution import DonneesPassage, executer_passage
+from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
-from usine.config import Secrets, charger_yaml
+from usine.config import Secrets, charger_secrets, charger_yaml
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import est_jour_ouvre
 from usine.contrats.config import (
@@ -43,9 +43,19 @@ from usine.contrats.config import (
     GrilleMeteo,
 )
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.passage import Etape, ManifestePassage
+from usine.contrats.passage import (
+    CHEMIN_CACHE_LLM,
+    CHEMIN_JOURNAL,
+    CHEMIN_PSEUDONYMES,
+    CHEMIN_VERROU,
+    REPERTOIRE_SORTIES,
+    SOUS_REPERTOIRE_PASSAGES,
+    DonneesPassage,
+    Etape,
+    ManifestePassage,
+)
 from usine.contrats.versions import version_donnees, version_grille
-from usine.generateur.journal import generer, serialiser_journal
+from usine.generateur.journal import ecrire_journal, generer
 from usine.ia.etape import EtapeExplications
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
@@ -54,23 +64,8 @@ from usine.ports.fournisseur_llm import FournisseurLLM
 from usine.ports.pseudonymiseur import Pseudonymiseur
 from usine.rendu.etape import EtapeRendu
 
-CHEMIN_JOURNAL = Path("donnees") / "journal.jsonl"
-"""Journal lu par la Chaîne, relatif à la racine (écrit par `usine donnees generer`)."""
-
-CHEMIN_VERROU = Path("donnees") / ".verrou-passage"
-"""Verrou exclusif d'un Passage, relatif à la racine."""
-
 CHEMIN_GABARIT = Path("gabarits") / "rapport.pptx"
 """Gabarit neutre du PowerPoint, relatif à la racine."""
-
-CHEMIN_CACHE_LLM = Path("donnees") / "cache_llm.sqlite"
-"""Cache des réponses LLM (WAL), relatif à la racine ; seule la passerelle y accède."""
-
-CHEMIN_PSEUDONYMES = Path("donnees") / "pseudonymes.sqlite"
-"""Table jeton → valeur de la Pseudonymisation (WAL), relative à la racine ; hors git."""
-
-REPERTOIRE_SORTIES = Path("sorties")
-"""Racine des sorties (Passages, échecs, progression), relative à la racine."""
 
 ETAPES_LLM = frozenset(
     {Etape.classification, Etape.repartition_causes, Etape.explications, Etape.narration}
@@ -94,7 +89,7 @@ class Rapport:
         """Fabrique de la `Consultation` d'un Passage de ce rapport à la Date d'arrêté."""
         return partial(
             ConsultationPassage,
-            racine_passages=self.racine_sorties / "passages",
+            racine_passages=self.racine_sorties / SOUS_REPERTOIRE_PASSAGES,
             url_jira=self.url_jira,
             date_arrete=date_arrete,
         )
@@ -173,6 +168,24 @@ def _verifier_llm(
     return _ParametresPseudonymisation(octets_cle, _motifs_pseudonymisation(repertoire_config))
 
 
+def _config_jira(racine: Path) -> ConfigJira | None:
+    """`config/jira.yaml` validé, ou `None` s'il n'existe pas."""
+    chemin = racine / "config" / "jira.yaml"
+    return charger_yaml(chemin, ConfigJira) if chemin.exists() else None
+
+
+def url_jira(racine: Path) -> str | None:
+    """URL du site Jira pour `url_ticket` (AD-11), seule résolution du dépôt.
+
+    `None` en Mode repli (`USINE_MODE_REPLI`, environnement ou `racine/.env`) ou sans
+    `config/jira.yaml`.
+    """
+    if charger_secrets(racine).usine_mode_repli:
+        return None
+    jira = _config_jira(racine)
+    return None if jira is None else jira.url_site
+
+
 def construire_rapport(
     racine: Path,
     fournisseur: FournisseurLLM | None = None,
@@ -187,7 +200,7 @@ def construire_rapport(
     """
     repertoire_config = racine / "config"
     chaine = charger_yaml(repertoire_config / "chaine.yaml", ConfigChaine)
-    secrets_usine = Secrets(_env_file=racine / ".env")
+    secrets_usine = charger_secrets(racine)
     pseudonymisation = (
         _verifier_llm(fournisseur, pseudonymiseur, secrets_usine, repertoire_config)
         if chaine.palier == 2
@@ -196,10 +209,8 @@ def construire_rapport(
     programme = charger_yaml(repertoire_config / "programme.yaml", ConfigProgramme)
     chemin_grille = repertoire_config / "grille_meteo.yaml"
     grille = charger_yaml(chemin_grille, GrilleMeteo)
-    chemin_jira = repertoire_config / "jira.yaml"
-    jira = charger_yaml(chemin_jira, ConfigJira) if chemin_jira.exists() else None
+    jira = _config_jira(racine)
     configuration = ConfigUsine(chaine=chaine, programme=programme, grille_meteo=grille, jira=jira)
-    mode_repli = secrets_usine.usine_mode_repli
     gabarit = _octets(racine / CHEMIN_GABARIT, "gabarit PowerPoint")
     empreinte_grille = version_grille(_octets(chemin_grille, "Grille de météo"))
 
@@ -239,7 +250,7 @@ def construire_rapport(
         donnees=DonneesPassage("journal", empreinte_grille, empreinte_donnees),
         racine_sorties=racine / REPERTOIRE_SORTIES,
         chemin_verrou=racine / CHEMIN_VERROU,
-        url_jira=None if mode_repli or jira is None else jira.url_site,
+        url_jira=url_jira(racine),
     )
 
 
@@ -293,47 +304,13 @@ def lancer_rapport(
     return PassageLance(manifeste, repertoire)
 
 
-def mode_repli(racine: Path) -> bool:
-    """Mode repli demandé par `USINE_MODE_REPLI` (environnement ou `racine/.env`), jamais déduit."""
-    try:
-        return Secrets(_env_file=racine / ".env").usine_mode_repli
-    except ValidationError as exc:
-        raise UsineErreur(
-            f"variable d'environnement USINE_MODE_REPLI illisible (attendu : 0 ou 1) : {exc}"
-        ) from exc
-
-
-def consultation_dernier_passage(racine: Path) -> Consultation | None:
-    """`Consultation` du dernier Passage publié sous `racine/sorties/passages/`, ou `None`.
-
-    L'URL Jira vient de `config/jira.yaml` s'il existe, sauf en Mode repli.
-    """
-    racine_passages = racine / REPERTOIRE_SORTIES / "passages"
-    lecteur = ConsultationPassage(racine_passages, racine_passages=racine_passages)
-    manifeste = lecteur.dernier_passage()
-    if manifeste is None:
-        return None
-    chemin_jira = racine / "config" / "jira.yaml"
-    url_jira = None
-    if not mode_repli(racine) and chemin_jira.exists():
-        url_jira = charger_yaml(chemin_jira, ConfigJira).url_site
-    return ConsultationPassage(
-        racine_passages / manifeste.date_arrete.isoformat() / manifeste.passage_id,
-        racine_passages=racine_passages,
-        url_jira=url_jira,
-        date_arrete=manifeste.date_arrete,
-    )
-
-
 def generer_journal(
     programme: ConfigProgramme, graine: int, date_generation: date, racine: Path
 ) -> Path:
-    """Génère le Journal de `programme` dans `racine/donnees/journal.jsonl` (outils, NFR-2)."""
-    chemin = racine / CHEMIN_JOURNAL
+    """Génère le Journal de `programme` sous `racine/donnees/` et renvoie son chemin.
+
+    Délègue à `generateur.journal.ecrire_journal` (Journal et vérité terrain) ; sert à
+    `outils/`, qui ne peut pas importer `generateur` (NFR-2).
+    """
     generation = generer(programme, graine, date_generation)
-    try:
-        chemin.parent.mkdir(parents=True, exist_ok=True)
-        chemin.write_bytes(serialiser_journal(generation))
-    except OSError as exc:
-        raise UsineErreur(f"{chemin} : écriture impossible ({exc.strerror or exc})") from exc
-    return chemin
+    return ecrire_journal(generation, racine / CHEMIN_JOURNAL.parent)

@@ -4,9 +4,8 @@ import re
 from collections.abc import Callable
 
 from tests.contrat.pseudonymiseur.fabriques import CasPseudonymiseur
+from usine.contrats.llm import CANDIDAT_JETON as JETON
 from usine.ports import Pseudonymiseur
-
-JETON = re.compile(r"\b[A-Z](?:[A-Z_]*[A-Z])?_[0-9a-f]{6}\b")
 
 
 def test_implemente_le_port(cas: CasPseudonymiseur) -> None:

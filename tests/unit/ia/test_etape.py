@@ -16,13 +16,12 @@ from tests.unit.ia.espions import (
     textes,
 )
 from usine.contrats.config import ConfigChaine, ConfigUsine
-from usine.contrats.llm import StatutControle
+from usine.contrats.llm import ReponseExplication, StatutControle
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import ContextePassage, StatutEtape
 from usine.contrats.trace import TypeTrace
 from usine.contrats.versions import version_prompt
 from usine.ia.etape import EtapeExplications
-from usine.ia.explication import ReponseExplication
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape

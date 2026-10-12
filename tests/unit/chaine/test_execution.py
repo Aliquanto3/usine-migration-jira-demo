@@ -29,7 +29,7 @@ from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import jours_ouvres
 from usine.contrats.config import GrilleMeteo
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import StatutControle
+from usine.contrats.llm import ReponseExplication, StatutControle
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import (
     MOTIF_PASSAGE_ID,
@@ -43,7 +43,7 @@ from usine.contrats.passage import (
 )
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
-from usine.ia.explication import ReponseExplication, lire_prompt
+from usine.ia.explication import lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 

@@ -16,6 +16,7 @@ from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement,
 from usine.contrats.tickets import CHAMPS_PAR_TYPE, CauseRacine, Champ, StatutTest, TypeTicket
 from usine.generateur.journal import (
     Generation,
+    ecrire_journal,
     fenetre_generation,
     generer,
     serialiser_journal,
@@ -229,3 +230,19 @@ def test_coeur_pur_sans_horloge_ni_hasard_global() -> None:
         assert "from random import" not in texte, source.name
         assert not re.search(r"\brandom\.(?!Random\b)", texte), source.name
         assert texte.count("random.Random(") <= 1, source.name
+
+
+def test_ecrire_journal(config: ConfigProgramme, tmp_path: Path) -> None:
+    generation = generer(config, 42, DATE_GENERATION)
+    repertoire = tmp_path / "sortie" / "donnees"
+    chemin = ecrire_journal(generation, repertoire)
+    assert chemin == repertoire / "journal.jsonl"
+    assert chemin.read_bytes() == serialiser_journal(generation)
+    assert (repertoire / "verite_terrain.json").read_bytes() == serialiser_verite(generation)
+
+
+def test_ecrire_journal_impossible(config: ConfigProgramme, tmp_path: Path) -> None:
+    fichier = tmp_path / "fichier"
+    fichier.write_text("x", encoding="utf-8")
+    with pytest.raises(UsineErreur, match="écriture impossible"):
+        ecrire_journal(generer(config, 42, DATE_GENERATION), fichier / "donnees")

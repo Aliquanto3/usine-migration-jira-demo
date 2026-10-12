@@ -1,7 +1,11 @@
 """Secrets, lus uniquement dans les variables d'environnement ou `.env` (AD-19)."""
 
-from pydantic import SecretStr
+from pathlib import Path
+
+from pydantic import SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from usine.contrats.erreurs import UsineErreur
 
 
 class Secrets(BaseSettings):
@@ -19,3 +23,23 @@ class Secrets(BaseSettings):
     mistral_api_key: SecretStr | None = None
     usine_cle_pseudo: SecretStr | None = None
     usine_mode_repli: bool = False
+    usine_racine: str | None = None
+    """Racine de l'UI (répertoire du dépôt) ; vide ou absente : le répertoire courant."""
+
+
+def charger_secrets(racine: Path) -> Secrets:
+    """Secrets de l'environnement et de `racine/.env`.
+
+    Une valeur illisible (`USINE_MODE_REPLI=peut-être`) lève une `UsineErreur` qui nomme la
+    variable ; la valeur n'est jamais recopiée, elle peut être un secret.
+    """
+    try:
+        return Secrets(_env_file=racine / ".env")
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{str(erreur['loc'][0]).upper() if erreur['loc'] else '?'} : {erreur['msg']}"
+            for erreur in exc.errors(include_input=False, include_url=False)
+        )
+        raise UsineErreur(
+            f"variable d'environnement illisible ({racine / '.env'} ou environnement) : {details}"
+        ) from exc

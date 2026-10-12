@@ -1,8 +1,10 @@
 """Base commune des enregistrements unitaires : modèles Pydantic gelés (AD-2)."""
 
-from typing import Annotated
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
+from typing import Annotated, Any, TypeVar
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, WrapSerializer
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.versions import verifier_version
@@ -24,6 +26,26 @@ def _version_compatible(version: str) -> str:
 
 VersionContrats = Annotated[str, AfterValidator(_version_compatible)]
 """`contrats_version` d'un fichier ; une version majeure différente est refusée (AD-2)."""
+
+
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+def _figer(valeur: Mapping[Any, Any]) -> Mapping[Any, Any]:
+    return MappingProxyType(dict(valeur))
+
+
+def _en_dict(valeur: Mapping[Any, Any], suite: Callable[[Any], Any]) -> Any:
+    return suite(dict(valeur))
+
+
+MappingFige = Annotated[Mapping[_K, _V], AfterValidator(_figer), WrapSerializer(_en_dict)]
+"""`Mapping` figé en `MappingProxyType` après validation, pour un modèle gelé (AD-2).
+
+La forme JSON ou YAML est celle d'un objet, inchangée ; toute affectation d'élément lève
+`TypeError`. S'emploie comme `MappingFige[str, JsonValue]`.
+"""
 
 
 class Enregistrement(BaseModel):

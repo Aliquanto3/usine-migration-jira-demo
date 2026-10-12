@@ -17,7 +17,13 @@ from usine import cli, composition
 from usine.chaine.cli import lire_date_arrete
 from usine.contrats.calendrier import FUSEAU
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.passage import EXCLUSIONS_REJEU, ContextePassage, Etape, ResultatEtape
+from usine.contrats.passage import (
+    EXCLUSIONS_REJEU,
+    FICHIERS_PASSAGE,
+    ContextePassage,
+    Etape,
+    ResultatEtape,
+)
 from usine.ports.consultation import Consultation
 
 VERROU = Path("donnees") / ".verrou-passage"
@@ -45,14 +51,40 @@ def _passages(racine: Path) -> list[Path]:
     return sorted((racine / "sorties" / "passages" / "2026-10-09").iterdir())
 
 
-def _sans_exclusions(valeur: object) -> object:
-    if isinstance(valeur, dict):
-        return {
-            cle: _sans_exclusions(v) for cle, v in valeur.items() if cle not in EXCLUSIONS_REJEU
-        }
-    if isinstance(valeur, list):
-        return [_sans_exclusions(v) for v in valeur]
-    return valeur
+def _sans_exclusions(nom: str, valeur: object) -> object:
+    """`valeur` (fichier `nom` de `FICHIERS_PASSAGE`) sans ses champs exclus du Rejeu (AD-7)."""
+    exclus = EXCLUSIONS_REJEU.get(nom, frozenset())
+
+    def retirer(valeur: object, chemin: str) -> object:
+        if isinstance(valeur, dict):
+            return {
+                cle: retirer(v, f"{chemin}.{cle}" if chemin else cle)
+                for cle, v in valeur.items()
+                if (f"{chemin}.{cle}" if chemin else cle) not in exclus
+            }
+        if isinstance(valeur, list):
+            return [retirer(v, f"{chemin}[]") for v in valeur]
+        return valeur
+
+    return retirer(valeur, "")
+
+
+def test_exclusions_appliquees_par_fichier() -> None:
+    """Un champ exclu dans un fichier reste comparé dans les autres, et à un autre chemin."""
+    valeur = {
+        "horodatage": "a",
+        "horodatage_debut": "b",
+        "etapes": [{"horodatage": "c", "horodatage_debut": "d", "etape": "kpi"}],
+    }
+    assert _sans_exclusions("manifeste", valeur) == {
+        "horodatage": "a",
+        "etapes": [{"horodatage": "c", "etape": "kpi"}],
+    }
+    assert _sans_exclusions("trace_llm", valeur) == {
+        "horodatage_debut": "b",
+        "etapes": [{"horodatage": "c", "horodatage_debut": "d", "etape": "kpi"}],
+    }
+    assert _sans_exclusions("kpi", valeur) == valeur
 
 
 def _excel_relu(chemin: Path) -> object:
@@ -99,9 +131,13 @@ def test_passage_publie_et_rejeu(
     assert premier.name != second.name
     assert not (racine / VERROU).exists()
     assert not list((racine / "sorties" / "passages").glob(".en-cours-*"))
-    for nom in ("meteo.json", "manifeste.json"):
-        a, b = (json.loads((p / nom).read_text(encoding="utf-8")) for p in (premier, second))
-        assert _sans_exclusions(a) == _sans_exclusions(b), nom
+    for nom in ("meteo", "manifeste"):
+        a, b = (
+            json.loads((p / FICHIERS_PASSAGE[nom]).read_text(encoding="utf-8"))
+            for p in (premier, second)
+        )
+        assert a != b, nom  # le passage_id diffère : l'exclusion est nécessaire
+        assert _sans_exclusions(nom, a) == _sans_exclusions(nom, b), nom
     for nom in ("tickets_etats.parquet", "instantanes.parquet", "indicateurs.parquet"):
         assert pl.read_parquet(premier / nom).equals(pl.read_parquet(second / nom)), nom
     xlsx, pptx = "rapport-2026-10-09.xlsx", "rapport-2026-10-09.pptx"
@@ -203,4 +239,16 @@ def test_lancer_rapport_refuse_un_jour_non_ouvre(racine: Path) -> None:
         composition.lancer_rapport(racine, date(2026, 10, 10))
     assert "ce n'est pas un Jour ouvré" in str(erreur.value)
     assert not (racine / "sorties").exists()
+    assert not (racine / VERROU).exists()
+
+
+def test_secrets_illisibles(
+    racine: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Une variable illisible devient une `UsineErreur` qui la nomme, pas une trace brute."""
+    monkeypatch.setenv("USINE_MODE_REPLI", "peut-être")
+    code, _, erreur = _usine(monkeypatch, capsys, "--date-arrete", "2026-10-09")
+    assert code == 1
+    assert "USINE_MODE_REPLI" in erreur
+    assert "Traceback" not in erreur
     assert not (racine / VERROU).exists()

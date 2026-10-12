@@ -3,10 +3,10 @@
 from dataclasses import fields
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, get_args
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from usine.contrats.config import ConfigChaine, ConfigUsine
 from usine.contrats.erreurs import UsineErreur
@@ -29,6 +29,7 @@ from usine.contrats.passage import (
     lire_enveloppe,
 )
 from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.trace import EntreeTrace
 
 H = datetime(2026, 10, 12, 8, 0, tzinfo=UTC)
 PASSAGE = "20261012T080000Z-0a1b2c"
@@ -102,15 +103,60 @@ def test_manifeste_et_duree() -> None:
     assert manifeste.contrats_version == "0.1.0"
 
 
-def test_duree_deduite_de_champs_exclus_du_rejeu() -> None:
-    assert {"horodatage_debut", "horodatage_fin"} <= EXCLUSIONS_REJEU
-    assert {
+def test_exclusions_rejeu_par_fichier() -> None:
+    """Forme et contenu d'AD-7 : nom logique → chemins de champ ; aucune table Parquet."""
+    assert set(EXCLUSIONS_REJEU) <= set(FICHIERS_PASSAGE)
+    assert not [n for n in EXCLUSIONS_REJEU if FICHIERS_PASSAGE[n].endswith(".parquet")]
+    assert all(isinstance(c, frozenset) and c for c in EXCLUSIONS_REJEU.values())
+    assert EXCLUSIONS_REJEU["manifeste"] == {
         "passage_id",
         "horodatage_debut",
         "horodatage_fin",
         "horodatage_extraction",
         "version_donnees",
-    } == EXCLUSIONS_REJEU
+        "etapes[].horodatage_debut",
+        "etapes[].horodatage_fin",
+        "classification_initiale",
+        "cout_llm_eur",
+    }
+    for nom in ("meteo", "previsions", "classification", "explications", "narrations"):
+        assert EXCLUSIONS_REJEU[nom] == {"passage_id"}, nom
+    assert EXCLUSIONS_REJEU["trace_llm"] == {
+        "horodatage",
+        "passage_id",
+        "version_donnees",
+        "depuis_cache",
+        "jetons_entree",
+        "jetons_sortie",
+        "cout_estime_eur",
+    }
+    assert EXCLUSIONS_REJEU["trace_previsions"] == {"horodatage", "passage_id", "version_donnees"}
+    with pytest.raises(TypeError):
+        EXCLUSIONS_REJEU["kpi"] = frozenset()  # type: ignore[index]
+
+
+def _champs(modele: type[BaseModel], chemin: str) -> bool:
+    """Vrai si `chemin` (`a`, `a[].b`) désigne un champ de `modele`."""
+    tete, _, reste = chemin.partition("[].")
+    if tete not in modele.model_fields:
+        return False
+    if not reste:
+        return True
+    annotation = modele.model_fields[tete].annotation
+    (element, _points) = get_args(annotation)
+    return _champs(element, reste)
+
+
+@pytest.mark.parametrize("nom", sorted(EXCLUSIONS_REJEU))
+def test_exclusions_rejeu_designent_des_champs(nom: str) -> None:
+    modele: type[BaseModel]
+    if nom == "manifeste":
+        modele = ManifestePassage
+    elif nom.startswith("trace_"):
+        modele = EntreeTrace
+    else:
+        modele = EnveloppeFichier[CONTENUS_JSON[nom]]  # type: ignore[valid-type]
+    assert [c for c in EXCLUSIONS_REJEU[nom] if not _champs(modele, c)] == []
 
 
 def test_manifeste_etapes_hors_ordre() -> None:
