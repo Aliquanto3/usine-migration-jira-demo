@@ -1,5 +1,6 @@
 """Lancement de `usine rapport` en sous-processus, sans bloquer."""
 
+import re
 import subprocess
 import sys
 from datetime import date
@@ -72,4 +73,6 @@ def test_vrai_processus_erreurs_volumineuses(tmp_path: Path) -> None:
 def test_option_date_arrete_de_la_cli() -> None:
     resultat = CliRunner().invoke(app, ["rapport", "--help"])
     assert resultat.exit_code == 0
-    assert commande_rapport(date(2026, 10, 9))[-2] in resultat.output
+    # Sous GitHub Actions, Rich force la couleur : les séquences ANSI coupent le nom d'option.
+    texte = re.sub(r"\x1b\[[0-9;]*m", "", resultat.output)
+    assert commande_rapport(date(2026, 10, 9))[-2] in texte

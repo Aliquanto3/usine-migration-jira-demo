@@ -1,0 +1,7 @@
+# Configuration de gitleaks : règles par défaut, plus les faux positifs connus.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Empreintes SHA-256 du manifeste d'installation de BMAD (nom de fichier contenant « key »)"
+paths = ['''^_bmad/_config/files-manifest\.csv$''']
