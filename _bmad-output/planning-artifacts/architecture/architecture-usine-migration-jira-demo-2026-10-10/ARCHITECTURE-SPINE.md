@@ -18,6 +18,7 @@ companions: [.memlog.md, reviews/]
 amendments:
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12.md (rétrospective de l''Epic 0, décisions D1 à D10 de la Story 0.9)'
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12-contrats-1-2.md (contrats 1.2 : Scénarios à flux scripté, exclusions des rendus)'
+  - '2026-10-12 : Story 6.3 (contrats 1.3 : clé `moteur` de `ConfigPseudonymisation`, ajout additif)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo
@@ -244,7 +245,7 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
     - `adaptateurs/presidio/` (Story 6.2) : Presidio, avec `fr_core_news_md` et les reconnaisseurs maison de `config/pseudonymisation.yaml`. C'est le moteur du Palier 2.
     - `adaptateurs/pseudonymisation/` : expressions régulières de `config/pseudonymisation.yaml`. C'est le moteur du walking skeleton (E0-7), conservé comme repli sans modèle spaCy. Il porte aussi la dérivation des jetons et l'accès à la table, que `presidio` réutilise : une même valeur donne le même jeton quel que soit le moteur.
 
-    Le choix du moteur est une clé de `config/pseudonymisation.yaml`, lue par la composition.
+    Le choix du moteur est la clé `moteur` (`regex` ou `presidio`, défaut `presidio`) de `config/pseudonymisation.yaml`, déclarée en contrats 1.3 et lue par la composition.
   - **Jetons.** Ils sont dérivés et non attribués : `<TYPE>_<6 hex de HMAC-SHA256(USINE_CLE_PSEUDO, valeur)>`, par exemple `CLIENT_3f9a2c`. Leur grammaire (motif de reconnaissance compris) est définie une seule fois dans `contrats.llm` et sert aux adaptateurs, à la passerelle et à la doublure.
   - **Table de ré-identification.** `donnees/pseudonymes.sqlite` (WAL) ne sert qu'à la ré-identification. Elle est ignorée par git et accessible seulement via le port `Pseudonymiseur` (décision du 10/10/2026, H-29). Son accès est le `Protocol` local `TablePseudonymes`, déclaré dans `adaptateurs/pseudonymisation/` et implémenté par `adaptateurs/stockage_sqlite/` (même lane). Ce n'est pas un port : en faire un exposerait hors des adaptateurs ce que `Pseudonymiseur` cache (D1).
   - **Exclusions.** Les clés de ticket ne sont jamais pseudonymisées.

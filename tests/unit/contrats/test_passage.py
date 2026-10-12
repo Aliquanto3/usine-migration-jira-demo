@@ -100,7 +100,7 @@ def _manifeste(**champs: Any) -> ManifestePassage:
 def test_manifeste_et_duree() -> None:
     manifeste = _manifeste()
     assert manifeste.etapes[1].duree == timedelta(seconds=7)
-    assert manifeste.contrats_version == "1.2.0"
+    assert manifeste.contrats_version == "1.3.0"
 
 
 def test_exclusions_rejeu_par_fichier() -> None:
@@ -209,7 +209,7 @@ def test_enveloppe_aller_retour() -> None:
         passage_id=PASSAGE, date_arrete=D, contenu=(_meteo(),)
     )
     texte = enveloppe.model_dump_json()
-    assert '"contrats_version":"1.2.0"' in texte
+    assert '"contrats_version":"1.3.0"' in texte
     relue = lire_enveloppe(texte, tuple[MeteoEntite, ...])
     assert relue.contenu == (_meteo(),)
     assert relue.passage_id == PASSAGE
@@ -217,23 +217,23 @@ def test_enveloppe_aller_retour() -> None:
 
 def test_enveloppe_version_majeure_differente() -> None:
     enveloppe = EnveloppeFichier[MeteoEntite](passage_id=PASSAGE, date_arrete=D, contenu=_meteo())
-    texte = enveloppe.model_dump_json().replace('"1.2.0"', '"2.0.0"')
+    texte = enveloppe.model_dump_json().replace('"1.3.0"', '"2.0.0"')
     with pytest.raises(UsineErreur) as erreur:
         lire_enveloppe(texte, MeteoEntite)
     assert "2.0.0" in str(erreur.value)
-    assert "1.2.0" in str(erreur.value)
+    assert "1.3.0" in str(erreur.value)
 
 
 def test_enveloppe_1_0_0_lisible() -> None:
-    """Contrats 1.2.0 : un Passage écrit en 1.0.0 (même majeure) reste lisible (AD-2)."""
+    """Contrats 1.3.0 : un Passage écrit en 1.0.0 (même majeure) reste lisible (AD-2)."""
     enveloppe = EnveloppeFichier[MeteoEntite](passage_id=PASSAGE, date_arrete=D, contenu=_meteo())
-    texte = enveloppe.model_dump_json().replace('"1.2.0"', '"1.0.0"')
+    texte = enveloppe.model_dump_json().replace('"1.3.0"', '"1.0.0"')
     assert '"contrats_version":"1.0.0"' in texte
     relue = lire_enveloppe(texte, MeteoEntite)
     assert relue.contrats_version == "1.0.0"
     assert relue.contenu == _meteo()
     manifeste = ManifestePassage.model_validate_json(
-        _manifeste().model_dump_json().replace('"1.2.0"', '"1.0.0"')
+        _manifeste().model_dump_json().replace('"1.3.0"', '"1.0.0"')
     )
     assert manifeste.contrats_version == "1.0.0"
 

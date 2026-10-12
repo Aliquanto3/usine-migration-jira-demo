@@ -480,6 +480,8 @@ class Reconnaisseur(_ModeleConfig):
 class ConfigPseudonymisation(_ModeleConfig):
     """Moteur de Pseudonymisation et reconnaisseurs maison."""
 
+    moteur: Literal["regex", "presidio"] = "presidio"
+    """Moteur choisi par la composition (AD-15, contrats 1.3) : regex ou Presidio."""
     langue: str = "fr"
     modele_spacy: str = "fr_core_news_md"
     entites_presidio: tuple[str, ...] = ()

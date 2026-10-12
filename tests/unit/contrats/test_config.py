@@ -298,6 +298,14 @@ def test_pseudonymisation_motif_invalide() -> None:
         )
 
 
+def test_pseudonymisation_moteur() -> None:
+    """Contrats 1.3 : `moteur` vaut `presidio` par défaut ; une valeur inconnue est refusée."""
+    assert ConfigPseudonymisation().moteur == "presidio"
+    assert ConfigPseudonymisation.model_validate({"moteur": "regex"}).moteur == "regex"
+    with pytest.raises(ValidationError):
+        ConfigPseudonymisation.model_validate({"moteur": "spacy"})
+
+
 def test_demo() -> None:
     assert ConfigDemo(temps_manuel_minutes_par_rapport=120).questions_repli == ()
 
