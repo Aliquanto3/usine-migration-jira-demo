@@ -53,6 +53,9 @@ Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `controler_citations` est ré-exporté pour qu'`evals` n'importe pas `usine.ia`.
 `construire_classificateur` expose de même à `evals/classification` la vraie tâche `classer`,
 sur la même passerelle d'évaluation (`_passerelle_evaluation`).
+
+`apercu_pseudonymisation` expose à l'UI (vue côte à côte, Story 7.7) le seul `apercu` du
+moteur de Pseudonymisation, sur une table en mémoire qui refuse toute écriture.
 """
 
 import json
@@ -81,6 +84,7 @@ from usine.adaptateurs.journal import (
 from usine.adaptateurs.pseudonymisation import (
     MOTIFS_PAR_DEFAUT,
     PseudonymiseurHmac,
+    TablePseudonymes,
     verifier_cle,
 )
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
@@ -897,13 +901,54 @@ def _assembler_rapport(
 
 def _pseudonymiseur(racine: Path, parametres: _ParametresPseudonymisation) -> Pseudonymiseur:
     """Moteur de Pseudonymisation de `config/pseudonymisation.yaml` (AD-15)."""
-    table = TablePseudonymesSqlite(racine / CHEMIN_PSEUDONYMES)
+    return _moteur_sur_table(parametres, TablePseudonymesSqlite(racine / CHEMIN_PSEUDONYMES))
+
+
+def _moteur_sur_table(
+    parametres: _ParametresPseudonymisation, table: TablePseudonymes
+) -> Pseudonymiseur:
+    """`PseudonymiseurHmac` ou `PseudonymiseurPresidio` sur la table de correspondance donnée."""
     if parametres.presidio is None:
         return PseudonymiseurHmac(parametres.cle, parametres.motifs, table)
     # Import différé : Presidio et spaCy ne se chargent que pour ce moteur.
     from usine.adaptateurs.presidio import PseudonymiseurPresidio
 
     return PseudonymiseurPresidio(parametres.cle, parametres.presidio, table)
+
+
+class _TableApercu:
+    """Table de correspondance vide et en lecture seule : l'aperçu n'écrit rien (FR-31)."""
+
+    def enregistrer(self, correspondances: Mapping[str, str]) -> None:
+        """Refuse toute écriture : l'aperçu ne doit jamais enregistrer une correspondance."""
+        raise UsineErreur(
+            "Aperçu de la Pseudonymisation : table de correspondance en lecture seule"
+        )
+
+    def lire(self, jetons: Iterable[str]) -> dict[str, str]:
+        """Aucun jeton connu."""
+        return {}
+
+
+def apercu_pseudonymisation(racine: Path) -> Callable[[str], str]:
+    """`Pseudonymiseur.apercu` du moteur de `config/pseudonymisation.yaml` (AD-15, FR-31).
+
+    Seule porte de l'UI vers la Pseudonymisation : elle ne voit que l'aperçu. Local, sans
+    fournisseur LLM ; la table est en mémoire et refuse toute écriture, si bien que
+    `donnees/pseudonymes.sqlite` n'est ni lu ni créé. La clé `USINE_CLE_PSEUDO` vient de
+    `charger_secrets` ; absente, vide ou trop courte, une `UsineErreur` nomme la variable.
+    """
+    cle = charger_secrets(racine).usine_cle_pseudo
+    if cle is None or not cle.get_secret_value().strip():
+        raise UsineErreur(
+            "Variable d'environnement USINE_CLE_PSEUDO absente ou vide : aperçu de la"
+            " Pseudonymisation impossible"
+        )
+    octets_cle = cle.get_secret_value().encode("utf-8")
+    verifier_cle(octets_cle)
+    motifs, presidio = _moteur_pseudonymisation(racine / "config")
+    parametres = _ParametresPseudonymisation(octets_cle, motifs, presidio)
+    return _moteur_sur_table(parametres, _TableApercu()).apercu
 
 
 def _suffixe() -> str:

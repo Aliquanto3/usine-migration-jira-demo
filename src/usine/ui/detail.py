@@ -1,10 +1,12 @@
-"""Détail d'une Entité (Palier 1), sans Streamlit : blocs de l'écran, via `Consultation`.
+"""Détail d'une Entité, sans Streamlit : blocs de l'écran, via `Consultation`.
 
-Règles déclenchantes, KPI clés, Prévision de sortie du rouge, Risque d'entrée en rouge et zone
-Explication (FR-43, FR-17, FR-20, FR-21). L'UI ne calcule aucun chiffre : elle formate les
-fractions de `Consultation` avec `contrats.format`.
+Règles déclenchantes, KPI clés, Prévision de sortie du rouge (ou sa narration contrôlée en
+Palier 2), Risque d'entrée en rouge et Explication sourcée (FR-43, FR-17, FR-20, FR-21, FR-24,
+FR-32, FR-46). L'UI ne calcule aucun chiffre : elle formate les fractions de `Consultation`
+avec `contrats.format`, et le nombre de phrases retirées vient de `SortieExplication`.
 """
 
+import re
 from collections.abc import Callable, Mapping
 from datetime import date
 from fractions import Fraction
@@ -14,6 +16,7 @@ from typing import Literal, Protocol
 import polars as pl
 
 from usine.contrats.format import formater_date, formater_fraction, formater_pourcentage
+from usine.contrats.llm import SortieExplication, SortieNarration, StatutControle
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import Etape, ManifestePassage, StatutEtape
 from usine.contrats.prevision import Prevision, RisqueEntreeRouge, StatutPrevision
@@ -45,7 +48,27 @@ RISQUE_NON_CALCULE_PASSAGE = "Risque d'entrée en rouge non calculé pour ce Pas
 AUCUN_RISQUE = "Aucun Risque d'entrée en rouge dans l'horizon."
 RISQUE_SANS_OBJET = "Sans objet : l'Entité est déjà rouge."
 EXPLICATION_PALIER_1 = "commentaire non généré (Palier 1)"
-EXPLICATION_PALIER_2 = "Explication sourcée : Story 7.7"
+EXPLICATION_ABSENTE = "Aucune Explication sourcée pour cette Entité dans ce Passage."
+NARRATION_CONTROLEE = "narration contrôlée"
+CITATIONS = "Citations"
+PHRASES_RETIREES = "Phrases retirées au contrôle"
+STATUT_CONTROLE = "Statut du contrôle"
+
+LIBELLES_STATUT: Mapping[StatutControle, str] = MappingProxyType(
+    {
+        StatutControle.non_controle: "non contrôlée",
+        StatutControle.conforme: "conforme",
+        StatutControle.corrige: "corrigée (phrases fautives retirées)",
+        StatutControle.rejete: "rejetée (texte de remplacement)",
+    }
+)
+"""Libellé français de chaque `StatutControle`."""
+
+STATUTS_ACCEPTES = frozenset({StatutControle.conforme, StatutControle.corrige})
+"""Statuts d'une narration qui peut remplacer la Prévision brute."""
+
+Palier = Literal[1, 2]
+"""Même alias que `ports.consultation.Palier` (que `ui` n'importe pas)."""
 
 
 class LectureDetail(Protocol):
@@ -75,6 +98,18 @@ class LectureDetail(Protocol):
         self, date_arrete: date | None = None, entite: str | None = None
     ) -> tuple[RisqueEntreeRouge, ...]:
         """Risques d'entrée en rouge (FR-21)."""
+        ...
+
+    def explications(
+        self, entite: str | None = None, palier: Palier = 2
+    ) -> tuple[SortieExplication, ...]:
+        """Explications sourcées et Brouillons de commentaire (FR-32, FR-33)."""
+        ...
+
+    def narrations(
+        self, entite: str | None = None, palier: Palier = 2
+    ) -> tuple[SortieNarration, ...]:
+        """Narrations des Prévisions (FR-24)."""
         ...
 
     def url_ticket(self, cle: str) -> str | None:
@@ -190,8 +225,25 @@ def _texte_une_prevision(prevision: Prevision) -> str:
     return "\n".join([*lignes, *_facteurs(prevision)])
 
 
-def texte_prevision(meteo: MeteoEntite, previsions: tuple[Prevision, ...], calculees: bool) -> str:
-    """Bloc Prévision de sortie du rouge de l'Entité (Markdown)."""
+def _texte_narration(narration: SortieNarration) -> str:
+    return (
+        f"{echapper_markdown(narration.texte)}\n\n"
+        f"*{NARRATION_CONTROLEE} ({LIBELLES_STATUT[narration.statut_controle]})*"
+    )
+
+
+def texte_prevision(
+    meteo: MeteoEntite,
+    previsions: tuple[Prevision, ...],
+    calculees: bool,
+    narrations: tuple[SortieNarration, ...] = (),
+) -> str:
+    """Bloc Prévision de sortie du rouge de l'Entité (Markdown).
+
+    Une narration de l'Entité remplace la Prévision brute seulement si son contrôle est
+    `conforme` ou `corrige` ; sinon (rejetée, non contrôlée, absente, Palier 1), la Prévision
+    brute reste affichée.
+    """
     if not calculees:
         return PREVISION_NON_CALCULEE_PASSAGE
     if meteo.couleur is not Couleur.rouge:
@@ -199,6 +251,11 @@ def texte_prevision(meteo: MeteoEntite, previsions: tuple[Prevision, ...], calcu
     propres = [p for p in previsions if p.entite == meteo.entite]
     if not propres:
         return PREVISION_NON_CALCULEE_ENTITE
+    controlees = [
+        n for n in narrations if n.entite == meteo.entite and n.statut_controle in STATUTS_ACCEPTES
+    ]
+    if controlees:
+        return "\n\n".join(_texte_narration(narration) for narration in controlees)
     return "\n\n".join(_texte_une_prevision(prevision) for prevision in propres)
 
 
@@ -242,6 +299,58 @@ def texte_risques(
     return tableau_markdown(lignes)
 
 
-def texte_explication(palier: Literal[1, 2]) -> str:
-    """Zone Explication : en Palier 1, aucun commentaire n'est généré."""
-    return EXPLICATION_PALIER_1 if palier == 1 else EXPLICATION_PALIER_2
+def texte_avec_liens(
+    texte: str, citations: tuple[str, ...], url_ticket: Callable[[str], str | None]
+) -> str:
+    """`texte` en Markdown, chaque clé citée en lien Jira (texte simple en Mode repli).
+
+    Le texte est découpé sur les clés de `citations`, bornées par `(?<![\\w-])` et
+    `(?![\\w-])`, les plus longues d'abord ; les morceaux hors clé sont échappés.
+    """
+    cles = sorted({c for c in citations if c}, key=len, reverse=True)
+    if not cles:
+        return echapper_markdown(texte)
+    motif = re.compile(rf"(?<![\w-])({'|'.join(re.escape(c) for c in cles)})(?![\w-])")
+    morceaux = motif.split(texte)  # hors clé aux rangs pairs, clés aux rangs impairs
+    return "".join(
+        lien_ticket(morceau, url_ticket(morceau)) if rang % 2 else echapper_markdown(morceau)
+        for rang, morceau in enumerate(morceaux)
+    )
+
+
+def _texte_une_explication(
+    explication: SortieExplication, url_ticket: Callable[[str], str | None]
+) -> str:
+    statut = f"{STATUT_CONTROLE} : {LIBELLES_STATUT[explication.statut_controle]}"
+    if explication.statut_controle is StatutControle.rejete:
+        return f"{echapper_markdown(explication.texte)}\n\n*{statut}*"
+    lignes = [texte_avec_liens(explication.texte, explication.citations, url_ticket), ""]
+    if explication.citations:
+        lignes += [f"**{CITATIONS}**", ""]
+        lignes += [f"- {lien_ticket(cle, url_ticket(cle))}" for cle in explication.citations]
+        lignes.append("")
+    lignes += [f"- {PHRASES_RETIREES} : {explication.phrases_retirees}", f"- {statut}"]
+    return "\n".join(lignes)
+
+
+def _sans_lien(_cle: str) -> None:
+    return None
+
+
+def texte_explication(
+    palier: Palier,
+    explications: tuple[SortieExplication, ...] = (),
+    url_ticket: Callable[[str], str | None] = _sans_lien,
+) -> str:
+    """Zone Explication de l'Entité (Markdown).
+
+    En Palier 1, aucun commentaire n'est généré (`EXPLICATION_PALIER_1`). En Palier 2 : le
+    texte avec ses clés citées en liens, la liste des Citations (une clé absente du texte
+    reste visible), le nombre de phrases retirées au contrôle et le statut ; une Explication
+    rejetée affiche son texte de remplacement tel quel, avec son statut.
+    """
+    if palier == 1:
+        return EXPLICATION_PALIER_1
+    if not explications:
+        return EXPLICATION_ABSENTE
+    return "\n\n".join(_texte_une_explication(e, url_ticket) for e in explications)

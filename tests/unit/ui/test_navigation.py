@@ -3,6 +3,9 @@
 from usine.ui.navigation import (
     CLE_ECRAN,
     CLE_ENTITE,
+    CLE_PALIER,
+    CLE_REPLI,
+    CLE_TICKET_APERCU,
     ECRAN_PAR_DEFAUT,
     STORY_A_VENIR,
     Ecran,
@@ -17,6 +20,7 @@ def test_ordre_et_defaut() -> None:
         "Détail d'une Entité",
         "Lancement de la Chaîne",
         "Avant / après",
+        "Pseudonymisation",
         "Agent",
         "Ce qu'il faut pour le faire en vrai",
     ]
@@ -31,6 +35,12 @@ def test_stories_a_venir() -> None:
     assert Ecran.detail not in STORY_A_VENIR  # écran livré par la Story 7.2
     assert Ecran.avant_apres not in STORY_A_VENIR  # écran livré par la Story 7.4
     assert Ecran.outillage not in STORY_A_VENIR  # écran livré par la Story 7.5
+    assert Ecran.pseudonymisation not in STORY_A_VENIR  # écran livré par la Story 7.7
+
+
+def test_cles_distinctes() -> None:
+    cles = [CLE_ECRAN, CLE_ENTITE, CLE_REPLI, CLE_PALIER, CLE_TICKET_APERCU]
+    assert len(set(cles)) == len(cles)
 
 
 def test_ouvrir_detail() -> None:

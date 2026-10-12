@@ -2,13 +2,14 @@
 
 Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
 Mode repli, la `Consultation` du dernier Passage publié ou du Passage enregistré du Mode repli
-(`demo/repli/passage/`), la configuration de la démo (`config/demo.yaml`) et les manifestes
-mesurés par l'avant / après. La page n'importe ni `ports`, ni `config`, ni `adaptateurs` :
-elle passe par ces services.
+(`demo/repli/passage/`), la configuration de la démo (`config/demo.yaml`), les manifestes
+mesurés par l'avant / après et l'aperçu de la Pseudonymisation (vue côte à côte). La page
+n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
@@ -110,6 +111,14 @@ def manifestes_avant_apres(
         lecteur.dernier_passage(sans_classification_initiale=True),
         lecteur.dernier_passage(),
     )
+
+
+def apercu_pseudonymisation(racine: Path) -> Callable[[str], str]:
+    """`Pseudonymiseur.apercu` construit par la composition (AD-15) : local, sans écriture.
+
+    `USINE_CLE_PSEUDO` absente ou invalide lève une `UsineErreur` qui nomme la variable.
+    """
+    return composition.apercu_pseudonymisation(racine)
 
 
 def commande_streamlit() -> list[str]:
