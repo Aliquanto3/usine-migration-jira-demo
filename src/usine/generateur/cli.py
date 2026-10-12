@@ -14,6 +14,7 @@ from usine.contrats.passage import CHEMIN_JOURNAL
 from usine.generateur.corpus import CHEMIN_CORPUS, charger_corpus
 from usine.generateur.journal import NOM_IDENTIFIANTS, ecrire_journal
 from usine.generateur.journal import generer as generer_journal
+from usine.generateur.scenarios import AUCUN_SCENARIO
 
 app = typer.Typer(
     help="Génération du Programme fictif et injection dans Jira.", no_args_is_help=True
@@ -61,12 +62,22 @@ def generer(
     corpus: Annotated[
         Path, typer.Option(help="Corpus de textes versionné (titres et descriptions).")
     ] = CHEMIN_CORPUS,
+    sans_scenarios: Annotated[
+        bool,
+        typer.Option(
+            "--sans-scenarios",
+            help="Désactive les Scénarios de démo A, B et C : toutes les Entités suivent le"
+            " profil normal.",
+        ),
+    ] = False,
 ) -> None:
     """Génère le Journal d'événements du Programme fictif, sa vérité terrain et la liste des
     identifiants sensibles fictifs injectés (`identifiants_injectes.json`, à côté du Journal).
 
     Les clés de tickets sont `<cle_projet>-<n>`, avec la clé de projet de `--config-jira`.
-    Les textes viennent du Corpus `--corpus`, déjà écrit : aucun appel LLM.
+    Les textes viennent du Corpus `--corpus`, déjà écrit : aucun appel LLM. Les Scénarios de
+    démo par défaut sont appliqués s'ils tiennent dans l'historique (`--sans-scenarios` : aucun) ;
+    la sortie liste les Scénarios appliqués.
     """
     jour = jour_local(datetime.now(UTC)) if date_generation is None else _date(date_generation)
     programme = charger_yaml(config, ConfigProgramme)
@@ -78,6 +89,7 @@ def generer(
         jour,
         cle_projet=jira.cle_projet,
         corpus=textes,
+        scenarios=AUCUN_SCENARIO if sans_scenarios else None,
     )
     journal = ecrire_journal(generation, sortie)
     typer.echo(
@@ -89,3 +101,4 @@ def generer(
         f"Identifiants injectés : {journal.parent / NOM_IDENTIFIANTS}"
         f" ({len(generation.identifiants)} identifiants fictifs)"
     )
+    typer.echo(f"Scénarios appliqués : {generation.scenarios.resume()}")

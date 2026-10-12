@@ -1,4 +1,4 @@
-"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 à 1.5, FR-2 à FR-4).
+"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 à 1.5 et 1.8, FR-2 à FR-4).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
 `(config, graine, date_generation, cle_projet, corpus, scenarios)` (la clé de projet ne fixe
@@ -11,8 +11,8 @@ sur disque : le Journal, la vérité terrain et la liste des identifiants inject
 import json
 import random
 import re
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from types import MappingProxyType
@@ -49,9 +49,11 @@ from usine.contrats.tickets import (
 from usine.generateur.corpus import Corpus, TexteTicket
 from usine.generateur.identifiants import IdentifiantInjecte, TypeIdentifiant, phrase_identifiants
 from usine.generateur.scenarios import (
+    AUCUN_SCENARIO,
     SCENARIOS_PAR_DEFAUT,
     ScenarioMenace,
     Scenarios,
+    scenarios_applicables,
 )
 from usine.generateur.textes import corpus_provisoire
 
@@ -69,6 +71,10 @@ HEURE_DEBUT = 8
 
 HEURE_FIN = 18
 """Fin de journée ouvrée (exclue) : les horodatages tombent entre 8 h et 17 h 59."""
+
+HEURE_MIDI = 13
+"""Début de l'après-midi : les Cas de test du Scénario C sont créés le matin (8 h à 12 h 59)
+et exécutés l'après-midi (13 h à 17 h 59) du même Jour ouvré."""
 
 TRANSITIONS_MAX = 12
 """Garde : nombre maximal de transitions de statut par Anomalie (boucles de retest et
@@ -178,6 +184,9 @@ class Generation:
     """Cause racine de chaque Anomalie, par clé de ticket ; jamais dans le Journal."""
     identifiants: tuple[IdentifiantInjecte, ...] = ()
     """Identifiants sensibles fictifs insérés dans les descriptions, triés par numéro de clé."""
+    scenarios: Scenarios = AUCUN_SCENARIO
+    """Scénarios de démo appliqués : ceux dont l'Entité est dans la configuration et dont les
+    semaines tiennent dans l'historique."""
 
 
 @dataclass(frozen=True)
@@ -270,33 +279,36 @@ def _profil(code: str, semaine: int, scenarios: Scenarios) -> _Profil:
 
 
 def _verifier_semaines_scenarios(
-    scenarios: Scenarios, entites: tuple[EntiteProgramme, ...], derniere: int
+    scenarios: Scenarios, codes: Collection[str], derniere: int
 ) -> None:
     """Refuse une semaine de Scénario au-delà de la dernière semaine générée `derniere`,
-    pour un Scénario dont l'Entité est dans la configuration (sinon il est ignoré)."""
-    codes = {entite.code for entite in entites}
-    semaines: list[tuple[str, str, int]] = []
-    if scenarios.sortie is not None and scenarios.sortie.entite in codes:
-        semaines += [
-            ("A", "semaine_vague", scenarios.sortie.semaine_vague),
-            ("A", "semaine_certification", scenarios.sortie.semaine_certification),
-        ]
-    if scenarios.enlisement is not None and scenarios.enlisement.entite in codes:
-        semaines += [
-            ("B", "semaine_debut", scenarios.enlisement.semaine_debut),
-            ("B", "semaine_certification", scenarios.enlisement.semaine_certification),
-        ]
-    if scenarios.menace is not None and scenarios.menace.entite in codes:
-        semaines += [
-            ("C", "semaine_hausse", scenarios.menace.semaine_hausse),
-            ("C", "semaine_certification", scenarios.menace.semaine_certification),
-        ]
-    for scenario, nom, semaine in semaines:
-        if semaine > derniere:
-            raise UsineErreur(
-                f"Scénario {scenario} : {nom} = {semaine} au-delà de la dernière semaine"
-                f" générée ({derniere})"
-            )
+    pour un Scénario dont l'Entité est parmi `codes` (sinon il est ignoré)."""
+    for scenario in scenarios.actifs():
+        if scenario.entite not in codes:
+            continue
+        for nom, semaine in scenario.semaines():
+            if semaine > derniere:
+                raise UsineErreur(
+                    f"Scénario {scenario.LETTRE} : {nom} = {semaine} au-delà de la dernière"
+                    f" semaine générée ({derniere})"
+                )
+
+
+def _bascules(
+    entites: tuple[EntiteProgramme, ...], semaine: int, scenarios: Scenarios
+) -> list[tuple[EntiteProgramme, int]]:
+    """Bloquantes de bascule de la semaine `semaine`, par Entité (A, puis B).
+
+    A : `bloquantes_bascule` en semaine de vague ; B : en semaine de début de l'enlisement.
+    """
+    nombres: dict[str, int] = {}
+    sortie, enlisement = scenarios.sortie, scenarios.enlisement
+    if sortie is not None and semaine == sortie.semaine_vague:
+        nombres[sortie.entite] = sortie.bloquantes_bascule
+    if enlisement is not None and semaine == enlisement.semaine_debut:
+        nombres[enlisement.entite] = enlisement.bloquantes_bascule
+    par_code = {entite.code: entite for entite in entites}
+    return [(par_code[code], n) for code, n in nombres.items() if code in par_code and n > 0]
 
 
 def _poids_entites(
@@ -326,9 +338,12 @@ def _poids_entites(
     return poids
 
 
-def _horodatage(jour: date, rng: random.Random) -> datetime:
-    """Instant tiré en heures ouvrées de Paris le jour `jour`, rendu en UTC."""
-    heure = rng.randrange(HEURE_DEBUT, HEURE_FIN)
+def _horodatage(
+    jour: date, rng: random.Random, heures: tuple[int, int] = (HEURE_DEBUT, HEURE_FIN)
+) -> datetime:
+    """Instant tiré le jour `jour`, heure de Paris dans `[heures[0], heures[1])` (défaut :
+    heures ouvrées), rendu en UTC."""
+    heure = rng.randrange(*heures)
     minute = rng.randrange(60)
     return datetime.combine(jour, time(heure, minute), tzinfo=FUSEAU).astimezone(UTC)
 
@@ -511,9 +526,11 @@ def _nouveau_cas_de_test(
     corpus: Corpus,
     calendrier: _Calendrier,
     rng: random.Random,
+    heures: tuple[int, int] = (HEURE_DEBUT, HEURE_FIN),
 ) -> _Ticket:
-    """Cas de test non exécuté créé le jour `jour`, Phase du calendrier ce jour-là."""
-    creation = _horodatage(jour, rng)
+    """Cas de test non exécuté créé le jour `jour` (heure tirée dans `heures`), Phase du
+    calendrier ce jour-là."""
+    creation = _horodatage(jour, rng, heures)
     phase = calendrier.phase(entite, jour)
     domaine = rng.choice(domaines)
     case = corpus.textes_domaine(domaine).cas_de_test
@@ -533,11 +550,18 @@ def _nouveau_cas_de_test(
     )
 
 
-def _executer(ticket: _Ticket, jour: date, resultat: StatutTest, rng: random.Random) -> None:
-    """Exécution du Cas de test le jour `jour` : passage de non exécuté à `resultat`."""
+def _executer(
+    ticket: _Ticket,
+    jour: date,
+    resultat: StatutTest,
+    rng: random.Random,
+    heures: tuple[int, int] = (HEURE_DEBUT, HEURE_FIN),
+) -> None:
+    """Exécution du Cas de test le jour `jour` (heure tirée dans `heures`) : passage de non
+    exécuté à `resultat`."""
     ticket.changements.append(
         _Changement(
-            _horodatage(jour, rng),
+            _horodatage(jour, rng, heures),
             NatureEvenement.modification_champ,
             Champ.statut_test,
             StatutTest.non_execute.value,
@@ -564,6 +588,16 @@ def _cas_de_test(
     return ticket
 
 
+def _cas_du_jour(par_semaine: int, rang: int) -> int:
+    """Cas de test du Scénario C du `rang`-ième Jour ouvré d'une semaine (0 : lundi).
+
+    `par_semaine` réparti sur `JOURS_OUVRES_SEMAINE` jours, le reste aux premiers : une semaine
+    pleine en compte exactement `par_semaine`, une semaine partielle ceux de ses jours.
+    """
+    base, reste = divmod(par_semaine, JOURS_OUVRES_SEMAINE)
+    return base + (1 if rang < reste else 0)
+
+
 def _cas_de_test_menace(
     entite: EntiteProgramme,
     scenario: ScenarioMenace,
@@ -573,29 +607,33 @@ def _cas_de_test_menace(
     calendrier: _Calendrier,
     rng: random.Random,
 ) -> list[_Ticket]:
-    """Cas de test du Scénario C, semaine par semaine.
+    """Cas de test du Scénario C, Jour ouvré par Jour ouvré.
 
-    Chaque semaine d'au moins deux Jours ouvrés : `cas_de_test_par_semaine` Cas de test créés
-    un jour tiré hors du dernier Jour ouvré de la semaine, exécutés un jour ultérieur de la
-    même semaine. Leur Phase est celle du jour de création ; elle est aussi celle du jour
-    d'exécution parce que le calendrier des Phases est exprimé en semaines (les bornes de
-    Phase tombent sur des bornes de semaine) ; `nombre_ko` d'entre eux,
-    tirés par `rng.sample`, sont KO, les autres OK. Une semaine d'un seul Jour ouvré n'en a
-    aucun.
+    Chaque Jour ouvré reçoit sa part de `cas_de_test_par_semaine` (`_cas_du_jour`) : chaque
+    Cas de test est créé le matin et exécuté l'après-midi du même jour, Phase du calendrier
+    ce jour-là. Les exécutés et les KO sont cumulés par Phase ; les KO du jour portent le
+    cumul de la Phase à `ko_cumules(semaine, exécutés de la Phase)` (jamais moins que les KO
+    déjà comptés, au plus les Cas de test du jour), tirés par `rng.sample` ; les autres sont
+    OK. IND-4, cumulé par Phase en fin de journée, suit ainsi le taux visé au jour près.
     """
     tickets: list[_Ticket] = []
+    cumuls: dict[Phase, tuple[int, int]] = {}  # exécutés et KO cumulés, par Phase
     for semaine, jours in sorted(jours_par_semaine.items()):
-        if len(jours) < 2:
-            continue
-        nombre = scenario.cas_de_test_par_semaine
-        ko = set(rng.sample(range(nombre), scenario.nombre_ko(semaine, nombre)))
-        for rang in range(nombre):
-            jour = rng.choice(jours[:-1])
-            ticket = _nouveau_cas_de_test(entite, jour, domaines, corpus, calendrier, rng)
-            jour_execution = rng.choice([j for j in jours if j > jour])
-            resultat = StatutTest.ko if rang in ko else StatutTest.ok
-            _executer(ticket, jour_execution, resultat, rng)
-            tickets.append(ticket)
+        for rang_jour, jour in enumerate(jours):
+            nombre = _cas_du_jour(scenario.cas_de_test_par_semaine, rang_jour)
+            phase = calendrier.phase(entite, jour)
+            executes, ko_comptes = cumuls.get(phase, (0, 0))
+            executes += nombre
+            ko_du_jour = min(nombre, max(0, scenario.ko_cumules(semaine, executes) - ko_comptes))
+            cumuls[phase] = (executes, ko_comptes + ko_du_jour)
+            ko = set(rng.sample(range(nombre), ko_du_jour))
+            for rang in range(nombre):
+                ticket = _nouveau_cas_de_test(
+                    entite, jour, domaines, corpus, calendrier, rng, (HEURE_DEBUT, HEURE_MIDI)
+                )
+                resultat = StatutTest.ko if rang in ko else StatutTest.ok
+                _executer(ticket, jour, resultat, rng, (HEURE_MIDI, HEURE_FIN))
+                tickets.append(ticket)
     return tickets
 
 
@@ -781,7 +819,7 @@ def generer(
     *,
     cle_projet: str = CLE_PROJET_ESSAI,
     corpus: Corpus | None = None,
-    scenarios: Scenarios = SCENARIOS_PAR_DEFAUT,
+    scenarios: Scenarios | None = None,
 ) -> Generation:
     """Génère le Journal du Programme fictif pour `graine` et `date_generation`.
 
@@ -794,16 +832,23 @@ def generer(
     sensibles fictifs (`_injecter_identifiants`) : ce tirage ne change que les descriptions
     des Anomalies choisies, le reste du Journal d'une graine est inchangé.
 
-    Scénarios de démo (`scenarios`, défaut `SCENARIOS_PAR_DEFAUT`, Story 1.5) : l'Entité de
-    chaque création est tirée par poids (`_poids_entites` : B renforcé dès sa semaine de
-    début, A renforcé pendant sa vague puis réduit pendant sa décrue), sans changer le
-    nombre de créations de la semaine ; la gravité, la Cause racine des bloquantes et les
-    délais suivent le profil de l'Entité cette semaine-là (`_profil` ; Entité sans Scénario :
-    `PROFIL_NORMAL` ; Entité scénarisée hors de ses semaines : `PROFIL_CALME`). L'Entité de
-    C reçoit les Cas de test du Scénario (`_cas_de_test_menace`) au lieu des Cas de test
-    normaux ; la Certification de A, B et C
-    a le statut du Scénario et est créée dans sa semaine ; celle d'une autre Entité est
-    accordée ou réservée. Un Scénario dont l'Entité est absente de `config` est sans effet.
+    Scénarios de démo (Stories 1.5 et 1.8) : `scenarios` omis (`None`), `SCENARIOS_PAR_DEFAUT`
+    réduits à ceux qui tiennent dans l'historique (`scenarios_applicables` : un programme
+    court génère sans erreur) ; des Scénarios explicites sont contrôlés strictement (une
+    semaine au-delà de la dernière semaine générée est refusée), `AUCUN_SCENARIO` les
+    désactive. Un Scénario dont l'Entité est absente de `config` est sans effet ;
+    `Generation.scenarios` porte les Scénarios appliqués. La semaine de bascule de A (vague)
+    et de B (début de l'enlisement), les `bloquantes_bascule` premières créations de la
+    semaine sont des bloquantes lentes de l'Entité, créées le premier Jour ouvré (bascule au
+    rouge ce jour-là) ; les autres créations ont leur Entité tirée par poids
+    (`_poids_entites` : B renforcé dès sa semaine de début, A renforcé pendant sa vague puis
+    réduit pendant sa décrue), sans changer le nombre de créations de la semaine ; la
+    gravité, la Cause racine des bloquantes et les délais suivent le profil de l'Entité
+    cette semaine-là (`_profil` ; Entité sans Scénario : `PROFIL_NORMAL` ; Entité scénarisée
+    hors de ses semaines : `PROFIL_CALME`). L'Entité de C reçoit les Cas de test du Scénario
+    (`_cas_de_test_menace`, KO décidés jour par jour) au lieu des Cas de test normaux ; la
+    Certification de A, B et C a le statut du Scénario et est créée le premier Jour ouvré de
+    sa semaine ; celle d'une autre Entité est accordée ou réservée, un jour tiré.
 
     Cycle de vie : marche le long du workflow H-17 (`_statut_suivant`), un séjour tiré en
     Jours ouvrés (délais du profil, par gravité) dans chaque statut, arrêtée au-delà de la Date
@@ -831,7 +876,13 @@ def generer(
     jours_par_semaine: dict[int, list[date]] = {}
     for jour in jours:
         jours_par_semaine.setdefault(semaine_programme(jour, ancrage), []).append(jour)
-    _verifier_semaines_scenarios(scenarios, config.entites, max(jours_par_semaine))
+    codes = {entite.code for entite in config.entites}
+    derniere_semaine = max(jours_par_semaine)
+    if scenarios is None:
+        scenarios = SCENARIOS_PAR_DEFAUT
+    else:
+        _verifier_semaines_scenarios(scenarios, codes, derniere_semaine)
+    scenarios = scenarios_applicables(scenarios, codes, derniere_semaine)
     bornes_entrees = _bornes_entrees(
         config.volumetrie, {s: len(j) for s, j in sorted(jours_par_semaine.items())}
     )
@@ -856,8 +907,18 @@ def generer(
     tickets: list[_Ticket] = []
     for semaine, nombre in zip(semaines, repartition, strict=True):
         jours_semaine = jours_par_semaine[semaine]
+        restantes = nombre
+        for entite, bascule in _bascules(config.entites, semaine, scenarios):
+            profil = replace(_profil(entite.code, semaine, scenarios), poids_gravite=(1, 0, 0))
+            for _ in range(min(bascule, restantes)):
+                tickets.append(
+                    _anomalie(
+                        entite, jours_semaine[0], config.domaines, corpus, calendrier, profil, rng
+                    )
+                )
+            restantes -= min(bascule, restantes)
         poids = _poids_entites(config.entites, semaine, scenarios)
-        for _ in range(nombre):
+        for _ in range(restantes):
             jour = rng.choice(jours_semaine)
             entite = rng.choices(config.entites, weights=poids)[0]
             profil = _profil(entite.code, semaine, scenarios)
@@ -888,9 +949,13 @@ def generer(
                 _cas_de_test(entite, config.domaines, corpus, calendrier, rng)
                 for _ in range(nb_tests)
             )
-        statut, semaine_certification = certifications.get(entite.code, (None, 0))
-        jours_certification = jours_par_semaine.get(semaine_certification, calendrier.jours)
-        tickets.append(_certification(entite, corpus, jours_certification, rng, statut))
+        if entite.code in certifications:
+            statut, semaine_certification = certifications[entite.code]
+            # Applicable : sa semaine tient dans l'historique ; créée son premier Jour ouvré.
+            premier_jour = jours_par_semaine[semaine_certification][:1]
+            tickets.append(_certification(entite, corpus, premier_jour, rng, statut))
+        else:
+            tickets.append(_certification(entite, corpus, calendrier.jours, rng))
     _injecter_identifiants(tickets, rng)
 
     ordre = sorted(range(len(tickets)), key=lambda i: (tickets[i].creation, i))
@@ -922,7 +987,7 @@ def generer(
         version_corpus=corpus.version_corpus,
         modele_corpus=corpus.modele_corpus,
     )
-    return Generation(entete, evenements, MappingProxyType(verite), tuple(identifiants))
+    return Generation(entete, evenements, MappingProxyType(verite), tuple(identifiants), scenarios)
 
 
 def serialiser_journal(generation: Generation) -> bytes:
