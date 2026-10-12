@@ -17,6 +17,7 @@ sources:
 companions: [.memlog.md, reviews/]
 amendments:
   - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12.md (rétrospective de l''Epic 0, décisions D1 à D10 de la Story 0.9)'
+  - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12-contrats-1-2.md (contrats 1.2 : Scénarios à flux scripté, exclusions des rendus)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo
@@ -150,9 +151,11 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
       - `manifeste` : `passage_id`, `horodatage_debut`, `horodatage_fin`, `horodatage_extraction`, `version_donnees`, `etapes[].horodatage_debut`, `etapes[].horodatage_fin`, `classification_initiale`, `cout_llm_eur` ;
       - `meteo`, `previsions`, `classification`, `explications`, `narrations` (enveloppes) : `passage_id` ;
       - `trace_llm` : `horodatage`, `passage_id`, `version_donnees`, `depuis_cache`, `jetons_entree`, `jetons_sortie`, `cout_estime_eur` ;
-      - `trace_previsions` : `horodatage`, `passage_id`, `version_donnees`.
+      - `trace_previsions` : `horodatage`, `passage_id`, `version_donnees` ;
+      - `rapport_xlsx` : `Traçabilité!B5`, `Traçabilité!B8` (adresse de cellule) ;
+      - `rapport_pptx` : `Annexe méthode!Horodatage d'extraction`, `Annexe méthode!Version des données` (libellé de ligne).
     - **Pourquoi.** En Palier 2, un Rejeu à versions identiques sert ses réponses depuis le cache (AD-12) : `depuis_cache`, les jetons, les coûts et `classification_initiale` changent alors que les sorties restent identiques. Les tables Parquet ne portent aucun champ variable et n'ont aucune exclusion.
-    - **Rendus.** Les cellules et textes de slides qui affichent un champ exclu (onglet Traçabilité, FR-26) sont déclarés sous les clés `rapport_xlsx` et `rapport_pptx`, au format `<onglet ou slide>!<repère>`, par une PR courte sur `main` pendant L5. Ajouter une entrée est une modification mineure ; changer la forme serait majeure.
+    - **Rendus.** Les cellules et textes de slides qui affichent un champ exclu (onglet Traçabilité, FR-26) sont déclarés sous les clés `rapport_xlsx` et `rapport_pptx`, au format `<onglet ou slide>!<repère>`, déclarés en contrats 1.2. Le repère est une adresse de cellule pour l'Excel, un libellé de ligne pour le PowerPoint. Ajouter une entrée est une modification mineure ; changer la forme serait majeure.
 
 ### AD-8 : Étapes figées, progression hors Passage
 

@@ -1167,15 +1167,21 @@ So that l'étape Prévision de la démo est garantie.
 
 **Exigences :** FR-20, FR-21 · **AD :** AD-18 · **Prérequis externe :** Story 1.8
 
+**Prérequis :** contrats 1.2 (flux scripté des Scénarios A et B, Certification de B réservée, C à 50 Cas de test : partie générateur livrée par la PR de contrats). La story ne garde que la recette.
+
 **Acceptance Criteria:**
 
 **Given** le Journal généré et la Grille par défaut
-**When** le test calcule les Prévisions au dernier Jour ouvré de l'historique
+**When** le test calcule les Prévisions au dernier Jour ouvré de l'historique par le chemin de la Chaîne (`prevision_du_passage`, étape `prevision`)
 **Then** A a une date de sortie dans l'horizon, B porte « pas de sortie projetée » et C porte un Risque d'entrée en rouge (SM-6)
 
 **Given** un écart
 **When** l'auteur le corrige
 **Then** il le corrige dans le générateur (Epic 1), jamais par un réglage de la Baseline sur les Scénarios (SM-C3)
+
+**Given** une Entité non rouge qui porte un Risque d'entrée en rouge
+**When** l'étape `prevision` publie `previsions.json`
+**Then** la valeur projetée du Risque (`valeur_projetee_*`) est remplie depuis `risque.py`
 
 ### Story 4.6 : [BONUS] Modèle ML validé sur données réelles
 
@@ -1339,11 +1345,15 @@ So that le rapport du matin est fiable et auditable.
 **Given** deux Passages de la même Date d'arrêté sur les mêmes données
 **When** le test de Rejeu compare tables, JSON, valeurs de cellules et textes de slides
 **Then** tout est identique hors des exclusions qualifiées par fichier d'AD-7 (`contrats.passage.EXCLUSIONS_REJEU`), chaque champ exclu restant comparé dans les autres fichiers
-**And** les cellules de l'onglet Traçabilité qui affichent un champ exclu sont déclarées sous `rapport_xlsx` et `rapport_pptx` par une PR courte sur `main`
+**And** les cellules de Traçabilité qui affichent un champ exclu, déclarées en contrats 1.2 sous `rapport_xlsx` (`Traçabilité!B5`, `!B8`) et `rapport_pptx` (`Annexe méthode!<libellé>`), sont ignorées, et elles seules
 
 **Given** l'échec d'une étape quelconque
 **When** la commande se termine
 **Then** le code de sortie est non nul, le message nomme l'étape et aucun fichier de Rapport n'est publié
+
+**Given** une console Windows
+**When** `usine rapport` journalise sa progression
+**Then** les messages s'affichent en UTF-8 sans erreur d'encodage
 
 ### Story 5.6 : Recette du Rapport sur données complètes
 
@@ -1351,7 +1361,7 @@ As a auteur,
 I want produire le Rapport quotidien sur le Journal complet et sur la Source composite,
 So that les formats tiennent à la volumétrie réelle et avec les Scénarios de démo.
 
-**Exigences :** FR-25, FR-26, FR-27 · **AD :** AD-4, AD-7 · **Prérequis externes :** Stories 1.8, 2.6, 4.5
+**Exigences :** FR-25, FR-26, FR-27 · **AD :** AD-4, AD-7 · **Prérequis externes :** Stories 1.8, 2.6, 4.5, 5.5 ; réinjection de `DEMO` depuis le Journal recalé (contrats 1.2)
 
 **Acceptance Criteria:**
 
@@ -1362,6 +1372,10 @@ So that les formats tiennent à la volumétrie réelle et avec les Scénarios de
 **Given** la Source composite sur le projet `DEMO`
 **When** l'auteur lance `usine rapport`
 **Then** le Passage est publié et les liens des tickets ouvrent les tickets de `DEMO`
+
+**Given** le Passage recalé de la volumétrie cible
+**When** l'auteur régénère `demo/repli/passage/`
+**Then** le Mode repli montre A et B rouges et C orange, comme en direct (AD-24)
 
 ### Story 5.7 : Porte Palier 1 (M3)
 
