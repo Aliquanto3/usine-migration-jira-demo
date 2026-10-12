@@ -21,6 +21,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 | 8.1 (revue de suivi) | L8 (`lane-8-portage`) | done | `f337372` | 27 constats, 4 correctifs : entrepôt DuckDB dans le portage Dataiku, accès GitHub au modèle spaCy pour la VM, pseudonymisation rattachée à AD-1, garde de `_section` ; fiche à 696 mots, travail convergé. |
 | 2.1 (revue de suivi) | L2 (`lane-2-extraction`) | done | `2f4fc06` | 31 constats, 5 correctifs : garde AST + grimp du client d'écriture (imports relatifs, `._transport`, accès dynamiques) à la place de la seule recherche textuelle, `httpx.InvalidURL` en `UsineErreur`, exposant de reprise borné ; sondes hôte toutes sur le site ; travail convergé. |
 | 3.2 | L3 (`lane-3-calcul`) | done | `b29755a` | `domaine/kpi.py` : douze KPI quotidiens denses (stocks, Entrées/Sorties du jour et sur la Fenêtre glissante, âges médian et maximum, taux de KO et de non-exécution, Certifications) par Entité et Programme, en entiers `numerateur`/`denominateur`, depuis l'état des tickets. |
+| 3.3 | L3 (`lane-3-calcul`) | done | `34504bf` | `domaine/kpi.py` : `tendances(kpi, date_arrete, ancrage)` rend les 8 dernières semaines du Programme (`semaine_programme`), chaque semaine portant les KPI de son dernier Jour ouvré (semaine en cours datée de la Date d'arrêté) et les cumuls `entrees_semaine`/`sorties_semaine`. |
 
 ## File humaine
 
