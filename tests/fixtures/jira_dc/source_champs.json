@@ -1,0 +1,152 @@
+[
+  {
+    "id": "status",
+    "name": "Statut",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "status"
+    ]
+  },
+  {
+    "id": "summary",
+    "name": "Résumé",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "summary"
+    ]
+  },
+  {
+    "id": "description",
+    "name": "Description",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "description"
+    ]
+  },
+  {
+    "id": "issuetype",
+    "name": "Type de demande",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "issuetype",
+      "type"
+    ]
+  },
+  {
+    "id": "created",
+    "name": "Création",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "created",
+      "createdDate"
+    ]
+  },
+  {
+    "id": "assignee",
+    "name": "Responsable",
+    "custom": false,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "assignee"
+    ]
+  },
+  {
+    "id": "customfield_10001",
+    "name": "Entité",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10001]",
+      "Entité"
+    ]
+  },
+  {
+    "id": "customfield_10002",
+    "name": "Vague",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10002]",
+      "Vague"
+    ]
+  },
+  {
+    "id": "customfield_10003",
+    "name": "Domaine",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10003]",
+      "Domaine"
+    ]
+  },
+  {
+    "id": "customfield_10004",
+    "name": "Gravité",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10004]",
+      "Gravité"
+    ]
+  },
+  {
+    "id": "customfield_10005",
+    "name": "Phase",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10005]",
+      "Phase"
+    ]
+  },
+  {
+    "id": "customfield_10006",
+    "name": "Statut du test",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10006]",
+      "Statut du test"
+    ]
+  },
+  {
+    "id": "customfield_10007",
+    "name": "Statut de certification",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10007]",
+      "Statut de certification"
+    ]
+  },
+  {
+    "id": "customfield_10050",
+    "name": "Équipe",
+    "custom": true,
+    "navigable": true,
+    "searchable": true,
+    "clauseNames": [
+      "cf[10050]",
+      "Équipe"
+    ]
+  }
+]

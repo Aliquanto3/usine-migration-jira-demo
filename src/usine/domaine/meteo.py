@@ -4,6 +4,10 @@ Fonctions pures : Date d'arrêté, Entités, Grille, `version_grille`, Programme
 semaines arrivent en paramètre. Un indicateur que la donnée ou un garde-fou de volume ne permet
 pas d'évaluer est `non_evaluable`, de valeur `0/0`, avec un motif : il ne change pas la Météo.
 `verifier_grille` contrôle la cohérence des seuils entre couleurs (FR-18).
+
+L'évolution de la Météo à J-1 et J-5 (FR-19) n'est pas calculée ici : elle se lit par
+`Consultation.evolution_meteo` sur la Météo de chaque Jour ouvré publiée (D8, dérivation de
+lecture).
 """
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -529,11 +533,24 @@ def meteo(
     programme: ConfigProgramme,
     ancrage: date,
 ) -> tuple[MeteoEntite, ...]:
-    """Météo de chaque Entité (ordre de `entites`) : la couleur la plus grave l'emporte.
+    """Météo de chaque Entité (ordre de `entites`) : la couleur la plus grave l'emporte (FR-16).
 
-    La `MeteoEntite` porte toutes les Règles déclenchantes de la couleur retenue, dans l'ordre
-    de `CodeIndicateur` ; elle est verte, sans règle, si aucun seuil actif n'est franchi. Un
-    indicateur non évaluable ne déclenche jamais. Précondition : celle d'`indicateurs`.
+    La couleur retenue est la pire des couleurs franchies par les indicateurs actifs évalués ;
+    un indicateur non évaluable ne déclenche jamais. La `MeteoEntite` porte toutes les Règles
+    déclenchantes de cette couleur, dans l'ordre de `CodeIndicateur`, chacune avec sa valeur
+    (`numerateur`/`denominateur` ; `n/0` avec `n > 0` vaut l'infini, cas d'IND-7 sans
+    Sortie), l'opérateur et le seuil franchis, et `version_grille` ; elle est verte, sans
+    règle, si aucun seuil actif n'est franchi.
+
+    Tickets en cause (FR-17), triés par `rang_cle` : IND-1, IND-2, IND-3 → Anomalies ouvertes
+    concernées (IND-2 : la ou les plus anciennes) ; IND-4, IND-8 → Cas de test KO de la Phase
+    en cours à la Date d'arrêté ; IND-5, IND-6 → Certifications de la Vague en cours ; IND-7 →
+    Anomalies bloquantes ou majeures entrées ou sorties sur la Fenêtre glissante.
+
+    Sans état d'un jour à l'autre (pas d'hystérésis) : la Météo d'une date ne dépend d'aucune
+    Météo antérieure, seulement des entrées de l'appel (état des tickets, Grille, Programme,
+    ancrage).
+    Précondition : celle d'`indicateurs`.
     """
     actifs, mesures = _mesures(tickets_etats, date_arrete, entites, grille, programme, ancrage)
     resultat: list[MeteoEntite] = []

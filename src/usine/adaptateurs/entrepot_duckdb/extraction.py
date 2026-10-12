@@ -49,7 +49,11 @@ def extraire(
 
 
 class EtapeExtraction:
-    """Étape `extraction` : ouvre l'entrepôt `chemin` et y verse la source."""
+    """Étape `extraction` : ouvre l'entrepôt `chemin` et y verse la source.
+
+    `fermer` (ex. fermeture du client Jira de la source) est appelé après l'étape, qu'elle
+    réussisse ou échoue.
+    """
 
     def __init__(
         self,
@@ -57,13 +61,39 @@ class EtapeExtraction:
         chemin: Path,
         marge: timedelta,
         horloge: Callable[[], datetime] = _maintenant,
+        fermer: Callable[[], None] | None = None,
     ) -> None:
         self._source = source
         self._chemin = chemin
         self._marge = marge
         self._horloge = horloge
+        self._fermer = fermer
+
+    @property
+    def source(self) -> SourceTickets:
+        """Source des événements extraits."""
+        return self._source
+
+    @property
+    def chemin(self) -> Path:
+        """Chemin de l'entrepôt DuckDB."""
+        return self._chemin
+
+    @property
+    def marge(self) -> timedelta:
+        """Marge de recouvrement retranchée au repère."""
+        return self._marge
+
+    def fermer(self) -> None:
+        """Appelle `fermer` du constructeur une seule fois (après l'étape ou en fin de Passage)."""
+        fermer, self._fermer = self._fermer, None
+        if fermer is not None:
+            fermer()
 
     def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
         """Extrait dans l'entrepôt ; une erreur laisse événements et repère inchangés."""
-        extraire(self._source, EntrepotDuckDB(self._chemin), self._marge, self._horloge)
+        try:
+            extraire(self._source, EntrepotDuckDB(self._chemin), self._marge, self._horloge)
+        finally:
+            self.fermer()
         return ResultatEtape(StatutEtape.reussie)

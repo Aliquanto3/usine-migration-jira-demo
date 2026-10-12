@@ -257,6 +257,39 @@ def test_reponse_sans_contenu() -> None:
     assert _transport(serveur).requete("PUT", "/rest/api/3/issue/DEMO-1") == {}
 
 
+def test_requete_liste_rend_le_tableau() -> None:
+    champs = [{"id": "customfield_10004", "name": "Gravité", "custom": True}]
+    serveur = ServeurSimule(httpx.Response(200, json=champs))
+    assert _transport(serveur).requete_liste("GET", "/rest/api/2/field") == champs
+    (requete,) = serveur.requetes
+    assert (requete.method, requete.url.path) == ("GET", "/rest/api/2/field")
+
+
+@pytest.mark.parametrize(
+    ("reponse", "recu"),
+    [
+        (httpx.Response(200, json={"a": 1}), "dict"),
+        (httpx.Response(204), "une réponse vide"),
+        (httpx.Response(200, text="<html>"), "non JSON"),
+    ],
+)
+def test_requete_liste_refuse_un_non_tableau(reponse: httpx.Response, recu: str) -> None:
+    with pytest.raises(UsineErreur, match=r"GET /rest/api/2/field : statut HTTP 20") as exc:
+        _transport(ServeurSimule(reponse)).requete_liste("GET", "/rest/api/2/field")
+    assert recu in str(exc.value)
+
+
+def test_requete_liste_reprend_sur_429_et_nomme_le_statut() -> None:
+    attentes = Attentes()
+    serveur = ServeurSimule(
+        httpx.Response(429, headers={"Retry-After": "2"}), httpx.Response(200, json=[])
+    )
+    assert _transport(serveur, attentes=attentes).requete_liste("GET", "/rest/api/2/field") == []
+    assert attentes.durees == [2.0]
+    with pytest.raises(UsineErreur, match=r"statut HTTP 403 \(accès refusé\)"):
+        _transport(ServeurSimule(httpx.Response(403))).requete_liste("GET", "/rest/api/2/field")
+
+
 def test_corps_et_parametres_transmis() -> None:
     serveur = ServeurSimule(httpx.Response(200, json={}))
     _transport(serveur).requete(

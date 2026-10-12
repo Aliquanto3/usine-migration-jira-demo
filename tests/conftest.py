@@ -33,3 +33,20 @@ def _sans_reseau(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(socket.socket, "connect", connecter_local)
     yield
+
+
+_SECRETS_JIRA = ("JIRA_EMAIL", "JIRA_TOKEN_LECTURE", "JIRA_TOKEN_INJECTION", "JIRA_DC_PAT")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _sans_secret_jira() -> Iterator[None]:
+    """Neutralise les secrets Jira du shell du développeur : ils activeraient l'extraction Jira.
+
+    Portée session : elle précède aussi les fixtures de module qui publient un Passage. Un test
+    qui en a besoin les pose lui-même (`monkeypatch.setenv`). Le `.env` de la racine du dépôt
+    n'est pas concerné : les Passages de test tournent sur des racines temporaires.
+    """
+    with pytest.MonkeyPatch.context() as patch:
+        for variable in _SECRETS_JIRA:
+            patch.delenv(variable, raising=False)
+        yield

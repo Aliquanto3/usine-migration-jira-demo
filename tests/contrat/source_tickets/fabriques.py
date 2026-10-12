@@ -16,6 +16,10 @@ from tests.unit.adaptateurs.jira_cloud.outils import (
     evenements_attendus as evenements_attendus_cloud,
 )
 from tests.unit.adaptateurs.jira_cloud.outils import source_fixtures
+from tests.unit.adaptateurs.jira_dc.outils import (
+    evenements_attendus as evenements_attendus_dc,
+)
+from tests.unit.adaptateurs.jira_dc.outils import source_fixtures_dc
 from usine.adaptateurs.journal import SourceJournal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
@@ -129,9 +133,15 @@ def fabrique_jira_cloud() -> CasSourceTickets:
     return CasSourceTickets(source_fixtures(), evenements_attendus_cloud())
 
 
+def fabrique_jira_dc() -> CasSourceTickets:
+    """`SourceJiraDC` sur les fixtures `tests/fixtures/jira_dc/source_*`, sans réseau."""
+    return CasSourceTickets(source_fixtures_dc(), evenements_attendus_dc())
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasSourceTickets]]] = [
     ("source_en_memoire", fabrique_source_en_memoire),
     ("journal_genere", fabrique_journal_genere),
     ("journal", fabrique_journal),
     ("jira_cloud", fabrique_jira_cloud),
+    ("jira_dc", fabrique_jira_dc),
 ]

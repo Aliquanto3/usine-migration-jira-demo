@@ -189,3 +189,53 @@ def test_etape_extraction_en_echec_propage_l_erreur(tmp_path: Path) -> None:
     entrepot = EntrepotDuckDB(chemin)
     assert entrepot.repere() is None
     assert list(entrepot.evenements()) == []
+
+
+def test_etape_extraction_expose_sa_configuration(tmp_path: Path) -> None:
+    source = SourceEnMemoire(evenements_essai())
+    chemin = tmp_path / "entrepot.duckdb"
+    etape = EtapeExtraction(source, chemin, MARGE, lambda: T1)
+    assert (etape.source, etape.chemin, etape.marge) == (source, chemin, MARGE)
+
+
+def test_etape_extraction_appelle_fermer_apres_succes(tmp_path: Path) -> None:
+    fermetures: list[str] = []
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()),
+        tmp_path / "entrepot.duckdb",
+        MARGE,
+        lambda: T1,
+        fermer=lambda: fermetures.append("fermé"),
+    )
+    assert etape.executer(_contexte()).statut is StatutEtape.reussie
+    assert fermetures == ["fermé"]
+
+
+def test_etape_extraction_appelle_fermer_apres_echec(tmp_path: Path) -> None:
+    serveur = ServeurFixtures()
+    del serveur.reponses["recherche_2"]
+    fermetures: list[str] = []
+    etape = EtapeExtraction(
+        _source_cloud(serveur, T1),
+        tmp_path / "entrepot.duckdb",
+        MARGE,
+        lambda: T1,
+        fermer=lambda: fermetures.append("fermé"),
+    )
+    with pytest.raises(UsineErreur):
+        etape.executer(_contexte())
+    assert fermetures == ["fermé"]
+
+
+def test_etape_extraction_fermer_une_seule_fois(tmp_path: Path) -> None:
+    fermetures: list[str] = []
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()),
+        tmp_path / "entrepot.duckdb",
+        MARGE,
+        lambda: T1,
+        fermer=lambda: fermetures.append("fermé"),
+    )
+    etape.fermer()
+    etape.fermer()
+    assert fermetures == ["fermé"]
