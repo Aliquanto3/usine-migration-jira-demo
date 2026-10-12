@@ -116,7 +116,7 @@ Ce document découpe en epics et stories implémentables les exigences du PRD (F
 - AD-4 Injection par API REST seulement ; `ManifesteInjection` ; coupure par instants (`horodatage_fin_injection`) ; clé canonique = clé Jira ; événements `alignement` (H-27) ; test de cohérence FR-49.
 - AD-5 Transport `jira_http` commun ; `ClientJiraLecture` à liste blanche `(méthode, gabarit)` testée sur Cloud et DC ; seul l'injecteur écrit, avec `JIRA_TOKEN_INJECTION` ; l'Agent n'accède pas à Jira.
 - AD-6 `donnees/entrepot.duckdb`, ouvert seulement par l'étape `extraction` ; événements et repère validés dans une seule transaction ; verrou `donnees/.verrou-passage` ; incrémental avec marge.
-- AD-7 Passage construit dans `.en-cours-<id>/`, publié par renommage atomique, déplacé sous `sorties/echecs/` en échec ; immuable ; autoportant ; dernier Passage via `consultation.dernier_passage()` ; rendu déterministe pour le Rejeu, liste nommée d'exclusions.
+- AD-7 Passage construit dans `.en-cours-<id>/`, publié par renommage atomique, déplacé sous `sorties/echecs/` en échec ; immuable ; autoportant ; dernier Passage via `consultation.dernier_passage()` ; rendu déterministe pour le Rejeu, liste nommée d'exclusions qualifiées par fichier (`EXCLUSIONS_REJEU`, amendement du 2026-10-12).
 - AD-8 Énumération `Etape` figée (`extraction … rendu`) ; Palier = `ConfigChaine.palier` ; point d'entrée `usine rapport [--date-arrete]` ; progression dans `sorties/progression/<id>.jsonl` ; durées, drapeau `classification_initiale` et coût au manifeste.
 - AD-9 Calculs métier en Polars, fonctions pures dans `domaine/` seulement ; DuckDB stocke sans calculer ; rendu, UI, IA et Agent n'affichent que des valeurs de `consultation`.
 - AD-10 Comptes entiers ; taux en `numerateur`/`denominateur` ; comparaisons en `Fraction` ; statut `non_evaluable` explicite ; Rapport de référence = mini-Journal + YAML attendu dans `tests/fixtures/reference/`.
@@ -124,7 +124,7 @@ Ce document découpe en epics et stories implémentables les exigences du PRD (F
 - AD-12 Passerelle LLM unique, ordre imposé (Pseudonymisation → cache → fournisseur → contrôle → ré-identification → trace) ; `pydantic_ai` confiné à `adaptateurs/llm/` ; clé de cache définie ; cache SQLite WAL ; tâches figées ; dégradation explicite ; coût tracé.
 - AD-13 Port `FournisseurLLM` à deux méthodes (`generer_structure`, `executer_agent`) jamais combinées ; outils de l'Agent enveloppés (pseudonymisés, tracés) ; Anthropic puis Mistral ; reprise 429 dans l'adaptateur ; `FournisseurFactice` dans les tests.
 - AD-14 Deux contrôleurs partagés `controler_citations` et `controler_nombres` (règles d'ignorance et de format définies).
-- AD-15 Presidio + `fr_core_news_md` ; jetons HMAC dérivés `<TYPE>_<6 hex>` ; table de ré-identification `donnees/pseudonymes.sqlite` hors git ; test de balayage SM-7.
+- AD-15 Presidio + `fr_core_news_md` (L6, `adaptateurs/presidio`) ; moteur par expressions régulières d'E0 conservé en repli (`adaptateurs/pseudonymisation`, L6), même dérivation des jetons ; jetons HMAC dérivés `<TYPE>_<6 hex>` ; table de ré-identification `donnees/pseudonymes.sqlite` hors git ; test de balayage SM-7.
 - AD-16 Empreintes définies une fois dans `contrats.versions` ; traces de la Chaîne dans le Passage ; traces de l'Agent dans `sorties/agent/`.
 - AD-17 `contrats.calendrier` seule source du temps (Europe/Paris, `jour_ouvre_de`, Fenêtre glissante, J-1, J-5, `semaine_programme`).
 - AD-18 Une seule Baseline (`domaine.prevision.baseline` sur `SerieStock`), appelée telle quelle par `evaluation/zenodo` ; Modèle ML au même contrat `Prevision`.
@@ -137,7 +137,7 @@ Ce document découpe en epics et stories implémentables les exigences du PRD (F
 
 **Organisation en lanes (worktrees après `contrats-v1`)**
 - Dépendances de recette finale : E0 → L1, L2, L3, L6, L8 ; L3 → L4, L5 ; L5 → L7 ; L6 → L7. Avant, chaque lane travaille sur contrats, doublures et fixtures.
-- Répertoires par lane : L1 `generateur/`, `outils/`, `config/programme.yaml`, `donnees/corpus/` ; L2 `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb}`, `config/jira.yaml`, `tests/fixtures/jira_*` ; L3 `domaine/{instantanes,kpi,meteo}`, `config/grille_meteo.yaml`, `tests/fixtures/reference` ; L4 `domaine/prevision`, `evaluation/` ; L5 `chaine/`, `consultation/`, `rendu/`, `gabarits/` ; L6 `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` ; L7 `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` ; L8 `docs/`.
+- Répertoires par lane : L1 `generateur/`, `outils/`, `config/programme.yaml`, `donnees/corpus/` ; L2 `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb,cli}`, `config/jira.yaml`, `tests/fixtures/jira_*` ; L3 `domaine/{instantanes,kpi,meteo}`, `config/grille_meteo.yaml`, `tests/fixtures/reference` ; L4 `domaine/prevision`, `evaluation/` ; L5 `chaine/`, `consultation/`, `rendu/`, `gabarits/` ; L6 `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,pseudonymisation,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` ; L7 `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` ; L8 `docs/`.
 
 **Stack et infrastructure** : Python 3.12, uv, versions figées par le spine (pydantic 2.14, polars 1.44.2, duckdb 1.5.6, pydantic-ai-slim 2.55, presidio 2.2.364, spacy 3.8.16 + `fr_core_news_md` 3.8.0, openpyxl 3.1.5, python-pptx 1.0.2, streamlit 1.65, scikit-learn 1.9.1, pymongo 4.18.3, pytest 9.1.1, ruff 0.17, mypy 2.4, import-linter 2.15, gitleaks v8.30.1) ; CI GitHub Actions Windows + Linux ; un seul site Jira Cloud Free, injection du projet `DEMO` depuis `main`.
 
@@ -507,7 +507,7 @@ As a auteur,
 I want relire les contrats contre le spine puis poser l'étiquette `contrats-v1`,
 So that les lanes s'ouvrent en worktrees sur une base figée.
 
-**Exigences :** — (critère de sortie de l'Epic 0) · **AD :** AD-2, AD-21 · **Écrit dans :** `src/usine/contrats/`, `src/usine/ports/` (corrections de relecture seulement)
+**Exigences :** — (critère de sortie de l'Epic 0) · **AD :** AD-2, AD-7, AD-12, AD-15, AD-17, AD-21 · **Écrit dans :** `src/usine/contrats/`, `src/usine/ports/` (corrections de relecture et décisions D1 à D10 de `preparation-0-9-gel-contrats.md`, § 7) ; consommateurs migrés dans la même PR (D2, D8) : `ia/`, `chaine/`, `consultation/`, `domaine/meteo.py`, `rendu/`, `ui/`, `generateur/cli.py`, `composition.py`, `adaptateurs/` ; `.github/scripts/controle_lanes.py` ; `tests/` correspondants. Ces écritures hors des deux répertoires sont acceptées : tous ces fichiers appartiennent encore à `main` avant le gel.
 
 **Acceptance Criteria:**
 
@@ -519,6 +519,13 @@ So that les lanes s'ouvrent en worktrees sur une base figée.
 **When** l'auteur relit `contrats/` et `ports/`
 **Then** chaque contrat, énumération et lecture de `Consultation` exigés est présent, et les écarts trouvés sont corrigés avant le gel
 **And** `CONTRATS_VERSION` vaut `1.0.0`
+
+**Given** le spine amendé le 2026-10-12 (`sprint-change-proposal-2026-10-12.md`)
+**When** l'auteur relit `contrats/` et `ports/`
+**Then** `EXCLUSIONS_REJEU` est un `Mapping` du nom logique de fichier vers ses chemins de champ, avec la liste d'AD-7, et le test de Rejeu de la Chaîne l'applique par fichier
+**And** `CacheLLM` est un port de `ports/`, couvert par une suite `tests/contrat/cache_llm/` (SQLite et doublure)
+**And** `EnveloppeCache`, `ReponseExplication`, la grammaire des jetons (dans `contrats.llm`) et `DonneesPassage` (dans `contrats.passage`, `@dataclass(frozen=True)`) ne sont plus définis hors de `contrats`
+**And** la carte de `.github/scripts/controle_lanes.py` égale la *Carte des lanes* du spine, `adaptateurs/pseudonymisation` en L6 compris
 
 **Given** la relecture validée
 **When** l'auteur pose l'étiquette git `contrats-v1`
@@ -728,7 +735,7 @@ So that la classification est évaluée sur des textes réalistes rédigés par 
 
 ## Epic 2 : Extraction fiable de l'historique (L2 Extraction)
 
-Le Pilote dispose de l'historique complet des tickets depuis Jira Cloud, Jira Data Center ou le seul Journal, de façon incrémentale et en lecture seule, Jira faisant foi. **Écrit seulement dans :** `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb}`, `config/jira.yaml`, `tests/fixtures/jira_*` et `tests/unit/` correspondant. **Dépendance externe :** Story 1.7 avant la Story 2.7.
+Le Pilote dispose de l'historique complet des tickets depuis Jira Cloud, Jira Data Center ou le seul Journal, de façon incrémentale et en lecture seule, Jira faisant foi. **Écrit seulement dans :** `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb,cli}`, `config/jira.yaml`, `tests/fixtures/jira_*` et les tests miroirs (AD-21). **Dépendance externe :** Story 1.7 avant la Story 2.7.
 
 ### Story 2.1 : Transport Jira commun et client de lecture à liste blanche
 
@@ -1331,7 +1338,8 @@ So that le rapport du matin est fiable et auditable.
 
 **Given** deux Passages de la même Date d'arrêté sur les mêmes données
 **When** le test de Rejeu compare tables, JSON, valeurs de cellules et textes de slides
-**Then** tout est identique hors de la liste d'exclusions d'AD-7 (`passage_id`, `horodatage_debut`, `horodatage_fin`, `horodatage_extraction`, `version_donnees`)
+**Then** tout est identique hors des exclusions qualifiées par fichier d'AD-7 (`contrats.passage.EXCLUSIONS_REJEU`), chaque champ exclu restant comparé dans les autres fichiers
+**And** les cellules de l'onglet Traçabilité qui affichent un champ exclu sont déclarées sous `rapport_xlsx` et `rapport_pptx` par une PR courte sur `main`
 
 **Given** l'échec d'une étape quelconque
 **When** la commande se termine
@@ -1376,7 +1384,7 @@ So that la demande d'outillage reste recevable même si la banque refuse tout LL
 
 ## Epic 6 : Couche LLM sourcée et contrôlée (L6 Couche LLM)
 
-Le Rapport quotidien s'enrichit des Causes racines proposées, d'Explications sourcées, de Brouillons de commentaire et d'une narration de la Prévision, pseudonymisés, contrôlés, mis en cache et tracés. **Démarre après la porte Palier 1 (Story 5.7).** **Écrit seulement dans :** `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` et `tests/unit/` correspondant. Les rendus de l'Epic 5 affichent déjà les champs Palier 2 : cet epic ne touche pas `rendu/`. **Dépendance externe :** Story 1.9 avant la Story 6.9.
+Le Rapport quotidien s'enrichit des Causes racines proposées, d'Explications sourcées, de Brouillons de commentaire et d'une narration de la Prévision, pseudonymisés, contrôlés, mis en cache et tracés. **Démarre après la porte Palier 1 (Story 5.7).** **Écrit seulement dans :** `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,pseudonymisation,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` et les tests miroirs (AD-21). Les schémas `ReponseClassification` et `ReponseNarration` passent par une PR courte sur `main` au début de l'epic (AD-12). Les rendus de l'Epic 5 affichent déjà les champs Palier 2 : cet epic ne touche pas `rendu/`. **Dépendance externe :** Story 1.9 avant la Story 6.9.
 
 ### Story 6.1 : Adaptateurs Anthropic et Mistral
 
@@ -1417,7 +1425,7 @@ So that la banque peut autoriser un LLM distant sans fuite de données.
 **Acceptance Criteria:**
 
 **Given** Presidio, `fr_core_news_md` et les reconnaisseurs de `config/pseudonymisation.yaml` (comptes, clients, identifiants fictifs de FR-4)
-**When** l'adaptateur `presidio` pseudonymise une description générée
+**When** l'adaptateur `presidio` pseudonymise une description générée, en déléguant la dérivation des jetons et la table à `adaptateurs/pseudonymisation` (AD-15)
 **Then** chaque identifiant devient `<TYPE>_<6 hex de HMAC-SHA256(USINE_CLE_PSEUDO, valeur)>`, identique d'un Passage et d'un worktree à l'autre
 **And** les clés de ticket (`DEMO-123`) ne sont jamais remplacées
 
@@ -1430,9 +1438,9 @@ So that la banque peut autoriser un LLM distant sans fuite de données.
 **Then** elle se fait localement via `donnees/pseudonymes.sqlite` (WAL, ignoré par git), uniquement par le port `Pseudonymiseur`
 **And** `Pseudonymiseur.apercu(texte)` renvoie le couple original / pseudonymisé pour l'UI (AD-11)
 
-**Given** la suite de contrat `Pseudonymiseur`
-**When** on l'exécute sur Presidio et sur la doublure
-**Then** elle passe
+**Given** la suite de contrat `Pseudonymiseur`, cas des jetons préfixés compris
+**When** on l'exécute sur Presidio, sur le moteur par expressions régulières et sur la doublure
+**Then** elle passe, et une même valeur donne le même jeton avec les deux moteurs
 
 ### Story 6.3 : Passerelle complète, cache, coût et dégradation
 

@@ -7,7 +7,7 @@ paradigm: 'hexagonal (ports et adaptateurs) autour d''une chaîne pipes-and-filt
 scope: 'Démonstrateur complet : générateur, injection et extraction Jira, Chaîne de reporting Palier 1, couche LLM Palier 2, Agent, interface de démo'
 status: final
 created: '2026-10-10'
-updated: '2026-10-10'
+updated: '2026-10-12'
 binds: [FR-1..FR-51, NFR-1..NFR-13]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-usine-migration-jira-demo-2026-10-10/prd.md
@@ -15,6 +15,8 @@ sources:
   - _bmad-output/planning-artifacts/research/technical-stack-architecture-usine-migration-jira-2026-10-10/research.md
   - docs/QUESTIONS.md
 companions: [.memlog.md, reviews/]
+amendments:
+  - '2026-10-12 : _bmad-output/planning-artifacts/sprint-change-proposal-2026-10-12.md (rétrospective de l''Epic 0, décisions D1 à D10 de la Story 0.9)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo
@@ -25,20 +27,23 @@ Vocabulaire : celui du Glossaire du PRD (§ 3). Les `[HYPOTHÈSE H-n]` sont suiv
 
 **Hexagonal (ports et adaptateurs) autour d'une chaîne pipes-and-filters.** Le domaine est pur : des fonctions sans I/O, sans horloge et sans hasard. Les ports sont des `typing.Protocol`, les adaptateurs les implémentent, et seule la racine de composition les instancie et câble les étapes. La Chaîne de reporting exécute un registre d'étapes. Elle est la seule à écrire dans le Passage en cours. **Contract-first** : `usine.contrats` (contrats, calendrier, formatage) et `usine.ports` sont figés à la fin de l'epic E0 (étiquette git `contrats-v1`), avant l'ouverture des lanes en worktrees.
 
-| Couche | Paquet (`src/usine/`) | Peut importer |
-| --- | --- | --- |
-| Noyau partagé | `contrats/` (modèles, schémas, `calendrier`, `format`, `versions`) | pydantic, polars, stdlib |
-| Ports | `ports/` | contrats |
-| Domaine | `domaine/` | contrats |
-| Consultation | `consultation/` | contrats, ports |
-| Application | `chaine/` | contrats, ports, domaine, consultation |
-| Application | `ia/`, `rendu/` | contrats, ports, consultation |
-| Adaptateurs | `adaptateurs/` | contrats, ports |
-| Générateur | `generateur/` | contrats, ports |
-| Configuration | `config/` (chargeur) | contrats |
-| Racine de composition | `composition.py`, `cli.py`, `*/cli.py` | tout |
-| Interface | `ui/` | contrats, consultation, composition |
-| Hors produit | `evaluation/`, `evals/`, `outils/` (racine du dépôt) | contrats, ports, domaine, composition |
+| Couche | Paquet (`src/usine/`) | Peut importer | Externes permis en plus du socle |
+| --- | --- | --- | --- |
+| Noyau partagé | `contrats/` (modèles, schémas, `calendrier`, `format`, `versions`) | — | — |
+| Ports | `ports/` | contrats | — |
+| Domaine | `domaine/` | contrats | — (stdlib sans I/O, horloge ni hasard) |
+| Consultation | `consultation/` | contrats, ports | — |
+| Application | `chaine/` | contrats, ports, domaine, consultation | — |
+| Application | `ia/` | contrats, ports, consultation | — |
+| Application | `rendu/` | contrats, ports, consultation | openpyxl, python-pptx |
+| Adaptateurs | `adaptateurs/` | contrats, ports | httpx, duckdb, pydantic-ai-slim (avec `anthropic`, `mistralai`), presidio-analyzer, presidio-anonymizer, spacy, pymongo |
+| Générateur | `generateur/` | contrats, ports | — |
+| Configuration | `config/` (chargeur) | contrats | pyyaml, pydantic-settings |
+| Racine de composition | `composition.py`, `cli.py`, `*/cli.py` | tout | tout ; typer pour les modules `cli` |
+| Interface | `ui/` | contrats, consultation, composition | streamlit |
+| Hors produit | `evaluation/`, `evals/`, `outils/` (racine du dépôt) | contrats, ports, domaine, composition | tout |
+
+**Liste blanche des externes.** Le socle de toute couche est pydantic, polars et la bibliothèque standard. Toute autre dépendance directe du projet (groupes compris, et `anthropic`, `mistralai` tirés par les extras de `pydantic-ai-slim`) est interdite à une couche qui ne la nomme pas. Le domaine n'importe pas non plus `io`, `os`, `pathlib`, `random`, `secrets`, `shutil`, `socket`, `sqlite3`, `subprocess`, `tempfile`, `time`, `urllib` ni `uuid` (AD-1, AD-9). `tests/depot/test_import_linter.py` vérifie que chaque dépendance directe est classée.
 
 ## Invariants et règles
 
@@ -58,7 +63,7 @@ flowchart BT
   ui["ui (Streamlit)"] --> composition
 ```
 
-Une flèche signifie « importe », et elle est transitive vers le bas (tout paquet peut importer `contrats`). Le tableau des couches fait foi. Il est recopié tel quel dans `[tool.importlinter]` (contrats `layers` et `forbidden`), et vérifié en CI.
+Une flèche signifie « importe », et elle est transitive vers le bas (tout paquet peut importer `contrats`). Le tableau des couches fait foi. Il est recopié tel quel dans `[tool.importlinter]` (contrats `layers` et `forbidden`, colonne des externes comprise), et vérifié en CI.
 
 ### AD-1 : Hexagonal, racine de composition unique
 
@@ -71,8 +76,12 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
 - **Binds :** all ; contrats listés sous *Contrats v1*
 - **Prevents :** deux lanes qui définissent chacune leur forme d'Instantané, de Météo, de sortie LLM ou de fichier.
 - **Rule :**
-  - **Source unique.** Toute forme qui franchit une frontière de paquet ou de fichier est définie dans `usine.contrats`, et nulle part ailleurs. Cela vaut aussi pour les enveloppes des fichiers JSON d'un Passage et pour les signatures et résultats des outils de l'Agent.
-  - **Deux familles.** Les enregistrements unitaires sont des modèles Pydantic `frozen=True`. Les données tabulaires sont des `polars.DataFrame`, validés par `contrats.valider(df, SCHEMA_X)` à chaque frontière.
+  - **Source unique.** Toute forme qui franchit une frontière de paquet ou de fichier est définie dans `usine.contrats`, et nulle part ailleurs. Cela vaut aussi pour les enveloppes des fichiers JSON d'un Passage, pour les signatures et résultats des outils de l'Agent, pour la valeur persistée par un cache (`EnveloppeCache`), pour le schéma de réponse demandé au fournisseur LLM (`Reponse<Tache>`, AD-12) et pour les données que la composition passe à la Chaîne (`DonneesPassage`). Tout `Protocol` implémenté hors de son paquet est un port de `usine.ports`.
+  - **Formes locales consignées.** Deux `Protocol` restent locaux, par décision du 12/10/2026 (D1) : `TablePseudonymes` (AD-15), interne aux adaptateurs de la lane L6, et `LectureMeteo` (AD-11), vue structurelle de `Consultation` dans `ui`. Aucune autre exception.
+  - **Trois familles.**
+    - Les enregistrements unitaires sérialisés sont des modèles Pydantic `frozen=True` (base `Enregistrement`, `extra="forbid"`). Leurs `Mapping` sont figés en `MappingProxyType` après validation, par un type annoté commun, sans changer la forme JSON ou YAML.
+    - Les données tabulaires sont des `polars.DataFrame`, décrits par une constante `SCHEMA_<NOM>` (`SchemaTable`) et validés par `contrats.valider(df, SCHEMA_<NOM>)` à chaque frontière : colonnes, types et colonnes non nulles (`SchemaTable.non_nulles`).
+    - Les objets en mémoire jamais sérialisés, qui portent un port, un `DataFrame` ou un `Callable` (`ContextePassage`, `ResultatEtape`, `DonneesPassage`, `OutilAgent`, `SchemaTable`), sont des `@dataclass(frozen=True)`. Pydantic n'y apporterait aucune validation utile.
   - **Version.** Chaque fichier d'un Passage porte `contrats_version`. `Consultation` refuse un Passage dont la version majeure diffère.
   - **Modification.** `contrats/` et `ports/` ne se modifient que sur `main`, par une PR dédiée qui incrémente `CONTRATS_VERSION`. Une lane ne touche jamais à ces deux répertoires, elle se rebase. Le port `Consultation` est gelé à E0-9 avec toutes les lectures exigées par FR-17, FR-19, FR-26, FR-27, FR-39, FR-43 à FR-46 et les prompts.
 
@@ -133,9 +142,17 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Échec.** Le Passage est déplacé sous `sorties/echecs/`, sans fichier de rapport, avec un code de sortie non nul et l'étape fautive nommée.
   - **Immuabilité.** Un Passage publié n'est jamais modifié.
   - **Autoportance.** Les sorties déterministes (Tickets, Instantanés, KPI, Indicateurs, Météo, Prévisions et Risques) couvrent chaque Jour ouvré ≤ la Date d'arrêté. Les sorties LLM ne portent que sur la Date d'arrêté du Passage.
-  - **Dernier Passage réussi.** C'est le maximum de `(date_arrete, horodatage_fin)`, déterminé seulement par `consultation.dernier_passage()`. Aucun pointeur mutable.
+  - **Dernier Passage réussi.** C'est le maximum de `(date_arrete, horodatage_fin)`, déterminé seulement par `consultation.dernier_passage()`. Aucun pointeur mutable. `dernier_passage(sans_classification_initiale=True)` écarte les Passages qui ont fait la classification initiale (mesure de FR-44, AD-8).
   - **Identifiant.** `passage_id` = `AAAAMMJJTHHMMSSZ-<6 hex>`.
-  - **Rejeu (FR-14).** Le rendu est déterministe : `docProps` fixés à partir de la Date d'arrêté, ordre stable. Le test compare les tables, les JSON, les valeurs des cellules et les textes des slides, hors d'une liste nommée d'exclusions : `passage_id`, `horodatage_debut`, `horodatage_fin`, `horodatage_extraction`, `version_donnees`.
+  - **Rejeu (FR-14).** Le rendu est déterministe : `docProps` fixés à partir de la Date d'arrêté, ordre stable. Le test compare les tables Parquet en entier, les JSON et JSONL, les valeurs des cellules et les textes des slides, hors des exclusions de `contrats.passage.EXCLUSIONS_REJEU`.
+    - **Forme.** Les exclusions sont qualifiées par fichier : `Mapping[str, frozenset[str]]`, du nom logique de `FICHIERS_PASSAGE` vers des chemins de champ. Un chemin part de la racine de l'enregistrement : la ligne pour un JSONL, l'enveloppe pour un JSON enveloppé, l'objet pour le manifeste. `[]` désigne chaque élément d'une liste (`etapes[].horodatage_debut`). Un champ exclu dans un fichier reste comparé dans tous les autres.
+    - **Liste.**
+      - `manifeste` : `passage_id`, `horodatage_debut`, `horodatage_fin`, `horodatage_extraction`, `version_donnees`, `etapes[].horodatage_debut`, `etapes[].horodatage_fin`, `classification_initiale`, `cout_llm_eur` ;
+      - `meteo`, `previsions`, `classification`, `explications`, `narrations` (enveloppes) : `passage_id` ;
+      - `trace_llm` : `horodatage`, `passage_id`, `version_donnees`, `depuis_cache`, `jetons_entree`, `jetons_sortie`, `cout_estime_eur` ;
+      - `trace_previsions` : `horodatage`, `passage_id`, `version_donnees`.
+    - **Pourquoi.** En Palier 2, un Rejeu à versions identiques sert ses réponses depuis le cache (AD-12) : `depuis_cache`, les jetons, les coûts et `classification_initiale` changent alors que les sorties restent identiques. Les tables Parquet ne portent aucun champ variable et n'ont aucune exclusion.
+    - **Rendus.** Les cellules et textes de slides qui affichent un champ exclu (onglet Traçabilité, FR-26) sont déclarés sous les clés `rapport_xlsx` et `rapport_pptx`, au format `<onglet ou slide>!<repère>`, par une PR courte sur `main` pendant L5. Ajouter une entrée est une modification mineure ; changer la forme serait majeure.
 
 ### AD-8 : Étapes figées, progression hors Passage
 
@@ -146,13 +163,13 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Palier.** Le Palier est le seul champ `ConfigChaine.palier` ∈ {1, 2}, lu seulement par la composition. En Palier 1, les étapes LLM sont enregistrées `sautee`. `config/llm.yaml` ne décide que du fournisseur et du modèle.
   - **Point d'entrée.** Le seul est `usine rapport [--date-arrete AAAA-MM-JJ]`. Une Date d'arrêté non ouvrée est rejetée par une `UsineErreur` qui la nomme.
   - **Progression.** Elle s'écrit dans `sorties/progression/<passage_id>.jsonl`, hors du répertoire renommé. L'UI lance la CLI en sous-processus et lit ce fichier en ouvrir-lire-fermer à chaque sondage (décision du 10/10/2026, H-28).
-  - **Mesure (FR-44).** Le manifeste enregistre la durée de chaque étape, les drapeaux `classification_initiale` et le coût LLM. Temps mesuré = `horodatage_fin − horodatage_debut` du dernier Passage réussi sans classification initiale. Cumul hebdomadaire = 5 × ce temps.
+  - **Mesure (FR-44).** Le manifeste enregistre la durée de chaque étape, les drapeaux `classification_initiale` et le coût LLM. Temps mesuré = `horodatage_fin − horodatage_debut` du dernier Passage réussi sans classification initiale, lu par `consultation.dernier_passage(sans_classification_initiale=True)`. Cumul hebdomadaire = 5 × ce temps.
 
 ### AD-9 : Calcul en Polars, dans le domaine seulement
 
 - **Binds :** FR-10 à FR-21, FR-13, FR-35, NFR-1
 - **Prevents :** un KPI recalculé en SQL, dans un rendu, dans l'UI ou par l'Agent, avec un résultat légèrement différent, qui casse SM-1 et les tests FR-26/27.
-- **Rule :** Instantanés, KPI, Indicateurs, Météo, Tendances, Prévisions et la répartition des Causes racines (`domaine.causes.repartition`) sont calculés uniquement dans `domaine/`, en Polars, par des fonctions pures. DuckDB stocke et relit, et ne calcule aucune valeur métier. `rendu`, `ui`, `ia` et les outils de l'Agent affichent des valeurs lues par `consultation`, sans jamais les dériver. Le formatage (`contrats.format`) n'est pas un calcul.
+- **Rule :** Instantanés, KPI, Indicateurs, Météo, Tendances, Prévisions et la répartition des Causes racines (`domaine.causes.repartition`) sont calculés uniquement dans `domaine/`, en Polars, par des fonctions pures. DuckDB stocke et relit, et ne calcule aucune valeur métier. `rendu`, `ui`, `ia` et les outils de l'Agent affichent des valeurs lues par `consultation`, sans jamais les dériver. Le formatage (`contrats.format`) n'est pas un calcul, ni les dérivations de lecture de `Consultation` (AD-11).
 
 ### AD-10 : Nombres exacts, non évaluable explicite
 
@@ -172,7 +189,9 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Lecteur unique.** Le port `Consultation` est le seul lecteur des fichiers d'un Passage, publié ou en cours. Il sert aux étapes, à `rendu`, à `ui`, à `ia` et aux outils de l'Agent.
   - **Liens Jira.** Les URL de ticket se construisent dans `consultation.url_ticket(cle)` uniquement, à partir de `config/jira.yaml`. Elles valent `None` en Mode repli.
   - **Formatage.** Le formatage français (milliers à espace insécable, virgule, %, dates) vit dans `contrats.format`. Il sert à tous.
-  - **Comparaison des Paliers (FR-46).** `Consultation` expose un filtre `palier` ∈ {1, 2}.
+  - **Comparaison des Paliers (FR-46).** `Consultation` expose un filtre `palier` ∈ {1, 2} sur toute lecture qui porte une sortie du Palier 2, `anomalies()` comprise (cause racine proposée).
+  - **Dérivations de lecture.** L'âge des anomalies en Jours ouvrés et l'appariement J-1 / J-5 de `evolution_meteo()` sont calculés à la lecture par `Consultation`, avec `contrats.calendrier`. Ce ne sont pas des calculs métier au sens d'AD-9 : ils ne changent pas la forme du port et ne produisent aucune valeur publiée (décision du 12/10/2026, D8).
+  - **Vue de l'UI.** `ui` n'importe pas `ports`. Elle peut déclarer un `Protocol` local, sous-ensemble structurel de `Consultation` (`LectureMeteo`), qu'un test de conformité tient aligné sur le port. Ce n'est pas un port.
   - **Côte à côte (FR-31).** Il passe par `Pseudonymiseur.apercu(texte)`, exposé à l'UI par la composition, en local seulement.
 
 ### AD-12 : Passerelle LLM unique, ordre imposé
@@ -184,8 +203,9 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Isolation du fournisseur.** `pydantic_ai` n'est importé que dans `adaptateurs/llm/`.
   - **Clé de cache.** Elle vaut `(tache, cible, date_arrete, version_prompt, version_modele, empreinte de l'entrée pseudonymisée, tentative)`. Pour la classification, la cible est la clé du ticket et la Date d'arrêté est exclue (FR-35).
   - **Contenu du cache.** `version_donnees` n'entre pas dans la clé, et figure dans la trace. Le cache stocke la réponse brute avant contrôle, et un succès en cache repasse le contrôle.
-  - **Stockage du cache.** Le cache est `donnees/cache_llm.sqlite` en mode WAL ; seule la passerelle y accède.
+  - **Stockage du cache.** La passerelle passe par le port `CacheLLM` (`lire(cle) -> str | None`, `ecrire(cle, brut)`), implémenté par `adaptateurs/stockage_sqlite` sur `donnees/cache_llm.sqlite` en mode WAL. Seule la passerelle l'appelle. La valeur stockée est une `EnveloppeCache` de `contrats.llm` : la réponse brute et le `version_modele` qui l'a produite.
   - **Tâches.** Elles sont figées : `classification`, `explication`, `narration`, `agent`. Leurs sorties sont des contrats de `contrats.llm`, avec `statut_controle`. Le Brouillon de commentaire est un champ de `SortieExplication`.
+  - **Schémas de réponse.** Le schéma passé à `FournisseurLLM.generer_structure` est, pour chaque tâche, un modèle `Reponse<Tache>` de `contrats.llm` ; la sortie publiée reste `Sortie<Tache>`. `ReponseExplication` est gelée en 0.9 ; `ReponseClassification` et `ReponseNarration` s'ajoutent par une PR courte sur `main` au début de L6 (ajout = version mineure).
   - **Dégradation.** Un contrôle en échec, ou le dépassement du plafond de coût par Passage (`config/llm.yaml`), dégrade l'élément en libellé explicite (« explication indisponible », Prévision brute), sans faire échouer le Passage. Un fournisseur injoignable au démarrage d'une étape LLM fait échouer l'étape, donc le Passage (FR-25). Le Mode repli couvre la démo (décision du 10/10/2026, H-31).
   - **Coût.** `EntreeTrace` porte `jetons_entree`, `jetons_sortie` et `cout_estime_eur`. Le manifeste porte `cout_llm_eur`.
 
@@ -217,9 +237,13 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
 - **Binds :** FR-31, NFR-5, FR-34
 - **Prevents :** des pseudonymes qui changent selon l'ordre de rencontre, le Passage ou le worktree, ce qui casse le cache et les réponses enregistrées ; une table de correspondance qui finit dans une trace ou dans le dépôt.
 - **Rule :**
-  - **Moteur.** Presidio, avec `fr_core_news_md` et les reconnaisseurs maison de `config/pseudonymisation.yaml`.
-  - **Jetons.** Ils sont dérivés et non attribués : `<TYPE>_<6 hex de HMAC-SHA256(USINE_CLE_PSEUDO, valeur)>`, par exemple `CLIENT_3f9a2c`.
-  - **Table de ré-identification.** `donnees/pseudonymes.sqlite` (WAL) ne sert qu'à la ré-identification. Elle est ignorée par git et accessible seulement via le port `Pseudonymiseur` (décision du 10/10/2026, H-29).
+  - **Moteurs.** Deux adaptateurs du port `Pseudonymiseur`, tous deux propriété de la lane L6 (décision du 12/10/2026) :
+    - `adaptateurs/presidio/` (Story 6.2) : Presidio, avec `fr_core_news_md` et les reconnaisseurs maison de `config/pseudonymisation.yaml`. C'est le moteur du Palier 2.
+    - `adaptateurs/pseudonymisation/` : expressions régulières de `config/pseudonymisation.yaml`. C'est le moteur du walking skeleton (E0-7), conservé comme repli sans modèle spaCy. Il porte aussi la dérivation des jetons et l'accès à la table, que `presidio` réutilise : une même valeur donne le même jeton quel que soit le moteur.
+
+    Le choix du moteur est une clé de `config/pseudonymisation.yaml`, lue par la composition.
+  - **Jetons.** Ils sont dérivés et non attribués : `<TYPE>_<6 hex de HMAC-SHA256(USINE_CLE_PSEUDO, valeur)>`, par exemple `CLIENT_3f9a2c`. Leur grammaire (motif de reconnaissance compris) est définie une seule fois dans `contrats.llm` et sert aux adaptateurs, à la passerelle et à la doublure.
+  - **Table de ré-identification.** `donnees/pseudonymes.sqlite` (WAL) ne sert qu'à la ré-identification. Elle est ignorée par git et accessible seulement via le port `Pseudonymiseur` (décision du 10/10/2026, H-29). Son accès est le `Protocol` local `TablePseudonymes`, déclaré dans `adaptateurs/pseudonymisation/` et implémenté par `adaptateurs/stockage_sqlite/` (même lane). Ce n'est pas un port : en faire un exposerait hors des adaptateurs ce que `Pseudonymiseur` cache (D1).
   - **Exclusions.** Les clés de ticket ne sont jamais pseudonymisées.
   - **Traces.** Elles ne contiennent que des textes pseudonymisés. Un test balaie traces et requêtes, Agent compris, à la recherche des identifiants injectés par le générateur (SM-7).
 
@@ -247,7 +271,8 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
     - `jour_local(ts)`, en Europe/Paris (décision du 10/10/2026, H-25) ;
     - `jour_ouvre_de(ts)` : le premier Jour ouvré ≥ le jour local, utilisé pour les KPI, les `SerieStock` et les âges ;
     - Jour ouvré, Fenêtre glissante, J-1, J-5 ;
-    - `semaine_programme(d)` : semaine ISO du lundi au vendredi, numérotée de 1 à 8 depuis l'ancrage du générateur ; la semaine en cours est partielle, et sa valeur est celle de la Date d'arrêté.
+    - `semaine_programme(d, ancrage)` : semaine ISO du lundi au vendredi, numérotée de 1 à 8 sur le Programme à partir de `ancrage`, le lundi de la semaine 1, porté par `EnteteJournal.ancrage_semaines`. La fonction reste pure : l'appelant lui passe l'ancrage, elle ne lit pas le Journal. La semaine en cours est partielle, et sa valeur est celle de la Date d'arrêté ;
+    - l'analyse d'une date `AAAA-MM-JJ` saisie (options de CLI, noms de répertoires de Passage).
   - **Instantané.** Un Instantané en D inclut les événements dont `jour_ouvre_de` ≤ D.
 
 ### AD-18 : Une seule Baseline, évaluée telle quelle
@@ -275,7 +300,9 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Suites de contrat.** Chaque port a une suite de tests de contrat dans `tests/contrat/<port>/`, propriété de `main`. Tous ses adaptateurs l'exécutent :
     - `SourceTickets` : Cloud, DC et Journal ;
     - `FournisseurLLM` : Anthropic, Mistral et factice ;
-    - `Pseudonymiseur` et `Consultation`.
+    - `Pseudonymiseur` : les deux moteurs d'AD-15 et la doublure, jetons préfixés compris ;
+    - `CacheLLM` : SQLite et doublure en mémoire ;
+    - `Consultation`.
   - **Domaines de valeurs.** La suite de `SourceTickets` vérifie que toute valeur émise appartient au domaine canonique (AD-23).
   - **Fixtures.** Les fixtures Jira enregistrées vivent dans `tests/fixtures/jira_cloud|jira_dc/`.
   - **Réseau.** Les tests unitaires n'y ont pas accès.
@@ -286,10 +313,14 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
 - **Binds :** organisation du travail en worktrees
 - **Prevents :** deux worktrees qui modifient le même fichier, avec des conflits de fusion en continu ; des fichiers sans propriétaire.
 - **Rule :**
-  - **Lanes.** Chaque lane n'écrit que dans ses répertoires de la *Carte des lanes*, et dans `tests/unit/<chemin de ses répertoires source>`.
-  - **Propriété de `main`.** `contrats/`, `ports/`, `config/` (le chargeur), `config/chaine.yaml`, `composition.py`, `cli.py`, `pyproject.toml`, `uv.lock`, `.github/`, `tests/conftest.py`, `tests/contrat/` et `tests/doublures/`. Une lane qui en a besoin ouvre une PR courte sur `main`, puis les autres lanes se rebasent.
-  - **CLI.** Chaque lane expose sa sous-application typer dans `<son paquet>/cli.py`, enregistrée une fois dans `cli.py` à E0.
-  - **Contrôle en CI.** Sur les branches `lane/<n>-*`, un contrôle vérifie que les fichiers modifiés sont tous dans la lane.
+  - **Lanes.** Chaque lane n'écrit que dans ses chemins de la *Carte des lanes* et dans leurs tests miroirs. Un chemin couvre le répertoire, le module `<chemin>.py` et tout fichier en dessous.
+  - **Tests miroirs.** Pour un chemin source `src/usine/<dir>/<nom>` : `tests/unit/<dir>/<nom>` (répertoire ou module) et le test plat `tests/unit/<dir>/test_<nom>.py`. Pour un chemin hors de `src/usine/` : `tests/unit/<chemin>`.
+  - **Exclusions.** Un sous-chemin peut être retiré d'une lane, avec ses tests miroirs, pour appartenir à une autre : `ia/agent` et `evals/agent` sortent de L6 pour L7.
+  - **Tolérés.** `_bmad-output/implementation-artifacts/` (suivi des stories) est modifiable par toute lane.
+  - **Propriété de `main`.** `contrats/`, `ports/`, `config/` (le chargeur), `config/chaine.yaml`, `composition.py`, `cli.py`, `pyproject.toml`, `uv.lock`, `.github/`, `.env.example`, `tests/conftest.py`, `tests/contrat/`, `tests/doublures/`, `tests/depot/` et les tests miroirs de ces chemins. Une lane qui en a besoin ouvre une PR courte sur `main`, puis les autres lanes se rebasent.
+  - **CLI.** Chaque lane expose sa sous-application typer dans `<son paquet>/cli.py`, enregistrée une fois dans `cli.py` à E0. `adaptateurs/cli.py` appartient à L2.
+  - **Écarts acceptés d'E0.** Les fichiers écrits sur `main` pendant l'Epic 0 hors du « Écrit dans » de leur story (`config/jira.yaml`, `outils/`, `chaine/etapes.py`, `domaine/instantanes.py`, `consultation/passage.py`) appartiennent à la lane que leur donne la carte. Ce ne sont pas des anomalies.
+  - **Contrôle en CI.** `.github/scripts/controle_lanes.py` recopie la *Carte des lanes* et ces règles. Sur les branches `lane/<n>-*`, il vérifie que les fichiers modifiés sont tous dans la lane. Le spine fait foi : tout écart entre les deux se corrige sur `main`.
 
 ### AD-22 : Étapes injectées, Chaîne seule écrivaine du Passage
 
@@ -334,13 +365,15 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
 | Erreurs | Exceptions dérivées de `UsineErreur`. La CLI les traduit en message nommant l'étape, puis en code de sortie non nul. Aucune exception muette |
 | Journalisation | `logging` standard, messages en français. Aucun texte de ticket non pseudonymisé au-delà du niveau DEBUG local |
 | Prompts | Un fichier par tâche, `src/usine/ia/prompts/<tache>.md`, en français, variables `{{nom}}` |
-| Tests | `tests/unit/` miroir de `src/usine/` ; `tests/contrat/` ; `tests/doublures/` ; `tests/fixtures/` ; marqueur `@pytest.mark.reseau` exclu en CI |
+| Schémas de tables | Constante `SCHEMA_<NOM>`, le nom du contrat en majuscules et snake_case (`TicketEtat` → `SCHEMA_TICKET_ETAT`, `Kpi` → `SCHEMA_KPI`). Dans ce spine, le nom d'un contrat tabulaire désigne sa constante |
+| Objets en mémoire | `@dataclass(frozen=True)` pour tout objet jamais sérialisé (AD-2) |
+| Tests | `tests/unit/` miroir de `src/usine/`, test plat `tests/unit/<dir>/test_<nom>.py` admis (AD-21) ; `tests/contrat/` ; `tests/doublures/` ; `tests/fixtures/` ; `tests/depot/` (contrôles du dépôt : CI, carte des lanes, import-linter) ; marqueur `@pytest.mark.reseau` exclu en CI |
 | Branches | `main` ; `lane/<n>-<nom>` par worktree ; rebase sur `main` après chaque PR de contrat |
 | Jira partagé | Un seul site Jira Cloud Free. L'injection sur le projet de démo `DEMO` part de `main`. Une lane qui doit écrire utilise sa propre clé de projet (`JIRA_PROJET` dans `.env`) |
 
 ## Contrats v1 (seed, gelés à `contrats-v1`)
 
-Noms et rôle seulement. Le code de `usine/contrats/` fait foi après le gel.
+Noms et rôle seulement. Le code de `usine/contrats/` fait foi après le gel. Un contrat tabulaire est désigné par son nom ; sa constante est `SCHEMA_<NOM>` (Conventions).
 
 ```mermaid
 classDiagram
@@ -385,17 +418,21 @@ classDiagram
 | Contrat | Module | Forme | Producteur → consommateurs |
 | --- | --- | --- | --- |
 | `EnteteJournal`, `Evenement`, `ManifesteInjection` | `contrats.evenements` | Pydantic + `SCHEMA_EVENEMENT` | générateur, adaptateurs → domaine |
-| `Champ`, domaines de valeurs, `TicketEtat`, `TicketTexte` | `contrats.tickets` | énumérations, schémas Polars | domaine → consultation |
-| `Instantane`, `Kpi`, `Indicateur`, `Tendance` | `contrats.calcul` | schémas Polars | domaine → consultation |
-| `MeteoEntite`, `RegleDeclenchante` | `contrats.meteo` | Pydantic | domaine → consultation |
-| `SerieStock`, `Prevision`, `RisqueEntreeRouge`, `FacteurExplicatif` | `contrats.prevision` | Polars / Pydantic | domaine, evaluation → consultation |
-| `SortieClassification`, `RepartitionCauses`, `SortieExplication` (`brouillon_commentaire`, `phrases_retirees`), `SortieNarration`, `ReponseAgent`, `ReponseAgentEnregistree` | `contrats.llm` | Pydantic / Polars | ia, domaine → consultation |
+| `Champ`, domaines de valeurs, `TicketEtat`, `TicketTexte`, `rang_cle` (tri des clés de ticket) | `contrats.tickets` | énumérations, `SCHEMA_TICKET_ETAT`, `SCHEMA_TICKET_TEXTE`, fonction pure | domaine → consultation |
+| `Instantane`, `Kpi`, `Indicateur`, `Tendance` | `contrats.calcul` | `SCHEMA_INSTANTANE`, `SCHEMA_KPI`, `SCHEMA_INDICATEUR`, `SCHEMA_TENDANCE` | domaine → consultation |
+| `MeteoEntite`, `RegleDeclenchante`, `EvolutionMeteo`, `LIBELLES_COULEURS` | `contrats.meteo` | Pydantic, constante | domaine → consultation, rendu, ui |
+| `SerieStock`, `Prevision`, `RisqueEntreeRouge`, `FacteurExplicatif` | `contrats.prevision` | `SCHEMA_SERIE_STOCK` / Pydantic | domaine, evaluation → consultation |
+| `SortieClassification`, `RepartitionCauses`, `SortieExplication` (`brouillon_commentaire`, `phrases_retirees`), `SortieNarration`, `ReponseAgent`, `ReponseAgentEnregistree` | `contrats.llm` | Pydantic / `SCHEMA_REPARTITION_CAUSES` | ia, domaine → consultation |
+| `EnveloppeCache`, schémas `Reponse<Tache>` (`ReponseExplication`), grammaire des jetons de Pseudonymisation | `contrats.llm` | Pydantic, constante | ia ↔ adaptateurs (cache, fournisseur, pseudonymisation) |
 | Signatures et résultats de `get_meteo`, `list_anomalies`, `get_tendance`, `get_prevision`, `get_risques` | `contrats.agent` | Pydantic | consultation → ia |
 | `EntreeTrace` | `contrats.trace` | Pydantic | étapes, passerelle → chaine, fichiers |
-| `ManifestePassage`, `EvenementProgression`, `Etape`, `ContextePassage`, `ResultatEtape`, enveloppes de fichiers | `contrats.passage` | Pydantic | chaine → ui, consultation |
+| `ManifestePassage`, `EvenementProgression`, `Etape`, enveloppes de fichiers, `EXCLUSIONS_REJEU` (par fichier, AD-7), chemins de `donnees/` et `sorties/` | `contrats.passage` | Pydantic, constantes | chaine → ui, consultation |
+| `ContextePassage`, `ResultatEtape`, `DonneesPassage` | `contrats.passage` | `@dataclass(frozen=True)` (AD-2) | composition, chaine → étapes |
 | `ConfigProgramme`, `GrilleMeteo`, `ConfigChaine`, `ConfigJira`, `ConfigLLM`, `ConfigPseudonymisation`, `ConfigDemo` | `contrats.config` | Pydantic | usine.config → tous |
-| `calendrier`, `format`, `versions` | `contrats.*` | fonctions pures | tous |
-| Ports `SourceTickets`, `EntrepotExtraction`, `FournisseurLLM`, `Pseudonymiseur`, `Consultation`, `Etape` | `ports/` | `Protocol` | — |
+| `calendrier` (dont `semaine_programme(d, ancrage)` et l'analyse des dates `AAAA-MM-JJ`), `format`, `versions` | `contrats.*` | fonctions pures | tous |
+| Ports `SourceTickets`, `EntrepotExtraction`, `FournisseurLLM`, `Pseudonymiseur`, `CacheLLM`, `Consultation`, `Etape` | `ports/` | `Protocol` | — |
+
+Formes locales consignées, hors `contrats` et `ports` : `TablePseudonymes` (AD-15) et `LectureMeteo` (AD-11).
 
 ## Stack
 
@@ -476,14 +513,14 @@ usine-migration-jira-demo/
   config/                 # programme, grille_meteo, chaine, jira, llm, pseudonymisation, demo (.yaml, commentés FR)
   src/usine/
     contrats/             # modèles, schémas, calendrier, format, versions — main (AD-2)
-    ports/                # Protocols — main
+    ports/                # Protocols, dont CacheLLM — main
     config/               # chargeur des YAML — main (AD-19)
     domaine/              # instantanes, kpi, meteo, prevision, causes — pur (AD-9)
     chaine/               # registre, Passage, progression, publication atomique (AD-7, AD-8, AD-22)
     consultation/         # lecteur unique d'un Passage (AD-11)
     rendu/                # excel, pptx (étape rendu)
     ia/                   # passerelle, controles, taches, prompts/, agent/ (AD-12 à AD-15)
-    adaptateurs/          # jira_http, jira_cloud, jira_dc, journal, composite, entrepot_duckdb, llm/, presidio, stockage_sqlite
+    adaptateurs/          # jira_http, jira_cloud, jira_dc, journal, composite, entrepot_duckdb, cli.py (L2) ; llm/, presidio, pseudonymisation, stockage_sqlite (L6)
     generateur/           # programme, scenarios, journal, injecteur (seul écrivain Jira)
     ui/                   # Streamlit
     composition.py  cli.py
@@ -493,7 +530,7 @@ usine-migration-jira-demo/
   gabarits/rapport.pptx   # gabarit neutre fictif
   donnees/corpus/         # Corpus de textes versionné ; le reste de donnees/ est ignoré par git
   demo/repli/             # passage/ et agent/ versionnés (AD-24)
-  tests/unit/  tests/contrat/  tests/doublures/  tests/fixtures/{jira_cloud,jira_dc,reference}/
+  tests/unit/  tests/contrat/  tests/doublures/  tests/depot/  tests/fixtures/{jira_cloud,jira_dc,reference}/
   docs/                   # QUESTIONS.md, fiche outillage FR-47
 ```
 
@@ -521,7 +558,7 @@ flowchart LR
 | FR-10 à FR-14 Instantanés, KPI, Tendances, réconciliation, Rejeu | `domaine/`, `chaine/` | AD-7, AD-9, AD-10, AD-17, AD-22 |
 | FR-15 à FR-19 Météo | `domaine/meteo`, `config/grille_meteo.yaml` | AD-9, AD-10, AD-16, AD-19 |
 | FR-20, FR-21, FR-51 (FR-22, FR-23 en bonus) Prévision | `domaine/prevision`, `evaluation/zenodo` | AD-18, AD-16 |
-| FR-24, FR-30 à FR-35 Couche LLM | `ia/`, `domaine/causes`, `adaptateurs/llm`, `adaptateurs/presidio` | AD-12 à AD-16 |
+| FR-24, FR-30 à FR-35 Couche LLM | `ia/`, `domaine/causes`, `adaptateurs/{llm,presidio,pseudonymisation,stockage_sqlite}` | AD-12 à AD-16 |
 | FR-50, FR-42 Évaluations | `evals/` | AD-14, AD-20, AD-23 |
 | FR-25 à FR-29 Rapport quotidien | `chaine/`, `rendu/`, `consultation/` | AD-7, AD-8, AD-11, AD-22 |
 | FR-39 à FR-42 Agent | `ia/agent` | AD-11 à AD-14, AD-16 |
@@ -544,7 +581,7 @@ Séquentiel sur `main`, avant toute lane. Critère de sortie : `usine rapport` p
 | E0-6 Consultation et rendu | Excel à 1 onglet (Synthèse) et PowerPoint à 1 slide (carte météo), déterministes ; `url_ticket` |
 | E0-7 Passerelle LLM | Pseudonymisation par HMAC, cache SQLite, `FournisseurFactice`, une Explication sourcée contrôlée par `controler_citations`, une `EntreeTrace` |
 | E0-8 UI | Streamlit : carte météo depuis `Consultation`, lancement de la CLI en sous-processus avec suivi de la progression, bandeau Mode repli |
-| E0-9 Gel | Relecture des contrats contre ce spine, puis étiquette `contrats-v1` et ouverture des worktrees |
+| E0-9 Gel | Relecture des contrats contre ce spine, application des décisions D1 à D10 (`preparation-0-9-gel-contrats.md`, § 7), `CONTRATS_VERSION` à 1.0.0, puis étiquette `contrats-v1` et ouverture des worktrees |
 
 ## Carte des lanes (worktrees après `contrats-v1`)
 
@@ -566,14 +603,14 @@ flowchart LR
 
 Une flèche indique qu'une lane a besoin des sorties *réelles* d'une autre pour sa recette finale. Avant cela, chaque lane travaille sur les contrats, les doublures et les fixtures.
 
-| Lane | FR | Écrit seulement dans (plus `tests/unit/` correspondant) |
+| Lane | FR | Écrit seulement dans (plus ses tests miroirs, AD-21) |
 | --- | --- | --- |
 | L1 Données | FR-1 à FR-5 | `generateur/`, `outils/`, `config/programme.yaml`, `donnees/corpus/` |
-| L2 Extraction | FR-6 à FR-9, FR-49 | `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb}`, `config/jira.yaml`, `tests/fixtures/jira_*` |
+| L2 Extraction | FR-6 à FR-9, FR-49 | `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb,cli}`, `config/jira.yaml`, `tests/fixtures/jira_*` |
 | L3 Calcul | FR-10 à FR-19 | `domaine/{instantanes,kpi,meteo}`, `config/grille_meteo.yaml`, `tests/fixtures/reference` |
 | L4 Prévision | FR-20, FR-21, FR-51 (FR-22, FR-23) | `domaine/prevision`, `evaluation/` |
 | L5 Rapport | FR-25 à FR-29 | `chaine/`, `consultation/`, `rendu/`, `gabarits/` |
-| L6 Couche LLM | FR-24, FR-30 à FR-35, FR-50 (FR-36 à FR-38) | `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` |
+| L6 Couche LLM | FR-24, FR-30 à FR-35, FR-50 (FR-36 à FR-38) | `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,pseudonymisation,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` |
 | L7 Agent et UI | FR-39 à FR-46 | `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` |
 | L8 Portage | FR-47 (FR-48) | `docs/` |
 
