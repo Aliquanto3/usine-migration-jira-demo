@@ -25,7 +25,6 @@ dependencies = [
     "python-pptx==1.0.2",
     "streamlit==1.65.0",
     "scikit-learn==1.9.1",
-    "pymongo==4.18.3",
 ]
 
 [project.scripts]
@@ -45,6 +44,10 @@ bonus = [
     "lightgbm==4.7.0",
     "langfuse==4.17.0",
 ]
+# Évaluation hors CI (FR-51) : installé par défaut pour que mypy résolve pymongo.
+evaluation = [
+    "pymongo==4.18.3",
+]
 
 [tool.uv.build-backend]
 module-name = "usine"
@@ -55,7 +58,7 @@ build-backend = "uv_build"
 
 [tool.uv]
 required-version = ">=0.12.23"
-default-groups = ["dev"]
+default-groups = ["dev", "evaluation"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

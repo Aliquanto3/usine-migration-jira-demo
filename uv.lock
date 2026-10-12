@@ -1972,6 +1972,7 @@ wheels = [
 name = "usine-migration-jira-demo"
 version = "0.1.0"
 source = { editable = "." }
+default-groups = ["dev", "evaluation"]
 dependencies = [
     { name = "duckdb" },
     { name = "fr-core-news-md" },
@@ -1985,7 +1986,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "mistral"] },
     { name = "pydantic-settings" },
-    { name = "pymongo" },
     { name = "python-pptx" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
@@ -2007,6 +2007,9 @@ dev = [
     { name = "time-machine" },
     { name = "types-pyyaml" },
 ]
+evaluation = [
+    { name = "pymongo" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2022,7 +2025,6 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.14.0" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "mistral"], specifier = "==2.55.0" },
     { name = "pydantic-settings", specifier = "==2.15.0" },
-    { name = "pymongo", specifier = "==4.18.3" },
     { name = "python-pptx", specifier = "==1.0.2" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "scikit-learn", specifier = "==1.9.1" },
@@ -2044,6 +2046,7 @@ dev = [
     { name = "time-machine", specifier = "==3.5.1" },
     { name = "types-pyyaml" },
 ]
+evaluation = [{ name = "pymongo", specifier = "==4.18.3" }]
 
 [[package]]
 name = "uvicorn"
