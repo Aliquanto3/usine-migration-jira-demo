@@ -135,3 +135,24 @@ deferred:
 - `uv run pytest -q` -- expected: tout passe, durée proche de l'actuelle, tests `lent` sautés
 - `uv run pytest -q -m lent` -- expected: tests lents exécutés et verts
 - `uv run python outils/mesurer_nfr2.py` -- expected: Passage dans la cible de 5 min
+
+## Auto Run Result
+
+Status: done
+
+**Résumé.** Le cycle de vie des Anomalies suit le workflow H-17 strict (Nouvelle → En analyse → En correction ou Rejetée ; En correction → À retester → Fermée ou retour En correction ; réouverture depuis Fermée ou Rejetée vers En analyse). C'est une marche étape par étape, avec un séjour tiré en Jours ouvrés dans chaque statut (`DELAIS_PAR_STATUT`), arrêtée à la Date d'injection. Les bornes d'Entrées d'une dernière semaine partielle sont proratisées (report 1.1). Les créations laissent 10 % du maximum hebdomadaire aux réouvertures. Les bornes 3 000-5 000 / 200-500 de la config sont gardées : la config livrée produit environ 3 000 à 3 600 Anomalies, et 5 000 reste le majorant de la mesure NFR-2. La volumétrie cible sur 5 graines × 4 dates est vérifiée par un test `lent`, exclu de la suite par défaut.
+
+**Fichiers.**
+- `src/usine/generateur/journal.py` : workflow strict, marche temporisée, proratisation, marge de réouvertures, table des rangs de jours.
+- `config/programme.yaml` : commentaire de `anomalies_max` (bornes inchangées).
+- `outils/mesurer_nfr2.py` : copie du gabarit PowerPoint (l'étape `rendu` le lit).
+- `tests/unit/generateur/conftest.py`, `tests/unit/outils/conftest.py` : marqueur `lent`.
+- `tests/unit/generateur/test_journal.py` : workflow rejoué, semaine partielle, réouvertures, test `lent`.
+- `tests/unit/outils/test_mesurer_nfr2.py` : `programme_cible`, génération à 5 000 (`lent`).
+- Hors lane : `README.md` (tableau NFR-2 remesuré), `tests/unit/rendu/test_excel.py` (précondition orange ou rouge).
+
+**Revue.** 23 constats : 3 correctifs (medium 1 : test rapide du plafond proratisé des réouvertures ; low 2 : `default=0`, table des rangs), 6 reportés (3 entrées `deferred` : marqueur `lent` à déplacer dans `pyproject.toml` sur main, `mesurer()` sans test, plus d'Entité rouge dans le jeu réduit avant les Scénarios), 14 rejetés avec leur raison dans le journal de triage. Revue complémentaire recommandée : non (un seul `medium`, corrigé par un test qui échoue sur le mutant).
+
+**Vérification.** `ruff check`, `ruff format --check`, `mypy`, `lint-imports` (13 contrats) : succès. `pytest -q` : 1 404 passés, 22 sautés (`lent`), 65 s. `pytest -q -m lent` : 21 passés, 46 s. `outils/mesurer_nfr2.py` : 5 000 Anomalies, 63 781 événements, total 1,3 à 1,7 s, dans la cible.
+
+**Risques résiduels.** Le Journal d'une graine diffère de celui de la Story 1.2, et les attendus fondés sur une graine peuvent bouger ailleurs (seul `test_excel` a cassé). Les tests `lent` ne tournent pas en CI. `controle_lanes.py` signalera `README.md` et `tests/unit/rendu/test_excel.py`.
