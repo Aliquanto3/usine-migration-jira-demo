@@ -1,22 +1,25 @@
 """Tâche `explication` : Explication sourcée d'une Entité rouge ou orange (FR-32, FR-33).
 
-Le prompt `prompts/explication.md` reçoit les Règles déclenchantes et les tickets en cause
-(titres et descriptions). La réponse passe `controler_citations` : seules restent les phrases
-qui citent un ticket en cause. Plus de la moitié des phrases retirées déclenche une seule
+Le prompt `prompts/explication.md` reçoit les Règles déclenchantes, les KPI non ventilés de
+l'Entité à la Date d'arrêté, les tickets en cause (titres et descriptions) et la répartition
+des Causes racines proposées (« non disponible » sans répartition). La réponse passe
+`controler_citations` : seules restent les phrases qui citent un ticket en cause, et chaque
+retrait est journalisé (warning). Plus de la moitié des phrases retirées déclenche une seule
 régénération (`tentative = 1`) ; un échec persistant donne « explication indisponible »
 (`statut_controle = rejete`) sans faire échouer le Passage. Sans ticket en cause, aucune
 Citation n'est possible : l'explication est indisponible d'emblée, sans appel au fournisseur.
 Plafond de coût du Passage atteint (`PlafondCoutAtteint`) : l'explication porte
 `TEXTE_PLAFOND` (`rejete`), sans faire échouer le Passage.
 
-Les titres et descriptions des tickets sont des données, placées entre délimiteurs dans le
-prompt ; `version_prompt` est calculée à partir des octets du gabarit envoyé.
+Les titres et descriptions des tickets, les KPI et les Causes racines sont des données,
+placées entre délimiteurs dans le prompt ; `version_prompt` est calculée à partir des octets
+du gabarit envoyé.
 """
 
 import logging
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 
 import polars as pl
@@ -112,8 +115,39 @@ def _regles(meteo_entite: MeteoEntite) -> str:
 
 
 def _donnee(texte: str) -> str:
-    """Texte de ticket sans délimiteur : il ne peut pas fermer le bloc de données."""
+    """Texte de donnée sans délimiteur : il ne peut pas fermer le bloc de données."""
     return texte.replace(DELIMITEUR, "'''")
+
+
+def _kpi(table: pl.DataFrame | None) -> str:
+    """Une ligne `code : valeur` par KPI non ventilé : `n`, `n/d`, ou `sans objet` pour 0/0."""
+    if table is None or table.is_empty():
+        return "- aucun"
+    lignes = []
+    for ligne in table.filter(pl.col("dimension") == "").sort("code_kpi").iter_rows(named=True):
+        numerateur, denominateur = ligne["numerateur"], ligne["denominateur"]
+        if denominateur == 0:
+            valeur = "sans objet"
+        elif denominateur == 1:
+            valeur = f"{numerateur}"
+        else:
+            valeur = f"{numerateur}/{denominateur}"
+        lignes.append(f"- {_donnee(str(ligne['code_kpi']))} : {valeur}")
+    return "\n".join(lignes) or "- aucun"
+
+
+def _causes(table: pl.DataFrame | None) -> str:
+    """`- cause : nombre`, nombre décroissant puis cause ; « non disponible » sans répartition."""
+    if table is None or table.is_empty():
+        return "- non disponible"
+    paires = sorted(
+        (
+            (str(ligne["cause_racine"]), int(ligne["nombre"]))
+            for ligne in table.iter_rows(named=True)
+        ),
+        key=lambda paire: (-paire[1], paire[0]),
+    )
+    return "\n".join(f"- {_donnee(cause)} : {nombre}" for cause, nombre in paires)
 
 
 def _tickets(cles: tuple[str, ...], textes: pl.DataFrame) -> str:
@@ -129,15 +163,20 @@ def _tickets(cles: tuple[str, ...], textes: pl.DataFrame) -> str:
     return "\n".join(lignes) or "- aucun"
 
 
-@dataclass(frozen=True)
+@dataclass
 class _Controleur:
-    """Contrôle d'une `ReponseExplication` : Citations, statut, brouillon sans clé hors cause."""
+    """Contrôle d'une `ReponseExplication` : Citations, statut, brouillon sans clé hors cause.
+
+    `totaux` garde le nombre de phrases de chaque réponse contrôlée (journal des retraits).
+    """
 
     meteo_entite: MeteoEntite
     autorises: tuple[str, ...]
+    totaux: list[int] = field(default_factory=list)
 
     def __call__(self, reponse: ReponseExplication) -> Controle[SortieExplication]:
         controle = controler_citations(reponse.texte, self.autorises)
+        self.totaux.append(controle.phrases_total)
         if controle.phrases_total == 0 or 2 * controle.phrases_retirees > controle.phrases_total:
             statut = StatutControle.rejete
         elif controle.phrases_retirees:
@@ -163,8 +202,16 @@ def expliquer(
     meteo_entite: MeteoEntite,
     textes: pl.DataFrame,
     contexte: ContexteExplication,
+    *,
+    kpi: pl.DataFrame | None = None,
+    repartition: pl.DataFrame | None = None,
 ) -> tuple[SortieExplication, tuple[EntreeTrace, ...]]:
-    """Explication sourcée de `meteo_entite` et traces de chaque appel (zéro, une ou deux)."""
+    """Explication sourcée de `meteo_entite` et traces de chaque appel (zéro, une ou deux).
+
+    `kpi` (table `SCHEMA_KPI` de l'Entité à la Date d'arrêté) et `repartition` (table
+    `SCHEMA_REPARTITION_CAUSES` de l'Entité) sont facultatifs : sans eux, les sections du
+    prompt portent « aucun » et « non disponible ».
+    """
     autorises = tickets_en_cause(meteo_entite)
     if not autorises:
         return _indisponible(meteo_entite, 0), ()
@@ -175,7 +222,9 @@ def expliquer(
             "couleur": meteo_entite.couleur.value,
             "date_arrete": meteo_entite.date_arrete.isoformat(),
             "regles": _regles(meteo_entite),
+            "kpi": _kpi(kpi),
             "tickets": _tickets(autorises, textes),
+            "causes": _causes(repartition),
         },
     )
     appel = ContexteAppel(
@@ -202,6 +251,14 @@ def expliquer(
             journal.warning("explication de %s non demandée : plafond de coût", appel.cible)
             return _indisponible(meteo_entite, phrases_retirees, TEXTE_PLAFOND), tuple(traces)
         traces.append(resultat.trace)
+        if resultat.phrases_retirees:
+            journal.warning(
+                "explication de %s (tentative %d) : %d phrase(s) retirée(s) sur %d",
+                appel.cible,
+                tentative,
+                resultat.phrases_retirees,
+                controleur.totaux[-1],
+            )
         if resultat.statut is not StatutControle.rejete:
             return resultat.sortie, tuple(traces)
         phrases_retirees = resultat.phrases_retirees

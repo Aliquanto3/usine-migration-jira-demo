@@ -10,6 +10,8 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+from openpyxl import load_workbook  # type: ignore[import-untyped]
+from pptx import Presentation
 
 from tests.doublures.fournisseur_factice import FournisseurFactice
 from tests.doublures.pseudonymiseur_factice import PseudonymiseurFactice
@@ -583,6 +585,57 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
     assert (racine / "donnees" / "cache_llm.sqlite").is_file()
+
+
+def test_palier_2_brouillon_dans_excel_et_powerpoint(tmp_path: Path) -> None:
+    """Story 6.6 : Brouillon marqué dans l'onglet Commentaires et sur la slide de l'Entité."""
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    brouillons = {
+        m.entite: f"Relancer l'équipe sur {m.regles[0].tickets_en_cause[0]}." for m in a_expliquer
+    }
+    reponses = [
+        ReponseExplication(
+            texte=f"{m.regles[0].tickets_en_cause[0]} est en cause.",
+            brouillon_commentaire=brouillons[m.entite],
+        )
+        for m in a_expliquer
+    ]
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    fournisseur = FournisseurFactice(reponses)
+    rapport = construire_rapport(
+        racine, fournisseur, PseudonymiseurFactice(b"cle-fictive", {}), horloge_figee()
+    )
+    _, ecrivain = _executer(rapport)
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+
+    # Prompt : KPI de l'Entité lus, répartition des Causes racines non disponible (6.5).
+    for appel in fournisseur.appels:
+        prompt = str(appel.entree)
+        assert "### KPI de l'Entité\n\n- " in prompt
+        assert "### KPI de l'Entité\n\n- aucun" not in prompt
+        assert "### Causes racines proposées\n\n- non disponible" in prompt
+
+    attendus = {entite: f"brouillon IA, à valider : {b}" for entite, b in brouillons.items()}
+    classeur = load_workbook(repertoire / "rapport-2026-10-09.xlsx")
+    lignes = [
+        [cellule for cellule in ligne if cellule is not None]
+        for ligne in classeur["Commentaires"].iter_rows(values_only=True)
+    ]
+    for entite, attendu in attendus.items():
+        assert any(ligne[:1] == [entite] and attendu in ligne for ligne in lignes), entite
+
+    zones: dict[str, list[str]] = {}
+    for slide in Presentation(str(repertoire / "rapport-2026-10-09.pptx")).slides:
+        titre = slide.shapes.title
+        if titre is None or " — " not in titre.text_frame.text:
+            continue
+        zones[titre.text_frame.text.split(" — ")[0]] = [
+            forme.text_frame.text for forme in slide.shapes if forme.has_text_frame
+        ]
+    for entite, attendu in attendus.items():
+        assert any(attendu in zone for zone in zones[entite]), entite
 
 
 def test_palier_2_sans_fournisseur(tmp_path: Path) -> None:

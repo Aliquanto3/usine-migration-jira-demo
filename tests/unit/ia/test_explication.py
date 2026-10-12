@@ -5,10 +5,12 @@ from collections.abc import Iterable
 from decimal import Decimal
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from tests.doublures.fournisseur_factice import FournisseurFactice
 from tests.unit.ia.espions import (
+    DATE_ARRETE,
     NUMERO_COMPTE,
     PASSAGE_ID,
     CacheMemoire,
@@ -21,8 +23,14 @@ from tests.unit.ia.espions import (
     pseudonymiseur,
     textes,
 )
+from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import ReponseExplication, SortieExplication, StatutControle
+from usine.contrats.llm import (
+    SCHEMA_REPARTITION_CAUSES,
+    ReponseExplication,
+    SortieExplication,
+    StatutControle,
+)
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
 from usine.ia import explication
@@ -297,3 +305,78 @@ def test_plafond_atteint_entre_deux_tentatives_garde_la_premiere_trace() -> None
     (trace,) = traces
     assert trace.cout_estime_eur == 1
     assert sortie.texte == TEXTE_PLAFOND
+
+
+def _bloc_de_donnees(prompt: str) -> str:
+    debut = prompt.index("```text\n") + len("```text\n")
+    return prompt[debut : prompt.index("\n```", debut)]
+
+
+def test_appel_direct_sans_kpi_ni_repartition() -> None:
+    """Rétrocompatible : sections « aucun » et « non disponible »."""
+    _, _, factice = _expliquer(ReponseExplication(texte="DEMO-3 bloque."))
+    bloc = _bloc_de_donnees(str(factice.appels[0].entree))
+    assert "### KPI de l'Entité\n\n- aucun\n" in bloc
+    assert "### Causes racines proposées\n\n- non disponible" in bloc
+    assert "Virement rejeté" in bloc
+
+
+def test_kpi_et_causes_dans_le_bloc_de_donnees() -> None:
+    kpi = pl.DataFrame(
+        {
+            "date": [DATE_ARRETE] * 4,
+            "perimetre": ["ENT-A"] * 4,
+            "code_kpi": ["KPI ``` piégé", "KPI-STOCK", "KPI-TAUX", "KPI-VIDE"],
+            "dimension": ["", "", "majeure", ""],
+            "numerateur": [4, 12, 1, 0],
+            "denominateur": [10, 1, 3, 0],
+        },
+        schema=dict(SCHEMA_KPI.colonnes),
+    )
+    repartition = pl.DataFrame(
+        {
+            "date": [DATE_ARRETE] * 2,
+            "entite": ["ENT-A"] * 2,
+            "cause_racine": ["environnement", "parametrage"],
+            "nombre": [1, 4],
+        },
+        schema=dict(SCHEMA_REPARTITION_CAUSES.colonnes),
+    )
+    factice = FournisseurFactice([ReponseExplication(texte="DEMO-3 bloque.")])
+    passerelle = Passerelle(factice, pseudonymiseur(), CacheMemoire(), horloge_espion([]))
+    expliquer(passerelle, meteo_rouge(), TEXTES, _contexte(), kpi=kpi, repartition=repartition)
+    prompt = str(factice.appels[0].entree)
+    bloc = _bloc_de_donnees(prompt)
+    assert "- KPI ''' piégé : 4/10\n- KPI-STOCK : 12\n- KPI-VIDE : sans objet\n" in bloc
+    assert "1/3" not in prompt  # KPI ventilé exclu
+    assert "- parametrage : 4\n- environnement : 1" in bloc
+    assert "{{" not in prompt
+
+
+def test_phrases_retirees_journalisees(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="usine.ia.explication"):
+        sortie, traces, _ = _expliquer(
+            ReponseExplication(texte="DEMO-3 bloque. DEMO-9 aggrave. DEMO-7 monte.")
+        )
+    assert sortie.phrases_retirees == 1
+    assert traces[0].phrases_retirees == 1
+    (message,) = [m for m in caplog.messages if "retirée" in m]
+    assert message == "explication de ENT-A (tentative 0) : 1 phrase(s) retirée(s) sur 3"
+
+
+def test_aucune_phrase_retiree_rien_journalise(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="usine.ia.explication"):
+        _expliquer(ReponseExplication(texte="DEMO-3 bloque."))
+    assert not [m for m in caplog.messages if "retirée" in m]
+
+
+def test_phrases_retirees_journalisees_a_chaque_tentative(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fautive = ReponseExplication(texte="DEMO-3 bloque. DEMO-9 aggrave. Rien ne va.")
+    with caplog.at_level(logging.WARNING, logger="usine.ia.explication"):
+        _expliquer(fautive, fautive)
+    assert [m for m in caplog.messages if "retirée" in m] == [
+        "explication de ENT-A (tentative 0) : 2 phrase(s) retirée(s) sur 3",
+        "explication de ENT-A (tentative 1) : 2 phrase(s) retirée(s) sur 3",
+    ]
