@@ -3,7 +3,8 @@
 `ClientJiraLecture` vérifie chaque requête contre `LISTE_BLANCHE_LECTURE` **avant** tout
 envoi : un filtre « GET seulement » ne suffirait pas, puisque des lectures passent par POST
 (`search/jql`, `changelog/bulkfetch`). `ClientJiraEcriture` n'a pas de liste blanche ; seule
-la composition du générateur le construit, avec `JIRA_TOKEN_INJECTION`.
+la composition du générateur le construit, avec `JIRA_TOKEN_INJECTION` (garde structurelle :
+`tests/unit/adaptateurs/jira_http/test_ecriture.py`).
 """
 
 import re
@@ -54,7 +55,7 @@ Un segment `{x}` accepte un segment `[A-Za-z0-9_.~-]+`, sauf `.` et `..`.
 
 _SEGMENT_VARIABLE = re.compile(r"[A-Za-z0-9_.~-]+")
 _GABARIT_VARIABLE = re.compile(r"\{[a-z_]+\}")
-_FRAGMENTS_INTERDITS = ("?", "#", "//", "%", "://", "\\")
+_FRAGMENTS_INTERDITS = ("?", "#", "//", "%", "\\")
 
 
 class RequeteJiraInterdite(UsineErreur):

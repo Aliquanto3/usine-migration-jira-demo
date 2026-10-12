@@ -196,6 +196,25 @@ def test_chemin_hors_site_jamais_envoye(chemin: str) -> None:
     assert serveur.requetes == []
 
 
+@pytest.mark.parametrize("chemin", ["/rest/api/3/issue/A\tB", "/rest/api/3/issue/A\nB"])
+def test_chemin_invalide_leve_usine_erreur_sans_envoi(chemin: str) -> None:
+    serveur = ServeurSimule()
+    with pytest.raises(UsineErreur, match="chemin invalide ; aucune requête envoyée") as erreur:
+        _transport(serveur).requete("POST", chemin, corps={})
+    assert erreur.value.__cause__ is None
+    assert JETON not in str(erreur.value)
+    assert serveur.requetes == []
+
+
+def test_attente_exponentielle_sans_debordement_au_dela_de_1024_tentatives() -> None:
+    attentes = Attentes()
+    serveur = ServeurSimule(*(httpx.Response(429) for _ in range(1030)))
+    with pytest.raises(UsineErreur, match="429 après 1030 tentatives"):
+        _transport(serveur, tentatives=1030, attentes=attentes).requete("GET", "/rest/api/3/x")
+    assert len(attentes.durees) == 1029
+    assert max(attentes.durees) == 120.0
+
+
 def test_identifiants_copies_avec_espaces_nettoyes() -> None:
     serveur = ServeurSimule(httpx.Response(200, json={}), httpx.Response(200, json={}))
     cloud = Authentification.cloud("pilote@example.invalid", SecretStr(f" {JETON}\n"))

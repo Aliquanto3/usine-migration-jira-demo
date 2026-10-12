@@ -85,7 +85,10 @@ def paginer_par_position(
     params: Mapping[str, Any] | None = None,
     taille_page: int = TAILLE_PAGE,
 ) -> Iterator[Any]:
-    """Éléments de `cle` sur toutes les pages `startAt`/`maxResults` (Jira Data Center, GET).
+    """Éléments de `cle` sur toutes les pages `startAt`/`maxResults`, en GET.
+
+    Sert à la recherche Data Center (`/rest/api/2/search`) et à tout point d'accès paginé par
+    position, comme le changelog d'un ticket Cloud (`/rest/api/3/issue/{cle}/changelog`).
 
     `startAt` avance du nombre d'éléments reçus, pas du `maxResults` demandé : le serveur peut
     plafonner la page. Arrêt sur `isLast: true`, sur `startAt >= total` ou sur une page vide.

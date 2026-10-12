@@ -165,6 +165,10 @@ class TransportJira:
                     json=dict(corps) if corps is not None else None,
                     headers={"Authorization": self._authentification.en_tete()},
                 )
+            except httpx.InvalidURL:
+                raise UsineErreur(
+                    f"{contexte} : chemin invalide ; aucune requête envoyée"
+                ) from None
             except httpx.RequestError as exc:
                 # `from None` : l'exception httpx porte la requête, donc l'en-tête Authorization.
                 raise UsineErreur(f"{contexte} : erreur réseau ({type(exc).__name__})") from None
@@ -174,7 +178,9 @@ class TransportJira:
                         f"{contexte} : statut HTTP 429 après {self._tentatives_max} tentatives"
                     )
                 demande = _attente_retry_after(reponse.headers.get("Retry-After"))
-                attente = demande if demande is not None else float(2 ** (tentative - 1))
+                # Exposant borné : `2.0 ** 1024` déborde ; le plafond est atteint dès 2 ** 7.
+                exponentielle = 2.0 ** min(tentative - 1, 16)
+                attente = demande if demande is not None else exponentielle
                 self._attendre(min(attente, ATTENTE_MAX_SECONDES))
                 continue
             return self._decoder(contexte, reponse)
