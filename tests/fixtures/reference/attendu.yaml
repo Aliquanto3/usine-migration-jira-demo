@@ -1,0 +1,444 @@
+# Rapport de référence (Story 3.8, FR-13, SM-1) : valeurs attendues calculées À LA MAIN.
+#
+# Écrites depuis la table de conception ci-dessous, jamais en exécutant `usine.domaine`.
+# Toute valeur est un couple d'entiers [numérateur, dénominateur] comparé strictement :
+# [4, 20] n'est pas [1, 5]. Comptes en [n, 1] ; âges et taux sans donnée en [0, 0].
+#
+# Calendrier : ancrage lundi 2026-09-07 ; Jours ouvrés 07, 08, 09, 10, 11, 14, 15, 16, 17,
+# 18/09. Date d'arrêté D = vendredi 18/09 ; J-5 = vendredi 11/09 ; Fenêtre glissante =
+# 14, 15, 16, 17, 18/09. Phase en cours de V1 en semaines 1 et 2 : recette.
+# Âge = nombre de Jours ouvrés de la dernière Entrée (exclue) à D (incluse).
+# Horodatages à 08:00 UTC (10:00 à Paris, même jour) sauf mention.
+#
+# ---------------------------------------------------------------------------------------
+# Table des tickets (58 tickets REF-n, Vague V1, domaine paie sauf mention)
+# ---------------------------------------------------------------------------------------
+# Anomalies ENT-A                              | à D                | dern. Entrée | âge
+# REF-1  bloq. recette  créée 07/09 ; →en_analyse 09/09 ; →fermee 21/09 (après D, ignoré)
+#                                              | ouverte            | 07/09        | 9
+# REF-2  bloq. recette  créée 07/09 ; →fermee 10/09 ; →en_correction 15/09 (réouverture)
+#                                              | ouverte            | 15/09        | 3
+# REF-3  bloq. migration_a_blanc créée 16/09   | ouverte            | 16/09        | 2
+# REF-4  bloq. recette  créée 08/09 ; →fermee samedi 12/09 (rattachée au lundi 14/09)
+#                                              | fermée (Sortie 14/09)
+# REF-5  bloq. recette  créée 15/09 ; →rejetee 17/09
+#                                              | rejetée (Entrée 15/09, Sortie 17/09)
+# REF-6  maj. recette   créée 08/09 ; →en_correction 10/09 ; →a_retester 16/09
+#                                              | ouverte            | 08/09        | 8
+# REF-7  maj. recette   créée 14/09            | ouverte            | 14/09        | 4
+# REF-8  maj. tnr       créée 2026-09-17T22:30Z = 18/09 00:30 à Paris (jour D, pas 17/09)
+#                                              | ouverte            | 18/09        | 0
+# REF-9  maj. recette   créée 18/09            | ouverte            | 18/09        | 0
+# REF-10 maj. recette   créée 09/09 ; →fermee 16/09
+#                                              | fermée (Sortie 16/09)
+# REF-11 min. migration_a_blanc créée 09/09 ; gravité →majeure 15/09 (ni Entrée ni Sortie)
+#                                              | ouverte, majeure   | 09/09        | 7
+# REF-12 maj. recette   créée 11/09 ; →fermee 18/09
+#                                              | fermée (Sortie 18/09)
+# REF-13 min. recette   créée 14/09            | ouverte            | 14/09        | 4
+#
+# Anomalies ENT-B
+# REF-14 bloq. recette  créée 08/09 ; →fermee 15/09
+#                                              | fermée (Sortie 15/09)
+# REF-15 maj. recette   créée 14/09            | ouverte            | 14/09        | 4
+# REF-16 maj. recette   créée 17/09            | ouverte            | 17/09        | 1
+# REF-17 maj. recette   créée 17/09 ; →rejetee 18/09
+#                                              | rejetée (Entrée 17/09, Sortie 18/09)
+# REF-18 maj. tnr       créée 07/09 ; →fermee 09/09 ; →nouvelle 18/09 (réouverture)
+#                                              | ouverte            | 18/09        | 0
+# REF-19 min. migration_a_blanc créée 10/09    | ouverte            | 10/09        | 6
+#
+# Certifications (sans domaine)
+# REF-20 ENT-A V1 reservee 09/09 ; →refusee 16/09        | refusée, Vague en cours
+# REF-21 ENT-A V1 reservee 15/09                         | réservée, Vague en cours
+# REF-22 ENT-A V2 refusee 10/09                          | refusée, AUTRE Vague (hors IND-5)
+# REF-23 ENT-B V1 accordee 11/09                         | accordée
+#
+# Cas de test ENT-A recette, créés 07/09
+# REF-24..41 ok (18) ; REF-42, REF-43 ko ; REF-44 non_execute ; REF-45 non_execute créé 16/09
+# 14/09 : REF-44 →ko, REF-24 →ko ; 15/09 : REF-25 →ko ; 16/09 : REF-26 →ko ; 17/09 : REF-42 →ok
+#   à J-5 (11/09) : ok REF-24..41 = 18, ko REF-42, REF-43 = 2, non exécuté REF-44 = 1
+#   à D   (18/09) : ok REF-27..41 + REF-42 = 16, ko REF-24, 25, 26, 43, 44 = 5,
+#                   non exécutés REF-45 = 1
+# Cas de test ENT-A tnr, créés 07/09 : REF-46 ok, REF-47 ko (hors Phase en cours)
+# Cas de test ENT-B recette, créés 08/09 : REF-48..55 ok (8), REF-56, REF-57 ko, REF-58
+#   non_execute
+#
+# Mouvements d'Anomalies sur la Fenêtre glissante (toutes gravités)
+#   ENT-A Entrées : 14/09 REF-7, REF-13 ; 15/09 REF-2 (réouv.), REF-5 ; 16/09 REF-3 ;
+#                   18/09 REF-8, REF-9                                     → 7
+#   ENT-A Sorties : 14/09 REF-4 ; 16/09 REF-10 ; 17/09 REF-5 ; 18/09 REF-12 → 4
+#   ENT-B Entrées : 14/09 REF-15 ; 17/09 REF-16, REF-17 ; 18/09 REF-18 (réouv.) → 4
+#   ENT-B Sorties : 15/09 REF-14 ; 18/09 REF-17                           → 2
+# ---------------------------------------------------------------------------------------
+
+# Date d'arrêté unique du jeu.
+date_arrete: 2026-09-18
+
+# Entités du jeu, dans l'ordre du Programme.
+entites: [ENT-A, ENT-B]
+
+# KPI à D : 3 périmètres × 22 lignes (code, dimension) ; dimension "" = KPI non ventilé.
+kpi:
+  ENT-A:
+    # Ouvertes à D : REF-1, 2, 3, 6, 7, 8, 9, 11, 13.
+    anomalies_ouvertes:
+      "": [9, 1]
+    anomalies_ouvertes_gravite:
+      # REF-1, REF-2, REF-3.
+      bloquante: [3, 1]
+      # REF-6, 7, 8, 9 et REF-11 (devenue majeure le 15/09).
+      majeure: [5, 1]
+      # REF-13.
+      mineure: [1, 1]
+    anomalies_ouvertes_phase:
+      # REF-3, REF-11.
+      migration_a_blanc: [2, 1]
+      # REF-1, 2, 6, 7, 9, 13.
+      recette: [6, 1]
+      # REF-8.
+      tnr: [1, 1]
+    # 18/09 : création de REF-9 et de REF-8 (00:30 à Paris le 18/09 ; 17/09 en UTC).
+    entrees_jour:
+      "": [2, 1]
+    # 18/09 : REF-12 fermée.
+    sorties_jour:
+      "": [1, 1]
+    # REF-7, 13, 2, 5, 3, 8, 9 (voir table).
+    entrees_fenetre:
+      "": [7, 1]
+    # REF-4, 10, 5, 12.
+    sorties_fenetre:
+      "": [4, 1]
+    # Âges triés 0, 0, 2, 3, 4, 4, 7, 8, 9 (9 valeurs, REF-8 et REF-9 à 0) : médiane = 5e = 4.
+    age_median_anomalies_ouvertes:
+      "": [4, 1]
+    # REF-1 : 9 Jours ouvrés (07/09 → 18/09).
+    age_max_anomalies_ouvertes:
+      "": [9, 1]
+    taux_ko_cas_de_test:
+      # Aucun Cas de test en migration à blanc.
+      migration_a_blanc: [0, 0]
+      # 5 KO / (16 OK + 5 KO).
+      recette: [5, 21]
+      # REF-47 KO / (REF-46 OK + REF-47 KO).
+      tnr: [1, 2]
+    taux_non_execution_cas_de_test:
+      migration_a_blanc: [0, 0]
+      # REF-45 / 22 Cas de test de recette.
+      recette: [1, 22]
+      # Aucun non exécuté sur les 2 de tnr.
+      tnr: [0, 2]
+    certifications:
+      accordee: [0, 1]
+      # REF-21.
+      reservee: [1, 1]
+      # REF-20 (V1) et REF-22 (V2) : le KPI compte toutes les Vagues.
+      refusee: [2, 1]
+  ENT-B:
+    # Ouvertes à D : REF-15, 16, 18, 19.
+    anomalies_ouvertes:
+      "": [4, 1]
+    anomalies_ouvertes_gravite:
+      # REF-14 fermée le 15/09.
+      bloquante: [0, 1]
+      # REF-15, 16, 18.
+      majeure: [3, 1]
+      # REF-19.
+      mineure: [1, 1]
+    anomalies_ouvertes_phase:
+      # REF-19.
+      migration_a_blanc: [1, 1]
+      # REF-15, 16.
+      recette: [2, 1]
+      # REF-18.
+      tnr: [1, 1]
+    # 18/09 : réouverture de REF-18.
+    entrees_jour:
+      "": [1, 1]
+    # 18/09 : REF-17 rejetée.
+    sorties_jour:
+      "": [1, 1]
+    # REF-15, 16, 17, 18.
+    entrees_fenetre:
+      "": [4, 1]
+    # REF-14, 17.
+    sorties_fenetre:
+      "": [2, 1]
+    # Âges triés 0, 1, 4, 6 : médiane = (1 + 4) / 2 = 5/2.
+    age_median_anomalies_ouvertes:
+      "": [5, 2]
+    # REF-19 : 6 Jours ouvrés (10/09 → 18/09).
+    age_max_anomalies_ouvertes:
+      "": [6, 1]
+    taux_ko_cas_de_test:
+      migration_a_blanc: [0, 0]
+      # 2 KO / (8 OK + 2 KO), non réduit.
+      recette: [2, 10]
+      tnr: [0, 0]
+    taux_non_execution_cas_de_test:
+      migration_a_blanc: [0, 0]
+      # REF-58 / 11 Cas de test de recette.
+      recette: [1, 11]
+      tnr: [0, 0]
+    certifications:
+      # REF-23.
+      accordee: [1, 1]
+      reservee: [0, 1]
+      refusee: [0, 1]
+  PROGRAMME:
+    # 9 (ENT-A) + 4 (ENT-B).
+    anomalies_ouvertes:
+      "": [13, 1]
+    anomalies_ouvertes_gravite:
+      # 3 + 0.
+      bloquante: [3, 1]
+      # 5 + 3.
+      majeure: [8, 1]
+      # 1 + 1.
+      mineure: [2, 1]
+    anomalies_ouvertes_phase:
+      # 2 + 1.
+      migration_a_blanc: [3, 1]
+      # 6 + 2.
+      recette: [8, 1]
+      # 1 + 1.
+      tnr: [2, 1]
+    # REF-8, REF-9, REF-18.
+    entrees_jour:
+      "": [3, 1]
+    # REF-12, REF-17.
+    sorties_jour:
+      "": [2, 1]
+    # 7 + 4.
+    entrees_fenetre:
+      "": [11, 1]
+    # 4 + 2.
+    sorties_fenetre:
+      "": [6, 1]
+    # Âges triés 0, 0, 0, 1, 2, 3, 4, 4, 4, 6, 7, 8, 9 (13 valeurs) : médiane = 7e = 4.
+    age_median_anomalies_ouvertes:
+      "": [4, 1]
+    # REF-1.
+    age_max_anomalies_ouvertes:
+      "": [9, 1]
+    taux_ko_cas_de_test:
+      migration_a_blanc: [0, 0]
+      # (5 + 2) KO / (21 + 10) exécutés.
+      recette: [7, 31]
+      # ENT-A seule.
+      tnr: [1, 2]
+    taux_non_execution_cas_de_test:
+      migration_a_blanc: [0, 0]
+      # (1 + 1) / (22 + 11).
+      recette: [2, 33]
+      tnr: [0, 2]
+    certifications:
+      # REF-23.
+      accordee: [1, 1]
+      # REF-21.
+      reservee: [1, 1]
+      # REF-20, REF-22.
+      refusee: [2, 1]
+
+# Indicateurs à D, par Entité : statut, motif ("" si évalué), valeur [n, d] et couleur.
+# Seuils de la Grille par défaut : IND-1 rouge >= 3, orange >= 1 ; IND-2 rouge > 10,
+# orange > 5 ; IND-3 rouge >= 20, orange >= 10, jaune >= 5 ; IND-4 rouge >= 0.20,
+# orange >= 0.10, jaune >= 0.05 ; IND-5 rouge >= 1 ; IND-6 orange >= 2, jaune >= 1 ;
+# IND-7 orange > 1.5, jaune > 1.0 ; IND-8 orange >= 0.05, jaune >= 0.03.
+# Garde-fous : IND-4 à partir de 20 Cas de test exécutés ; IND-7 à partir de 5 Entrées.
+indicateurs:
+  ENT-A:
+    # REF-1, REF-2, REF-3 : 3 >= 3 (seuil atteint).
+    IND-1:
+      statut: evalue
+      motif: ""
+      valeur: [3, 1]
+      couleur: rouge
+    # Plus ancienne bloquante ouverte REF-1, 9 Jours ouvrés : > 5, pas > 10.
+    IND-2:
+      statut: evalue
+      motif: ""
+      valeur: [9, 1]
+      couleur: orange
+    # REF-6, 7, 8, 9, 11 : 5 >= 5 (seuil jaune atteint).
+    IND-3:
+      statut: evalue
+      motif: ""
+      valeur: [5, 1]
+      couleur: jaune
+    # Recette : 5 KO / 21 exécutés (21 >= 20, garde-fou satisfait) ; 5/21 >= 1/5. Les Cas de
+    # test tnr REF-46, REF-47 sont hors Phase en cours.
+    IND-4:
+      statut: evalue
+      motif: ""
+      valeur: [5, 21]
+      couleur: rouge
+    # REF-20 (V1) ; REF-22 refusée en V2, hors Vague en cours.
+    IND-5:
+      statut: evalue
+      motif: ""
+      valeur: [1, 1]
+      couleur: rouge
+    # REF-21 ; REF-20 n'est plus réservée à D.
+    IND-6:
+      statut: evalue
+      motif: ""
+      valeur: [1, 1]
+      couleur: jaune
+    # Bloquantes + majeures : Entrées REF-7, 2, 5, 3, 8, 9 = 6 (>= 5, garde-fou satisfait ;
+    # REF-13 mineure exclue) ; Sorties REF-4, 10, 5, 12 = 4. 6/4 = 1,5 : pas > 1.5, > 1.0.
+    IND-7:
+      statut: evalue
+      motif: ""
+      valeur: [6, 4]
+      couleur: jaune
+    # IND-4 évaluable aux deux dates : 5/21 (D) − 2/20 (J-5, 20 exécutés) = 50/210 − 21/210
+    # = 29/210 (fraction réduite) >= 0.05.
+    IND-8:
+      statut: evalue
+      motif: ""
+      valeur: [29, 210]
+      couleur: orange
+  ENT-B:
+    # Aucune bloquante ouverte (REF-14 fermée le 15/09).
+    IND-1:
+      statut: evalue
+      motif: ""
+      valeur: [0, 1]
+      couleur: vert
+    IND-2:
+      statut: non_evaluable
+      motif: "aucune Anomalie bloquante ouverte"
+      valeur: [0, 0]
+      couleur: vert
+    # REF-15, 16, 18 : 3 < 5.
+    IND-3:
+      statut: evalue
+      motif: ""
+      valeur: [3, 1]
+      couleur: vert
+    # 10 Cas de test exécutés (2 KO, 20 % : rouge s'il était évalué) < 20.
+    IND-4:
+      statut: non_evaluable
+      motif: "10 Cas de test exécuté(s) en Phase recette le 2026-09-18, en deçà du garde-fou de 20"
+      valeur: [0, 0]
+      couleur: vert
+    IND-5:
+      statut: evalue
+      motif: ""
+      valeur: [0, 1]
+      couleur: vert
+    IND-6:
+      statut: evalue
+      motif: ""
+      valeur: [0, 1]
+      couleur: vert
+    # Entrées REF-15, 16, 17, 18 = 4 < 5 (Sorties REF-14, 17 = 2).
+    IND-7:
+      statut: non_evaluable
+      motif: "4 Entrée(s) d'Anomalies bloquantes ou majeures sur la Fenêtre glissante, en deçà du garde-fou de 5"
+      valeur: [0, 0]
+      couleur: vert
+    # IND-4 non évaluable à D.
+    IND-8:
+      statut: non_evaluable
+      motif: "IND-4 non évaluable le 2026-09-18 (10 Cas de test exécuté(s) en Phase recette le 2026-09-18, en deçà du garde-fou de 20)"
+      valeur: [0, 0]
+      couleur: vert
+
+# Météo à D : couleur la plus grave ; toutes les Règles déclenchantes de cette couleur, dans
+# l'ordre IND-1..IND-8, avec valeur, opérateur, seuil [n, d] et tickets en cause.
+meteo:
+  ENT-A:
+    # Rouges : IND-1, IND-4, IND-5 (oranges IND-2, IND-8 et jaunes non restitués).
+    couleur: rouge
+    regles:
+      - code: IND-1
+        operateur: ">="
+        valeur: [3, 1]
+        seuil: [3, 1]
+        # Bloquantes ouvertes.
+        tickets_en_cause: [REF-1, REF-2, REF-3]
+      - code: IND-4
+        operateur: ">="
+        valeur: [5, 21]
+        # 0.20 = 1/5.
+        seuil: [1, 5]
+        # Cas de test KO de la recette à D.
+        tickets_en_cause: [REF-24, REF-25, REF-26, REF-43, REF-44]
+      - code: IND-5
+        operateur: ">="
+        valeur: [1, 1]
+        seuil: [1, 1]
+        # Certification refusée de la Vague en cours.
+        tickets_en_cause: [REF-20]
+  ENT-B:
+    # Aucun indicateur évalué ne franchit de seuil ; les non évaluables ne comptent pas.
+    couleur: vert
+    regles: []
+
+# Empreinte attendue de la Grille figée du jeu (12 premiers hex du SHA-256 de
+# `grille_meteo.yaml`), portée par chaque Météo : toute modification de la Grille la change.
+version_grille: c344967e71de
+
+# Variantes de la Météo à D : Grille du jeu dont les indicateurs listés sont inactifs, pour
+# réconcilier l'agrégation orange et jaune et les tickets en cause des autres règles (triés
+# par numéro de clé : REF-9 avant REF-11). Les valeurs mesurées sont celles d'`indicateurs`.
+meteo_variantes:
+  - inactifs: [IND-1, IND-4, IND-5]
+    meteo:
+      ENT-A:
+        # Restent IND-2 orange, IND-3 jaune, IND-6 jaune, IND-7 jaune, IND-8 orange : orange.
+        couleur: orange
+        regles:
+          - code: IND-2
+            operateur: ">"
+            # REF-1 : 9 Jours ouvrés > 5.
+            valeur: [9, 1]
+            seuil: [5, 1]
+            # La plus ancienne bloquante ouverte.
+            tickets_en_cause: [REF-1]
+          - code: IND-8
+            operateur: ">="
+            # 5/21 − 2/20 = 29/210 >= 0.05 ; IND-4 inactif mais toujours mesuré pour IND-8.
+            valeur: [29, 210]
+            # 0.05 = 1/20.
+            seuil: [1, 20]
+            # Cas de test KO de la recette à D.
+            tickets_en_cause: [REF-24, REF-25, REF-26, REF-43, REF-44]
+      ENT-B:
+        # IND-2, IND-7, IND-8 non évaluables ; IND-3 (3), IND-6 (0) verts.
+        couleur: vert
+        regles: []
+  - inactifs: [IND-1, IND-2, IND-4, IND-5, IND-8]
+    meteo:
+      ENT-A:
+        # Restent IND-3, IND-6, IND-7, tous jaunes.
+        couleur: jaune
+        regles:
+          - code: IND-3
+            operateur: ">="
+            valeur: [5, 1]
+            seuil: [5, 1]
+            # Majeures ouvertes à D (REF-11 devenue majeure le 15/09).
+            tickets_en_cause: [REF-6, REF-7, REF-8, REF-9, REF-11]
+          - code: IND-6
+            operateur: ">="
+            valeur: [1, 1]
+            seuil: [1, 1]
+            # Certification réservée de la Vague en cours.
+            tickets_en_cause: [REF-21]
+          - code: IND-7
+            operateur: ">"
+            # 6 Entrées / 4 Sorties, non réduit ; 1,5 > 1.0.
+            valeur: [6, 4]
+            # 1.0 = 1/1.
+            seuil: [1, 1]
+            # Bloquantes ou majeures entrées (REF-2, 3, 5, 7, 8, 9) ou sorties (REF-4, 5, 10,
+            # 12) sur la Fenêtre glissante ; REF-13 mineure exclue.
+            tickets_en_cause: [REF-2, REF-3, REF-4, REF-5, REF-7, REF-8, REF-9, REF-10, REF-12]
+      ENT-B:
+        # IND-3 (3) et IND-6 (0) verts ; IND-7 non évaluable.
+        couleur: vert
+        regles: []
