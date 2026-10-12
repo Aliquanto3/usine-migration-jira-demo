@@ -1,0 +1,24 @@
+{
+  "self": "https://jira.example.invalid/rest/api/3/issue/DEMO-3/changelog?startAt=2&maxResults=2",
+  "startAt": 2,
+  "maxResults": 2,
+  "total": 4,
+  "isLast": true,
+  "values": [
+    {
+      "id": "20007",
+      "created": "2026-09-08T08:00:00.000+0000",
+      "items": [
+        {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "3", "fromString": "En correction", "to": "4", "toString": "À retester"},
+        {"field": "Gravité", "fieldtype": "custom", "fieldId": "customfield_10004", "from": "11032", "fromString": "Majeure", "to": "11033", "toString": "Mineure"}
+      ]
+    },
+    {
+      "id": "20008",
+      "created": "2026-09-09T08:00:00.000+0000",
+      "items": [
+        {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "4", "fromString": "À retester", "to": "5", "toString": "Fermée"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "issues": [
+    {
+      "id": "10003",
+      "key": "DEMO-3",
+      "self": "https://jira.example.invalid/rest/api/3/issue/10003",
+      "fields": {
+        "status": {"name": "Fermée"},
+        "customfield_10001": {"value": "ENT-B", "id": "11002"},
+        "customfield_10002": {"value": "V2", "id": "11012"},
+        "customfield_10003": {"value": "Paie", "id": "11022"},
+        "customfield_10004": {"value": "Mineure", "id": "11033"},
+        "customfield_10005": {"value": "Migration à blanc", "id": "11041"},
+        "summary": "Rubrique de paie absente",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "La rubrique 1200 est absente après migration."}]}
+          ]
+        },
+        "customfield_10006": null,
+        "customfield_10007": null,
+        "issuetype": {"name": "Anomalie"},
+        "created": "2026-09-02T09:00:00.000+0000"
+      },
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 2,
+        "total": 4,
+        "histories": [
+          {
+            "id": "20005",
+            "created": "2026-09-03T08:00:00.000+0000",
+            "items": [
+              {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "1", "fromString": "Nouvelle", "to": "2", "toString": "En analyse"}
+            ]
+          },
+          {
+            "id": "20006",
+            "created": "2026-09-04T08:00:00.000+0000",
+            "items": [
+              {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "2", "fromString": "En analyse", "to": "3", "toString": "En correction"}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "10004",
+      "key": "DEMO-4",
+      "self": "https://jira.example.invalid/rest/api/3/issue/10004",
+      "fields": {
+        "status": {"name": "Ouvert"},
+        "customfield_10001": {"value": "ENT-A", "id": "11001"},
+        "customfield_10002": {"value": "V1", "id": "11011"},
+        "customfield_10003": {"value": "Paie", "id": "11022"},
+        "customfield_10004": null,
+        "customfield_10005": null,
+        "summary": "Certification ENT-A, vague V1",
+        "description": null,
+        "customfield_10006": null,
+        "customfield_10007": {"value": "Accordée", "id": "11061"},
+        "issuetype": {"name": "Certification"},
+        "created": "2026-09-10T09:00:00.000+0000"
+      },
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 1,
+        "total": 1,
+        "histories": [
+          {
+            "id": "20009",
+            "created": "2026-09-11T10:00:00.000+0000",
+            "items": [
+              {"field": "Domaine", "fieldtype": "custom", "fieldId": "customfield_10003", "from": null, "fromString": null, "to": "11022", "toString": "Paie"},
+              {"field": "Statut de certification", "fieldtype": "custom", "fieldId": "customfield_10007", "from": "11062", "fromString": "Réservée", "to": "11061", "toString": "Accordée"}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

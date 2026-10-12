@@ -23,6 +23,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 | 3.2 | L3 (`lane-3-calcul`) | done | `b29755a` | `domaine/kpi.py` : douze KPI quotidiens denses (stocks, Entrées/Sorties du jour et sur la Fenêtre glissante, âges médian et maximum, taux de KO et de non-exécution, Certifications) par Entité et Programme, en entiers `numerateur`/`denominateur`, depuis l'état des tickets. |
 | 3.3 | L3 (`lane-3-calcul`) | done | `34504bf` | `domaine/kpi.py` : `tendances(kpi, date_arrete, ancrage)` rend les 8 dernières semaines du Programme (`semaine_programme`), chaque semaine portant les KPI de son dernier Jour ouvré (semaine en cours datée de la Date d'arrêté) et les cumuls `entrees_semaine`/`sorties_semaine`. |
 | 1.1 | L1 (`lane-1-donnees`) | done | `e393071` | `config/programme.yaml` complet (« Banque Exemple — migration SI cœur », 10 Entités, 3 Vagues et leurs Phases, volumétrie cible) ; le générateur applique bornes d'Entrées par semaine et calendrier des Phases, tire la clé de projet de `ConfigJira.cle_projet` et le lundi de `contrats.calendrier` (constat 12). |
+| 2.2 | L2 (`lane-2-extraction`) | done | `69a967e` | Paquet `adaptateurs/jira_cloud` : `SourceJiraCloud` lit Jira Cloud par le seul `ClientJiraLecture` (recherche JQL avec changelog, complément par ticket des changelogs tronqués) et émet des `Evenement` canoniques selon `config/jira.yaml` ; suite de contrat `SourceTickets` exécutée sur Cloud depuis la lane (fabrique dans `tests/contrat/` à ajouter par PR courte sur `main`). |
 
 ## File humaine
 
