@@ -15,10 +15,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 
 | Story | Lane | Statut | Commit sur `main` | Résumé |
 |---|---|---|---|---|
-| 8.1 | L8 (`lane-8-portage`) | blocked | — | Non exécutée : la session de la lane n'avait pas l'outil Agent, or `bmad-build-auto` lance des sous-agents. Aucun fichier modifié. |
 
 ## File humaine
-
-- **Story 8.1 (L8)** : aucune décision, aucun secret ni changement de contrat n'est requis. Il faut relancer la lane 8 depuis une session où l'outil Agent (sous-agents) est disponible. La branche `bloque/8-1` (worktree `lane-8-portage`) a été créée, mais elle ne contient aucun travail : elle pointe sur `826f891`. `lane/8-portage` est revenue à `826f891`.
 
 ## Fichiers écrits hors lane
