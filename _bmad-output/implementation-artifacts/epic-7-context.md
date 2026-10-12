@@ -65,6 +65,12 @@ Donner au Pilote et à l'auteur les écrans de la démo de 10 minutes présenté
 - L'écran outillage affiche la fiche de `docs/` en lecture seule, sans en dupliquer le texte dans `ui/`.
 - Le script de la démo suit cet ordre : avant / après → lancement en direct → Météo (A rouge, Règle, Explication) → Prévision (A sort, B non) → Agent → écran outillage.
 
+## Mises à jour depuis la compilation (contrats 1.2 à 1.6, 12-13/10/2026)
+
+- Contrats 1.2 (correct-course) : Programme réduit et flux scripté ; reprise des Stories 4.5, 5.5 et 5.6.
+- Contrats 1.3 : clé `moteur` de `config/pseudonymisation.yaml` (`presidio` par défaut, ou `regex`) ; la composition choisit le `Pseudonymiseur`.
+- Contrats 1.4 à 1.6 : schémas de réponse `ReponseClassification` et `ReponseNarration`, colonne `part` de `SCHEMA_REPARTITION_CAUSES`. Pour l'UI : `SortieExplication.phrases_retirees` et `statut_controle`, `SortieNarration.statut_controle`, lus via `Consultation.explications/narrations(palier=)`.
+
 ## Cross-Story Dependencies
 
 - Stories 7.1 à 7.6 : elles exigent la Consultation complète (Story 5.2). Elles s'appuient sur l'UI minimale du walking skeleton (Story 0.8 : carte, lancement, bandeau).

@@ -1,5 +1,5 @@
 """Page Streamlit (`AppTest`) : bandeau, navigation, carte, détail, lancement, avant / après,
-outillage, Mode repli."""
+outillage, Mode repli, comparaison des Paliers et Pseudonymisation."""
 
 import json
 import re
@@ -19,6 +19,7 @@ from tests.unit.chaine.environnement import RACINE_DEPOT
 from tests.unit.ui.test_avant_apres import manifeste, publier
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.format import formater_date, formater_pourcentage
+from usine.contrats.llm import SortieExplication, SortieNarration, StatutControle
 from usine.contrats.meteo import (
     LIBELLES_COULEURS,
     CodeIndicateur,
@@ -27,7 +28,13 @@ from usine.contrats.meteo import (
     Operateur,
     RegleDeclenchante,
 )
-from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
+from usine.contrats.passage import (
+    CHEMIN_PSEUDONYMES,
+    Etape,
+    EvenementProgression,
+    ManifestePassage,
+    StatutEtape,
+)
 from usine.contrats.prevision import (
     FacteurExplicatif,
     MethodePrevision,
@@ -35,7 +42,7 @@ from usine.contrats.prevision import (
     RisqueEntreeRouge,
     StatutPrevision,
 )
-from usine.ui import avant_apres, cli, detail, lancement, outillage
+from usine.ui import avant_apres, cli, detail, lancement, outillage, pseudonymisation
 from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.liens import echapper_markdown
@@ -147,6 +154,7 @@ def test_carte_en_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPat
 def test_navigation(ecran: Ecran, racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(racine_publiee)
     monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    monkeypatch.setattr(cli, "apercu_pseudonymisation", lambda _racine: str.upper)
     page = _page(ecran)
     assert not page.exception
     assert not page.error
@@ -171,6 +179,11 @@ def test_navigation(ecran: Ecran, racine_publiee: Path, monkeypatch: pytest.Monk
     elif ecran is Ecran.outillage:
         assert page.subheader[0].value == ecran.value
         assert _fiche(page) == _fiche_attendue(racine_publiee)
+        assert not page.info  # plus un emplacement
+    elif ecran is Ecran.pseudonymisation:
+        assert page.subheader[0].value == ecran.value
+        original, version = (t.value for t in page.text)
+        assert version == original.upper()
         assert not page.info  # plus un emplacement
     elif ecran is not Ecran.carte:
         assert page.subheader[0].value == ecran.value
@@ -463,14 +476,240 @@ def test_detail_lecture_entite_illisible(
     assert detail.EXPLICATION_PALIER_1 not in _textes(page)
 
 
+# --- Explication sourcée et comparaison des Paliers (Story 7.7) ---
+
+TEXTE_EXPLICATION = "ENT-A est rouge : DEMO-11 bloque la recette."
+TEXTE_NARRATION = "La sortie du rouge est attendue sous deux semaines."
+
+
+class _DoublurePalier2(_Doublure):
+    """Passage Palier 2 : Explication corrigée (2 citations, 1 phrase retirée) et narration
+    conforme pour ENT-A ; filtre `palier` respecté et noté, comme `Consultation`."""
+
+    statut_explication = StatutControle.corrige
+    statut_narration = StatutControle.conforme
+    avec_explication = True
+
+    def __init__(self, reelle: Any, palier: int = 2) -> None:
+        super().__init__(reelle, palier)
+        self.paliers_lus: list[int] = []
+
+    def explications(
+        self, entite: str | None = None, palier: int = 2
+    ) -> tuple[SortieExplication, ...]:
+        self.paliers_lus.append(palier)
+        sortie = SortieExplication(
+            date_arrete=self._jour,
+            entite="ENT-A",
+            texte=TEXTE_EXPLICATION,
+            citations=("DEMO-11", "DEMO-10"),
+            brouillon_commentaire="",
+            phrases_retirees=1,
+            statut_controle=self.statut_explication,
+        )
+        if palier == 1 or not self.avec_explication:
+            return ()
+        return tuple(s for s in (sortie,) if entite is None or s.entite == entite)
+
+    def narrations(self, entite: str | None = None, palier: int = 2) -> tuple[SortieNarration, ...]:
+        self.paliers_lus.append(palier)
+        sortie = SortieNarration(
+            date_arrete=self._jour,
+            entite="ENT-A",
+            texte=TEXTE_NARRATION,
+            statut_controle=self.statut_narration,
+        )
+        if palier == 1:
+            return ()
+        return tuple(s for s in (sortie,) if entite is None or s.entite == entite)
+
+
+def _palier(page: AppTest) -> Any:
+    """Sélecteur de Palier du détail, ou `None` s'il n'est pas offert."""
+    radios = [r for r in page.radio if r.label == "Palier affiché"]
+    return radios[0] if radios else None
+
+
+def _detail_a(monkeypatch: pytest.MonkeyPatch, classe: type[_Doublure]) -> tuple[AppTest, Any]:
+    doublure = _avec_doublure(monkeypatch, palier=2, classe=classe)
+    page = _page()
+    page.button(key="detail_ENT-A").click().run()
+    assert not page.exception
+    assert not page.error
+    return page, doublure
+
+
 def test_detail_palier_2(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(racine_publiee)
-    _avec_doublure(monkeypatch, palier=2)
-    page = _page(Ecran.detail)
+    page, doublure = _detail_a(monkeypatch, _DoublurePalier2)
+    assert _palier(page).value == 2  # Palier du Passage par défaut
+    textes = _textes(page)
+    assert detail.EXPLICATION_PALIER_1 not in textes
+    liens = dict(LIEN.findall(textes))
+    assert set(liens) == {"DEMO-10", "DEMO-11"}  # chaque Citation est un lien Jira
+    for cle, url in liens.items():
+        assert url == doublure.url_ticket(cle)
+    assert f"[DEMO-11]({doublure.url_ticket('DEMO-11')}) bloque la recette." in textes
+    assert "**Citations**" in textes
+    assert "Phrases retirées au contrôle : 1" in textes
+    assert TEXTE_NARRATION in textes  # la narration contrôlée remplace la Prévision brute
+    assert detail.NARRATION_CONTROLEE in textes
+    assert "Stock d'Anomalies : 2" not in textes
+    assert set(doublure.paliers_lus) == {2}
+
+    doublure.paliers_lus.clear()
+    _palier(page).set_value(1).run()  # la même Entité, sans aucune sortie LLM
+    assert not page.exception
+    assert page.selectbox[0].value == "ENT-A"
+    textes = _textes(page)
+    assert detail.EXPLICATION_PALIER_1 in textes
+    assert TEXTE_EXPLICATION not in textes
+    assert TEXTE_NARRATION not in textes
+    assert "Stock d'Anomalies : 2" in textes  # Prévision brute
+    assert doublure.paliers_lus and set(doublure.paliers_lus) == {1}
+
+
+class _DoublureSansExplication(_DoublurePalier2):
+    avec_explication = False
+
+
+def test_detail_palier_2_sans_explication(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page, _ = _detail_a(monkeypatch, _DoublureSansExplication)
+    assert detail.EXPLICATION_ABSENTE in _textes(page)
+
+
+class _DoublureRejetee(_DoublurePalier2):
+    statut_explication = StatutControle.rejete
+    statut_narration = StatutControle.rejete
+
+
+def test_detail_explication_et_narration_rejetees(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page, _ = _detail_a(monkeypatch, _DoublureRejetee)
+    textes = _textes(page)
+    assert echapper_markdown(TEXTE_EXPLICATION) in textes  # texte de remplacement tel quel
+    assert "rejetée" in textes
+    assert TEXTE_NARRATION not in textes
+    assert "Stock d'Anomalies : 2" in textes  # Prévision brute
+
+
+class _DoublureCorrigee(_DoublurePalier2):
+    statut_narration = StatutControle.corrige
+
+
+def test_detail_narration_corrigee(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    page, _ = _detail_a(monkeypatch, _DoublureCorrigee)
+    textes = _textes(page)
+    assert TEXTE_NARRATION in textes
+    assert "Stock d'Anomalies : 2" not in textes
+
+
+def test_detail_passage_palier_1_sans_selecteur(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    doublure = _avec_doublure(monkeypatch, palier=1, classe=_DoublurePalier2)
+    page = _page()
+    page.button(key="detail_ENT-A").click().run()
+    assert not page.exception
+    assert _palier(page) is None
+    textes = _textes(page)
+    assert detail.EXPLICATION_PALIER_1 in textes
+    assert TEXTE_NARRATION not in textes
+    assert set(doublure.paliers_lus) == {1}
+
+
+class _DoublureRepli(_DoublurePalier2):
+    def url_ticket(self, cle: str) -> None:
+        return None
+
+
+def test_detail_palier_2_en_mode_repli(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    reelle = cli.consultation_repli(racine_publiee)
+    doublure = _DoublureRepli(reelle, 2)
+    monkeypatch.setattr(cli, "consultation_repli", lambda _racine: doublure)
+    page = _page()
+    page.button(key="detail_ENT-A").click().run()
     assert not page.exception
     textes = _textes(page)
-    assert detail.EXPLICATION_PALIER_2 in textes
-    assert detail.EXPLICATION_PALIER_1 not in textes
+    assert "Phrases retirées au contrôle : 1" in textes
+    assert "- DEMO-11" in textes  # Citation en texte simple
+    assert not LIEN.findall(textes)
+
+
+def test_pseudonymisation_cote_a_cote(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Aperçu réel (moteur du dépôt), sur la copie du Mode repli, sans écriture de la table."""
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.setenv("USINE_MODE_REPLI", "1")
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    table = racine_publiee / CHEMIN_PSEUDONYMES
+    presente = table.exists()
+    page = _page(Ecran.pseudonymisation)
+    assert not page.exception
+    assert not page.error
+    consultation = cli.consultation_repli(racine_publiee)
+    assert consultation is not None
+    textes = pseudonymisation.descriptions(consultation.textes_tickets())
+    cle = next(c for c, t in textes.items() if "FR" in t and "compte" in t)
+    page.selectbox(key="ticket_apercu").set_value(cle).run()
+    assert not page.exception
+    original, version = (t.value for t in page.text)
+    assert original == textes[cle]
+    assert version != original
+    assert re.search(r"COMPTE_[0-9a-f]{6}", version)
+    assert f"Ticket : {cle}" in _textes(page)  # Mode repli : clé en texte simple
+    assert pseudonymisation.LEGENDE in [c.value for c in page.caption]
+    assert table.exists() is presente  # rien n'est écrit
+
+
+def test_pseudonymisation_sans_cle(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.delenv("USINE_CLE_PSEUDO", raising=False)
+    page = _page(Ecran.pseudonymisation)
+    assert not page.exception
+    assert len(page.error) == 1
+    assert "USINE_CLE_PSEUDO" in page.error[0].value
+
+
+class _DoublureSansDescription(_Doublure):
+    def textes_tickets(self) -> Any:
+        return self._reelle.textes_tickets().head(0)
+
+
+def test_pseudonymisation_aucune_description(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(racine_publiee)
+    _avec_doublure(monkeypatch, classe=_DoublureSansDescription)
+    page = _page(Ecran.pseudonymisation)
+    assert not page.exception
+    assert [i.value for i in page.info] == [pseudonymisation.AUCUNE_DESCRIPTION]
+    assert not page.text
+
+
+def test_pseudonymisation_lien_jira(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(racine_publiee)
+    monkeypatch.setattr(cli, "apercu_pseudonymisation", lambda _racine: str.upper)
+    page = _page(Ecran.pseudonymisation)
+    assert not page.exception
+    consultation = consultation_dernier_passage(racine_publiee)
+    assert consultation is not None
+    cle = str(page.selectbox(key="ticket_apercu").value)
+    url = consultation.url_ticket(cle)
+    attendu = f"[{cle}]({url})" if url else cle
+    assert f"Ticket : {attendu}" in _textes(page)
 
 
 def test_racine_introuvable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

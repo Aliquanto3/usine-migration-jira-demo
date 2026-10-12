@@ -12,6 +12,7 @@ class Ecran(StrEnum):
     detail = "Détail d'une Entité"
     lancement = "Lancement de la Chaîne"
     avant_apres = "Avant / après"
+    pseudonymisation = "Pseudonymisation"
     agent = "Agent"
     outillage = "Ce qu'il faut pour le faire en vrai"
 
@@ -32,6 +33,10 @@ CLE_ENTITE = "entite"
 """Clé de `session_state` du sélecteur d'Entité de l'écran Détail."""
 CLE_REPLI = "mode_repli"
 """Clé de `session_state` de la bascule manuelle du Mode repli (barre latérale)."""
+CLE_PALIER = "palier"
+"""Clé de `session_state` du sélecteur de Palier du détail (Passage Palier 2 seulement)."""
+CLE_TICKET_APERCU = "ticket_apercu"
+"""Clé de `session_state` du ticket choisi sur l'écran Pseudonymisation."""
 
 
 def libelles_ecrans() -> list[str]:

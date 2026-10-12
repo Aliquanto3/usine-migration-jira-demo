@@ -1,4 +1,4 @@
-"""Détail d'une Entité (Palier 1) : blocs en fonctions pures, alignement sur `Consultation`."""
+"""Détail d'une Entité : blocs en fonctions pures, alignement sur `Consultation`."""
 
 import inspect
 import re
@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 
 from usine.contrats.format import formater_date, formater_fraction, formater_pourcentage
+from usine.contrats.llm import SortieExplication, SortieNarration, StatutControle
 from usine.contrats.meteo import CodeIndicateur, Couleur, MeteoEntite, Operateur, RegleDeclenchante
 from usine.contrats.passage import Etape, StatutEtape
 from usine.contrats.prevision import (
@@ -25,9 +26,10 @@ from usine.ui.cli import consultation_dernier_passage
 from usine.ui.detail import (
     AUCUN_RISQUE,
     AUCUNE_REGLE,
+    EXPLICATION_ABSENTE,
     EXPLICATION_PALIER_1,
-    EXPLICATION_PALIER_2,
     KPI_CLES,
+    NARRATION_CONTROLEE,
     PREVISION_NON_CALCULEE_ENTITE,
     PREVISION_NON_CALCULEE_PASSAGE,
     PREVISION_SANS_OBJET,
@@ -37,6 +39,7 @@ from usine.ui.detail import (
     lignes_kpi,
     lignes_regles,
     previsions_calculees,
+    texte_avec_liens,
     texte_explication,
     texte_prevision,
     texte_risques,
@@ -45,7 +48,16 @@ from usine.ui.detail import (
 from usine.ui.liens import echapper_markdown
 
 DATE = date(2026, 10, 9)
-METHODES = ["manifeste", "meteo", "kpi", "previsions", "risques", "url_ticket"]
+METHODES = [
+    "manifeste",
+    "meteo",
+    "kpi",
+    "previsions",
+    "risques",
+    "explications",
+    "narrations",
+    "url_ticket",
+]
 
 
 def _url(cle: str) -> str:
@@ -363,6 +375,100 @@ def test_previsions_calculees(
 # Explication
 
 
-def test_explication() -> None:
+def _explication(
+    texte: str = "ENT-A est rouge : DEMO-12 et DEMO-1 bloquent la recette (DEMO-1).",
+    citations: tuple[str, ...] = ("DEMO-1", "DEMO-12"),
+    phrases_retirees: int = 1,
+    statut: StatutControle = StatutControle.corrige,
+) -> SortieExplication:
+    return SortieExplication(
+        date_arrete=DATE,
+        entite="ENT-A",
+        texte=texte,
+        citations=citations,
+        brouillon_commentaire="",
+        phrases_retirees=phrases_retirees,
+        statut_controle=statut,
+    )
+
+
+def _narration(statut: StatutControle, entite: str = "ENT-A") -> SortieNarration:
+    return SortieNarration(
+        date_arrete=DATE,
+        entite=entite,
+        texte="La sortie du rouge est attendue sous deux semaines.",
+        statut_controle=statut,
+    )
+
+
+def test_explication_palier_1() -> None:
     assert texte_explication(1) == "commentaire non généré (Palier 1)" == EXPLICATION_PALIER_1
-    assert texte_explication(2) == "Explication sourcée : Story 7.7" == EXPLICATION_PALIER_2
+    # En Palier 1, même une sortie LLM transmise n'est jamais affichée.
+    assert texte_explication(1, (_explication(),), _url) == EXPLICATION_PALIER_1
+
+
+def test_explication_absente() -> None:
+    assert texte_explication(2, (), _url) == EXPLICATION_ABSENTE
+
+
+def test_explication_palier_2_liens_citations_phrases_retirees() -> None:
+    texte = texte_explication(2, (_explication(),), _url)
+    premiere = texte.split("\n")[0]
+    assert premiere == (
+        f"ENT-A est rouge : [DEMO-12]({_url('DEMO-12')}) et [DEMO-1]({_url('DEMO-1')})"
+        f" bloquent la recette \\([DEMO-1]({_url('DEMO-1')})\\)."
+    )
+    assert "**Citations**" in texte
+    assert f"- [DEMO-1]({_url('DEMO-1')})" in texte
+    assert f"- [DEMO-12]({_url('DEMO-12')})" in texte
+    assert "Phrases retirées au contrôle : 1" in texte
+    assert "corrigée" in texte
+
+
+def test_explication_citation_absente_du_texte_reste_visible() -> None:
+    texte = texte_explication(2, (_explication("Aucune clé ici.", ("DEMO-7",), 0),), _url)
+    assert texte.startswith("Aucune clé ici.")
+    assert f"- [DEMO-7]({_url('DEMO-7')})" in texte
+    assert "Phrases retirées au contrôle : 0" in texte
+
+
+def test_explication_en_mode_repli() -> None:
+    texte = texte_explication(2, (_explication(),), _sans_url)
+    assert "](" not in texte
+    assert "- DEMO-12" in texte
+
+
+def test_explication_rejetee() -> None:
+    remplacement = "explication indisponible (contrôle des citations)"
+    texte = texte_explication(2, (_explication(remplacement, (), 0, StatutControle.rejete),), _url)
+    assert texte.startswith(echapper_markdown(remplacement))  # affiché tel quel
+    assert "rejetée" in texte
+    assert "Citations" not in texte
+
+
+def test_texte_avec_liens_bornes() -> None:
+    # `DEMO-1` n'est pas reconnu dans `DEMO-12`, `XDEMO-1` ni `DEMO-1-2`.
+    texte = texte_avec_liens("DEMO-12 XDEMO-1 DEMO-1-2 DEMO-1.", ("DEMO-1",), _url)
+    assert texte == f"DEMO-12 XDEMO-1 DEMO-1-2 [DEMO-1]({_url('DEMO-1')})."
+    assert texte_avec_liens("a_b", (), _url) == "a\\_b"
+
+
+def test_narration_controlee_remplace_la_prevision_brute() -> None:
+    prevision = (_prevision(StatutPrevision.sortie_projetee),)
+    for statut in (StatutControle.conforme, StatutControle.corrige):
+        texte = texte_prevision(ROUGE, prevision, True, (_narration(statut),))
+        assert "La sortie du rouge est attendue sous deux semaines." in texte
+        assert NARRATION_CONTROLEE in texte
+        assert "20/10/2026" not in texte
+
+
+def test_narration_rejetee_ou_absente() -> None:
+    prevision = (_prevision(StatutPrevision.sortie_projetee),)
+    brute = texte_prevision(ROUGE, prevision, True)
+    for narrations in (
+        (_narration(StatutControle.rejete),),
+        (_narration(StatutControle.non_controle),),
+        (_narration(StatutControle.conforme, entite="ENT-B"),),
+    ):
+        assert texte_prevision(ROUGE, prevision, True, narrations) == brute
+    assert "20/10/2026" in brute

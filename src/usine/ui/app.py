@@ -12,6 +12,12 @@ repli, `Consultation`, configuration de la démo (`config/demo.yaml`) et manifes
 / après viennent des services de `ui/cli.py` (racine de composition). L'écran outillage affiche
 en lecture seule la fiche `docs/fiche-outillage.md` (Story 8.1), lue sous la même racine.
 
+Comparaison des Paliers (Story 7.7) : sur un Passage Palier 2, un sélecteur de Palier du détail
+lit l'Explication sourcée et la narration de la Prévision avec le filtre `palier` de
+`Consultation` ; en Palier 1, aucune sortie LLM n'est lue. L'écran Pseudonymisation montre côte
+à côte une description de ticket et son aperçu pseudonymisé (`ui/cli.apercu_pseudonymisation`),
+calculé localement sans rien écrire.
+
 Mode repli (activation toujours manuelle, H-30) : `USINE_MODE_REPLI` l'impose, sinon la bascule
 latérale « Mode repli » le décide. Actif, il affiche un bandeau permanent en tête de page ; la
 carte, le détail et l'avant / après lisent alors le Passage enregistré `demo/repli/passage/`
@@ -20,15 +26,25 @@ via `Consultation`, sans lien Jira, et le lancement de la Chaîne est désactiv�
 
 import subprocess
 from pathlib import Path
-from typing import IO, Protocol
+from typing import IO, Literal, Protocol
 
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
-from usine.ui import avant_apres, carte, detail, lancement, navigation, outillage, progression
+from usine.ui import (
+    avant_apres,
+    carte,
+    detail,
+    lancement,
+    navigation,
+    outillage,
+    progression,
+    pseudonymisation,
+)
 from usine.ui.cli import (
     REPERTOIRE_REPLI,
+    apercu_pseudonymisation,
     config_demo,
     consultation_dernier_passage,
     consultation_repli,
@@ -36,7 +52,7 @@ from usine.ui.cli import (
     mode_repli,
     racine_ui,
 )
-from usine.ui.liens import echapper_markdown
+from usine.ui.liens import echapper_markdown, lien_ticket
 from usine.ui.navigation import Ecran
 
 # Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
@@ -108,8 +124,10 @@ def afficher_bandeau(racine: Path, erreur_racine: str | None = None) -> bool:
     return repli
 
 
-class _Lecture(carte.LectureCarte, detail.LectureDetail, Protocol):
-    """Lectures de la `Consultation` utilisées par la carte et par le détail."""
+class _Lecture(
+    carte.LectureCarte, detail.LectureDetail, pseudonymisation.LecturePseudonymisation, Protocol
+):
+    """Lectures de la `Consultation` utilisées par la carte, le détail et la Pseudonymisation."""
 
 
 def _racine_introuvable(racine: Path) -> bool:
@@ -184,13 +202,33 @@ def _bloc(titre: str, contenu: str) -> None:
     st.markdown(contenu)
 
 
+def _palier_affiche(palier_passage: Literal[1, 2]) -> Literal[1, 2]:
+    """Palier affiché : le sélecteur n'est offert que pour un Passage Palier 2 (FR-46)."""
+    if palier_passage == 1:
+        return 1
+    choix = st.radio(
+        "Palier affiché",
+        [2, 1],
+        format_func=lambda palier: f"Palier {palier}",
+        horizontal=True,
+        key=navigation.CLE_PALIER,
+        help="Palier 1 : la même Entité sans aucune sortie LLM.",
+    )
+    return 1 if choix == 1 else 2
+
+
 def afficher_detail(racine: Path, repli: bool = False) -> None:
-    """Détail d'une Entité (Palier 1) : Météo, Règles, KPI clés, Prévision, Risque, Explication."""
+    """Détail d'une Entité : Météo, Règles, KPI clés, Prévision, Risque, Explication sourcée.
+
+    Sur un Passage Palier 2, le sélecteur de Palier choisit le filtre `palier` des lectures
+    LLM (Explication, narration) ; en Palier 1, aucune sortie LLM n'est lue.
+    """
     st.subheader(Ecran.detail.value)
     consultation = _lecture(racine, repli)
     if consultation is None:
         return
     try:
+        manifeste = consultation.manifeste()
         meteos = {meteo.entite: meteo for meteo in consultation.meteo()}
     except UsineErreur as exc:
         _echec_lecture(exc, repli)
@@ -201,23 +239,64 @@ def afficher_detail(racine: Path, repli: bool = False) -> None:
     if st.session_state.get(navigation.CLE_ENTITE) not in meteos:
         st.session_state.pop(navigation.CLE_ENTITE, None)  # Entité absente de ce Passage
     entite = st.selectbox("Entité", list(meteos), key=navigation.CLE_ENTITE)
+    palier = _palier_affiche(manifeste.palier)
     meteo = meteos[entite]
     try:
-        manifeste = consultation.manifeste()
         regles = detail.lignes_regles(meteo, consultation.url_ticket)
         kpi = detail.lignes_kpi(consultation.kpi(entite=entite))
         calculees = detail.previsions_calculees(manifeste)
         previsions = consultation.previsions(entite=entite)
         risques = consultation.risques(entite=entite)
+        narrations = consultation.narrations(entite=entite, palier=palier)
+        explications = consultation.explications(entite=entite, palier=palier)
+        prevision = detail.texte_prevision(meteo, previsions, calculees, narrations)
+        explication = detail.texte_explication(palier, explications, consultation.url_ticket)
     except UsineErreur as exc:
         _echec_lecture(exc, repli)
         return
     st.markdown(f"**Météo** : {carte.libelle_meteo(meteo.couleur)}")
     _bloc("Règles déclenchantes", carte.tableau_markdown(regles) or detail.AUCUNE_REGLE)
     _bloc("KPI clés", carte.tableau_markdown(kpi) or detail.AUCUN_KPI)
-    _bloc("Prévision de sortie du rouge", detail.texte_prevision(meteo, previsions, calculees))
+    _bloc("Prévision de sortie du rouge", prevision)
     _bloc("Risque d'entrée en rouge", detail.texte_risques(meteo, risques, calculees))
-    _bloc("Explication", detail.texte_explication(manifeste.palier))
+    _bloc("Explication", explication)
+
+
+def afficher_pseudonymisation(racine: Path, repli: bool = False) -> None:
+    """Description d'un ticket et sa version pseudonymisée, côte à côte (FR-31, AD-15).
+
+    L'aperçu vient de `ui/cli.apercu_pseudonymisation` : local, sans LLM ni écriture.
+    """
+    st.subheader(Ecran.pseudonymisation.value)
+    consultation = _lecture(racine, repli)
+    if consultation is None:
+        return
+    try:
+        textes = pseudonymisation.descriptions(consultation.textes_tickets())
+    except UsineErreur as exc:
+        _echec_lecture(exc, repli)
+        return
+    if not textes:
+        st.info(pseudonymisation.AUCUNE_DESCRIPTION)
+        return
+    if st.session_state.get(navigation.CLE_TICKET_APERCU) not in textes:
+        st.session_state.pop(navigation.CLE_TICKET_APERCU, None)  # ticket absent du Passage
+    cle = st.selectbox("Ticket", list(textes), key=navigation.CLE_TICKET_APERCU)
+    original = textes[cle]
+    try:
+        version = apercu_pseudonymisation(racine)(original)
+    except UsineErreur as exc:
+        st.error(f"Aperçu de la Pseudonymisation impossible : {exc}")
+        return
+    st.markdown(f"Ticket : {lien_ticket(cle, consultation.url_ticket(cle))}")
+    st.caption(pseudonymisation.LEGENDE)
+    gauche, droite = st.columns(2)
+    with gauche:
+        st.markdown(f"#### {pseudonymisation.TITRE_ORIGINAL}")
+        st.text(original)
+    with droite:
+        st.markdown(f"#### {pseudonymisation.TITRE_PSEUDONYMISE}")
+        st.text(version)
 
 
 def _temps_manuel(racine: Path) -> int | None:
@@ -496,6 +575,8 @@ def principal() -> None:
         afficher_lancement(racine, repli)
     elif ecran is Ecran.avant_apres:
         afficher_avant_apres(racine, repli)
+    elif ecran is Ecran.pseudonymisation:
+        afficher_pseudonymisation(racine, repli)
     elif ecran is Ecran.outillage:
         afficher_outillage(racine)
     else:
