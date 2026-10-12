@@ -54,6 +54,9 @@ from usine.domaine.kpi import kpi as calculer_kpi
 from usine.domaine.kpi import tendances as calculer_tendances
 from usine.domaine.meteo import indicateurs as calculer_indicateurs
 from usine.domaine.meteo import meteo as calculer_meteo
+from usine.domaine.prevision.baseline import prevoir_sortie
+from usine.domaine.prevision.risque import risques_entree_rouge
+from usine.domaine.prevision.serie import series_stock
 from usine.ia.explication import lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
@@ -119,12 +122,15 @@ def test_passage_publie(rapport: Rapport) -> None:
         "kpi.parquet",
         "manifeste.json",
         "meteo.json",
+        "previsions.json",
         "rapport-2026-10-09.pptx",
         "rapport-2026-10-09.xlsx",
         "tendances.parquet",
         "tickets_etats.parquet",
         "tickets_textes.parquet",
+        "trace",
     ]
+    assert sorted(p.name for p in (repertoire / "trace").iterdir()) == ["previsions.jsonl"]
     assert not list((rapport.racine_sorties / "passages").glob(".en-cours-*"))
     relu = ManifestePassage.model_validate_json((repertoire / "manifeste.json").read_bytes())
     assert relu == manifeste
@@ -280,6 +286,54 @@ def test_passage_avec_previsions(rapport: Rapport) -> None:
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.horodatage for t in traces} == {INSTANT}
     assert {t.version_grille for t in traces} == {manifeste.version_grille}
+    assert {t.version_donnees for t in traces} == {manifeste.version_donnees}
+
+
+def test_previsions_du_passage(rapport: Rapport) -> None:
+    """Story 5.3 : `previsions.json` = appel direct du domaine sur les séries du Passage.
+
+    Une Prévision Baseline par Entité rouge et par Jour ouvré, les Risques des autres, dans
+    l'ordre jour puis `meteo.json` ; une trace par élément.
+    """
+    manifeste, ecrivain = _executer(rapport)
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    grille = rapport.configuration.grille_meteo
+    assert isinstance(grille, GrilleMeteo)
+    etats = pl.read_parquet(repertoire / "tickets_etats.parquet")
+    indicateurs = pl.read_parquet(repertoire / "indicateurs.parquet")
+    meteos = lire_enveloppe(
+        (repertoire / "meteo.json").read_bytes(), tuple[MeteoEntite, ...]
+    ).contenu
+    jours = sorted({m.date_arrete for m in meteos})
+    assert jours == list(jours_ouvres(date(2026, 8, 17), DATE_ARRETE))
+    series = series_stock(etats, ["ENT-A", "ENT-B"], jours)
+    previsions = tuple(prevoir_sortie(series, m) for m in meteos if m.couleur is Couleur.rouge)
+    risques = tuple(
+        projete.risque
+        for m in meteos
+        if m.couleur is not Couleur.rouge
+        for projete in risques_entree_rouge(indicateurs, m, grille).risques
+    )
+    publie = lire_enveloppe(
+        (repertoire / "previsions.json").read_bytes(), ContenuPrevisions
+    ).contenu
+    assert publie == ContenuPrevisions(previsions=previsions, risques=risques)
+    rouges = [(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge]
+    assert rouges, "le jeu graine 42 doit avoir des Entités rouges"
+    assert [(p.date_arrete, p.entite) for p in publie.previsions] == rouges
+    assert {(m.date_arrete, m.entite) for m in meteos if m.couleur is Couleur.rouge} >= {
+        (DATE_ARRETE, "ENT-A"),
+        (DATE_ARRETE, "ENT-B"),
+    }
+    consultation = ConsultationPassage(repertoire)
+    traces = consultation.traces()
+    assert len(traces) == len(publie.previsions) + len(publie.risques)
+    assert {t.type_trace for t in traces} == {TypeTrace.prevision}
+    assert [t.sortie for t in traces] == [
+        e.model_dump_json() for e in (*publie.previsions, *publie.risques)
+    ]
+    assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.version_donnees for t in traces} == {manifeste.version_donnees}
 
 
@@ -519,7 +573,7 @@ def test_palier_2_explications(tmp_path: Path) -> None:
     explications = consultation.explications()
     assert [e.entite for e in explications] == [m.entite for m in a_expliquer]
     assert all(e.statut_controle is StatutControle.conforme for e in explications)
-    traces = consultation.traces()
+    traces = [t for t in consultation.traces() if t.type_trace is TypeTrace.llm]
     assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
     assert {t.passage_id for t in traces} == {manifeste.passage_id}
     assert {t.version_donnees for t in traces} == {rapport.donnees.version_donnees}
@@ -600,7 +654,9 @@ def test_palier_2_par_lancer_rapport(tmp_path: Path, monkeypatch: pytest.MonkeyP
         racine, DATE_ARRETE, horloge_figee(instant), lambda: "abc123", fournisseur
     )
     assert lance.manifeste.palier == 2
-    traces = ConsultationPassage(lance.repertoire).traces()
+    traces = [
+        t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
+    ]
     assert len(traces) == len(a_expliquer) == len(fournisseur.appels)
     assert {t.horodatage for t in traces} == {instant}
     assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}

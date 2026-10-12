@@ -20,6 +20,7 @@ from tests.unit.chaine.environnement import (
 from usine.composition import PassageLance, construire_rapport, lancer_rapport
 from usine.config import charger_yaml
 from usine.consultation.passage import ConsultationPassage
+from usine.consultation.prevision import previsions_calculees
 from usine.contrats.agent import AnomalieResume
 from usine.contrats.calcul import SCHEMA_KPI
 from usine.contrats.config import ConfigJira
@@ -171,14 +172,13 @@ def test_palier_1_kpi_et_textes_presents_autres_fichiers_absents(lance: PassageL
     assert kpi.schema == dict(SCHEMA_KPI.colonnes)
     assert not consultation.tendances().is_empty()
     assert consultation.textes_tickets().height > 0  # écrit par `instantanes` (Story 0.7)
-    # `prevision` reste un bouchon (domaine L4 absent) : ni Prévision, ni Risque, ni trace.
+    # Palier 1 : aucune sortie LLM ; `prevision` est câblée (Story 5.3) : traces de Prévision.
     assert consultation.explications() == ()
     assert consultation.narrations() == ()
     assert consultation.classification() == ()
     assert consultation.repartition_causes().is_empty()
-    assert consultation.previsions() == ()
-    assert consultation.risques() == ()
-    assert consultation.traces() == ()
+    assert consultation.previsions()
+    assert {t.type_trace for t in consultation.traces()} == {TypeTrace.prevision}
 
 
 def test_anomalies(lance: PassageLance) -> None:
@@ -283,10 +283,12 @@ def _trace() -> EntreeTrace:
 
 
 def test_traces(passage: Path) -> None:
-    (passage / "trace").mkdir()
+    previsions = ConsultationPassage(passage).traces()  # `trace/previsions.jsonl` du Passage
+    assert previsions
     chemin = passage / "trace" / "llm.jsonl"
     chemin.write_text(_trace().model_dump_json() + "\n", encoding="utf-8")
-    assert ConsultationPassage(passage).traces() == (_trace(),)
+    # `trace/llm.jsonl`, puis `trace/previsions.jsonl`.
+    assert ConsultationPassage(passage).traces() == (_trace(), *previsions)
     chemin.write_text(_trace().model_dump_json() + "\n{}\n", encoding="utf-8")
     with pytest.raises(UsineErreur, match=r"llm\.jsonl, ligne 2"):
         ConsultationPassage(passage).traces()
@@ -505,17 +507,28 @@ def test_previsions_presentes(passage: Path) -> None:
     assert consultation.risques(VEILLE) == de_la_veille.risques
 
 
-def test_prevision_en_bouchon_passage_reel(lance: PassageLance) -> None:
-    """Étape `prevision` en bouchon : pas de `previsions.json`, valeur absente explicite."""
-    assert not (lance.repertoire / "previsions.json").exists()
+def test_previsions_passage_reel(lance: PassageLance) -> None:
+    """Story 5.3 : une Prévision par Entité rouge et par Jour ouvré, une trace par élément."""
+    assert (lance.repertoire / "previsions.json").is_file()
     consultation = ConsultationPassage(lance.repertoire)
-    assert consultation.previsions() == ()
-    assert consultation.risques() == ()
-    assert consultation.previsions(entite="ENT-A") == ()
-    assert consultation.risques(entite="ENT-B") == ()
+    assert previsions_calculees(consultation.manifeste())
+    dates = consultation.dates_disponibles()
+    assert dates[-1] == DATE_ARRETE
+    total = 0
+    for jour in dates:
+        rouges = [m.entite for m in consultation.meteo(jour) if m.couleur is Couleur.rouge]
+        assert [p.entite for p in consultation.previsions(jour)] == rouges, jour
+        non_rouges = {m.entite for m in consultation.meteo(jour)} - set(rouges)
+        assert {r.entite for r in consultation.risques(jour)} <= non_rouges, jour
+        total += len(consultation.previsions(jour)) + len(consultation.risques(jour))
+    assert [p.entite for p in consultation.previsions()] == ["ENT-A", "ENT-B"]
+    assert consultation.previsions(entite="ENT-B") == consultation.previsions()[1:]
+    traces = consultation.traces()
+    assert len(traces) == total
+    assert {t.passage_id for t in traces} == {lance.manifeste.passage_id}
 
 
-def test_prevision_en_bouchon_passage_vide(tmp_path: Path) -> None:
+def test_previsions_passage_vide(tmp_path: Path) -> None:
     consultation = ConsultationPassage(tmp_path)
     assert consultation.previsions() == ()
     assert consultation.risques() == ()

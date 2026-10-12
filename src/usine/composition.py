@@ -28,9 +28,12 @@ les octets du Journal, suivis de `\n` et du manifeste d'injection s'il existe.
 
 `instantanes` et `meteo` couvrent chaque Jour ouvré depuis `EnteteJournal.ancrage_semaines`,
 aussi ancrage des semaines ; `kpi` (KPI et Tendances), chaque Jour ouvré du premier jour où un
-ticket existe à la Date d'arrêté, aucun avant. `prevision` reste un bouchon : la Baseline
-(`domaine.prevision.baseline`, Story 4.1) attend une `SerieStock` que le domaine ne construit
-pas encore depuis le Passage, ni les Risques (Story 4.2) ; ensuite, une `EtapePrevision`.
+ticket existe à la Date d'arrêté, aucun avant. `prevision` est une `EtapePrevision` sur
+`prevision_du_passage` : chaque Jour ouvré, la Baseline (`domaine.prevision.baseline`) pour les
+Entités rouges et les Risques d'entrée en rouge (`domaine.prevision.risque`) pour les autres,
+avec les paramètres par défaut du domaine (H-7, H-8), sur la `SerieStock` que construit
+`domaine.prevision.serie`. `rendu` reçoit l'identité des données (source, versions) et
+l'instant d'extraction, affichés dans l'onglet Traçabilité.
 
 Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `generateur.journal.ecrire_journal`.
@@ -63,7 +66,15 @@ from usine.adaptateurs.pseudonymisation import (
 )
 from usine.adaptateurs.stockage_sqlite import CacheLLMSqlite, TablePseudonymesSqlite
 from usine.chaine.ecrivain import EcrivainPassage
-from usine.chaine.etapes import EtapeBouchon, EtapeInstantanes, EtapeKpi, EtapeMeteo, EtapeSautee
+from usine.chaine.etapes import (
+    EtapeBouchon,
+    EtapeInstantanes,
+    EtapeKpi,
+    EtapeMeteo,
+    EtapePrevision,
+    EtapeSautee,
+    prevision_du_passage,
+)
 from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
 from usine.config import Secrets, charger_secrets, charger_yaml
@@ -305,9 +316,10 @@ def construire_rapport(
 
     En Palier 2, `fournisseur` est obligatoire ; sans `pseudonymiseur`, `PseudonymiseurHmac`
     est construit et exige `USINE_CLE_PSEUDO`. Toute absence lève une `UsineErreur` avant tout
-    Passage. `horloge` date les traces LLM et l'extraction Jira (repère, restriction
-    `updated`). En source `composite`, l'instant d'extraction est lu une seule fois, ici :
-    repère, détection des alignements et `version_donnees` le partagent.
+    Passage. `horloge` date les traces LLM, les traces de Prévision et l'extraction Jira
+    (repère, restriction `updated`). En source `composite`, l'instant d'extraction est lu une
+    seule fois, ici : repère, détection des alignements, `version_donnees` et l'onglet
+    Traçabilité du Rapport le partagent.
     """
     repertoire_config = racine / "config"
     chaine = charger_yaml(repertoire_config / "chaine.yaml", ConfigChaine)
@@ -338,16 +350,21 @@ def construire_rapport(
     empreinte_donnees = version_donnees(octets_donnees, horodatage_extraction)
     premier_jour = source.entete.ancrage_semaines
     entites = [entite.code for entite in programme.entites]
+    donnees = DonneesPassage(
+        "journal" if horodatage_extraction is None else "composite",
+        empreinte_grille,
+        empreinte_donnees,
+    )
 
     registre: dict[Etape, PortEtape] = {
         Etape.extraction: EtapeBouchon(),
         Etape.instantanes: EtapeInstantanes(source, premier_jour),
         Etape.kpi: EtapeKpi(entites, premier_jour),
         Etape.meteo: EtapeMeteo(grille, empreinte_grille, entites, premier_jour, programme),
-        # Bouchon tant que le domaine L4 ne construit pas la `SerieStock` depuis le Passage et
-        # les Risques (Story 4.2) ; ensuite `EtapePrevision(prevoir, empreinte_donnees, horloge)`.
-        Etape.prevision: EtapeBouchon(),
-        Etape.rendu: EtapeRendu(gabarit),
+        Etape.prevision: EtapePrevision(
+            prevision_du_passage(grille, entites, premier_jour), empreinte_donnees, horloge
+        ),
+        Etape.rendu: EtapeRendu(gabarit, donnees, horodatage_extraction),
     }
     registre.update({etape: EtapeSautee() for etape in ETAPES_LLM})
     if chaine.palier == 2:
@@ -377,11 +394,7 @@ def construire_rapport(
     return Rapport(
         configuration=configuration,
         registre=MappingProxyType({etape: registre[etape] for etape in Etape}),
-        donnees=DonneesPassage(
-            "journal" if horodatage_extraction is None else "composite",
-            empreinte_grille,
-            empreinte_donnees,
-        ),
+        donnees=donnees,
         racine_sorties=racine / REPERTOIRE_SORTIES,
         chemin_verrou=racine / CHEMIN_VERROU,
         url_jira=_url_jira(secrets_usine.usine_mode_repli, jira),

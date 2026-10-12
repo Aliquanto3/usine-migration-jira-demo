@@ -455,8 +455,10 @@ class ConsultationPassage:
     ) -> tuple[Prevision, ...]:
         """Prévisions de sortie du rouge à la date (statistiques, jamais LLM : pas de palier).
 
-        `()` sans `previsions.json` (étape `prevision` en bouchon) : c'est la valeur absente
-        explicite, distincte d'une `Prevision` de statut `pas_de_sortie_projetee`.
+        `()` sans `previsions.json` : Passage antérieur au câblage de l'étape `prevision`
+        (Story 5.3) ou en construction avant elle. C'est la valeur absente explicite, distincte
+        d'une `Prevision` de statut `pas_de_sortie_projetee` ; `consultation.prevision` dit si
+        la Prévision a été calculée.
         """
         previsions = self._previsions().previsions
         if not previsions:
@@ -471,7 +473,11 @@ class ConsultationPassage:
     def risques(
         self, date_arrete: date | None = None, entite: str | None = None
     ) -> tuple[RisqueEntreeRouge, ...]:
-        """Risques d'entrée en rouge à la date ; `()` sans `previsions.json` (bouchon)."""
+        """Risques d'entrée en rouge à la date.
+
+        `()` sans `previsions.json` (Passage antérieur au câblage de l'étape `prevision`) comme
+        sans Risque : `consultation.prevision` distingue les deux par le manifeste.
+        """
         risques = self._previsions().risques
         if not risques:
             return ()
