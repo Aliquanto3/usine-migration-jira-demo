@@ -1,6 +1,6 @@
 """Journal à la volumétrie de `config/programme.yaml`, lu aux clés Jira (Story 2.5, FR-8).
 
-Test `lent` : sauté par défaut, lancé par `uv run pytest -m lent tests/unit/adaptateurs/journal`.
+Test `lent` : exclu par défaut (`pyproject.toml`), lancé par `uv run pytest -m lent`.
 Le réseau est coupé par la fixture `sans_reseau` du répertoire.
 """
 
