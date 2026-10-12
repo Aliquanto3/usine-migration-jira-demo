@@ -7,8 +7,10 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ValidationError
 
-from usine.contrats.config import ConfigChaine
+from usine.contrats.config import ConfigChaine, ConfigLLM
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import Tache
+from usine.contrats.versions import version_modele
 
 MODELES: dict[str, type[BaseModel]] = {
     "chaine": ConfigChaine,
@@ -101,3 +103,26 @@ def charger(nom: str, repertoire: Path) -> BaseModel:
         attendus = ", ".join(MODELES)
         raise UsineErreur(f"configuration inconnue : {nom!r} (attendu : {attendus})")
     return charger_yaml(repertoire / f"{nom}.yaml", MODELES[nom])
+
+
+def modele_classification(config: ConfigLLM) -> str:
+    """`fournisseur:modele` de la classification : `modeles_par_tache.classification`, sinon
+    `modele`."""
+    modele = config.modeles_par_tache.get(Tache.classification, config.modele)
+    return version_modele(config.fournisseur, modele)
+
+
+def verifier_modele_corpus(config: ConfigLLM, modele_corpus: str) -> None:
+    """Garde-fou AD-19 : le modèle de classification doit différer de `modele_corpus`.
+
+    Un modèle qui classerait les textes qu'il a lui-même écrits fausserait l'évaluation ;
+    l'égalité lève une `UsineErreur` qui nomme les deux valeurs.
+    """
+    classification = modele_classification(config)
+    if classification == modele_corpus:
+        raise UsineErreur(
+            "config/llm.yaml, clé « modeles_par_tache.classification » (sinon « modele »),"
+            f" valeur {classification!r} : identique au « modele_corpus » {modele_corpus!r} du"
+            " Corpus de textes (donnees/corpus/textes.json) ; le modèle de classification doit"
+            " différer du modèle qui a écrit le Corpus (AD-19)"
+        )

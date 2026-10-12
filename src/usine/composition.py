@@ -53,6 +53,7 @@ Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `controler_citations` est ré-exporté pour qu'`evals` n'importe pas `usine.ia`.
 """
 
+import json
 import secrets
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -63,7 +64,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import polars as pl
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 
 from usine.adaptateurs.composite import DetecteurAlignements, SourceComposite
 from usine.adaptateurs.entrepot_duckdb import CHEMIN_ENTREPOT, EtapeExtraction
@@ -93,7 +94,7 @@ from usine.chaine.etapes import (
 )
 from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
-from usine.config import Secrets, charger_secrets, charger_yaml
+from usine.config import Secrets, charger_secrets, charger_yaml, verifier_modele_corpus
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import est_jour_ouvre
 from usine.contrats.config import (
@@ -106,7 +107,15 @@ from usine.contrats.config import (
     GrilleMeteo,
 )
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import SortieExplication, Tache
+from usine.contrats.llm import (
+    MessageAgent,
+    OutilAgent,
+    ParametresAppel,
+    ReponseAgentBrute,
+    ReponseStructuree,
+    SortieExplication,
+    Tache,
+)
 from usine.contrats.meteo import MeteoEntite
 from usine.contrats.passage import (
     CHEMIN_CACHE_LLM,
@@ -126,10 +135,15 @@ from usine.domaine.meteo import verifier_grille
 from usine.domaine.prevision.baseline import ParametresBaseline
 from usine.domaine.prevision.risque import ParametresRisque
 from usine.generateur.corpus import (
+    CHEMIN_CORPUS,
+    MAX_JETONS_CASE,
+    MODELE_GABARITS,
     VERSION_CORPUS_LLM,
     VERSION_CORPUS_PROVISOIRE,
+    charger_corpus,
     ecrire_corpus,
     produire_corpus,
+    prompts_corpus,
 )
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
@@ -292,17 +306,39 @@ def _verifier_llm(
     return _ParametresPseudonymisation(octets_cle, motifs, presidio)
 
 
-def construire_fournisseur(racine: Path, secrets_usine: Secrets | None = None) -> FournisseurLLM:
+def construire_fournisseur(
+    racine: Path,
+    secrets_usine: Secrets | None = None,
+    *,
+    fournisseur: str | None = None,
+    modele: str | None = None,
+) -> FournisseurLLM:
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
     `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
     des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
+
+    `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
+    production du Corpus, Story 1.9) ; sans ce fichier, la configuration minimale suffit.
     """
     # Import différé : `pydantic_ai` et les SDK ne se chargent qu'en Palier 2 (outils sans SDK).
     from usine.adaptateurs.llm import construire_fournisseur_llm
 
-    config = _config_llm(racine)
+    if (fournisseur is None) != (modele is None):
+        raise UsineErreur("surcharge du fournisseur LLM : `fournisseur` et `modele` vont ensemble")
+    config = _config_llm(racine, controler_corpus=fournisseur is None)
+    if fournisseur is not None and modele is not None:
+        surcharge = {
+            "fournisseur": fournisseur,
+            "modele": modele,
+            "modeles_par_tache": MappingProxyType({}),
+        }
+        config = (
+            ConfigLLM(fournisseur=fournisseur, modele=modele, plafond_cout_passage_eur=Decimal(2))
+            if config is None
+            else config.model_copy(update=surcharge)
+        )
     if config is None:
         chemin = racine / "config" / "llm.yaml"
         raise UsineErreur(f"{chemin} : fichier absent ; aucun fournisseur LLM configuré")
@@ -468,10 +504,41 @@ def construire_explicateur(
     return Explicateur(passerelle, contexte, version, fermeture)
 
 
-def _config_llm(racine: Path) -> ConfigLLM | None:
-    """`config/llm.yaml` validé, ou `None` s'il n'existe pas."""
+def _config_llm(racine: Path, *, controler_corpus: bool = True) -> ConfigLLM | None:
+    """`config/llm.yaml` validé, ou `None` s'il n'existe pas.
+
+    Garde-fou AD-19 : refusé si son modèle de classification est le `modele_corpus` du Corpus
+    versionné (`donnees/corpus/textes.json`) ; Corpus absent ou provisoire, accepté.
+    `controler_corpus=False` (production d'un nouveau Corpus) saute ce contrôle : un Corpus
+    versionné fautif ne doit pas empêcher de le régénérer.
+    """
     chemin = racine / "config" / "llm.yaml"
-    return charger_yaml(chemin, ConfigLLM) if chemin.exists() else None
+    if not chemin.exists():
+        return None
+    config = charger_yaml(chemin, ConfigLLM)
+    if not controler_corpus:
+        return config
+    modele_corpus = _modele_corpus(racine / CHEMIN_CORPUS)
+    if modele_corpus is not None and modele_corpus != MODELE_GABARITS:
+        try:
+            verifier_modele_corpus(config, modele_corpus)
+        except UsineErreur as exc:
+            raise UsineErreur(f"{chemin} et {racine / CHEMIN_CORPUS} : {exc}") from exc
+    return config
+
+
+def _modele_corpus(chemin: Path) -> str | None:
+    """Seule clé `modele_corpus` du Corpus de `chemin`, ou `None` s'il est absent."""
+    if not chemin.exists():
+        return None
+    try:
+        donnees = json.loads(chemin.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise UsineErreur(f"{chemin} : Corpus de textes illisible ({exc})") from exc
+    modele = donnees.get("modele_corpus") if isinstance(donnees, dict) else None
+    if not isinstance(modele, str):
+        raise UsineErreur(f"{chemin} : clé « modele_corpus » absente ou non textuelle")
+    return modele
 
 
 def _config_jira(racine: Path) -> ConfigJira | None:
@@ -808,6 +875,10 @@ def lancer_rapport(
     return PassageLance(manifeste, repertoire)
 
 
+_RACINE_DEPOT = Path(__file__).resolve().parents[2]
+"""Racine du dépôt quand le paquet s'exécute depuis les sources."""
+
+
 def generer_journal(
     programme: ConfigProgramme, graine: int, date_generation: date, racine: Path
 ) -> Path:
@@ -815,10 +886,12 @@ def generer_journal(
 
     Délègue à `generateur.journal.ecrire_journal` (Journal et vérité terrain) ; sert à
     `outils/`, qui ne peut pas importer `generateur` (NFR-2). Les textes viennent du Corpus
-    provisoire en mémoire (défaut de `generer`), non de `donnees/corpus/textes.json` : quand la
-    Story 1.9 versionnera un Corpus produit par LLM, il faudra charger ici le Corpus versionné.
+    versionné du dépôt (`donnees/corpus/textes.json`, Story 1.9), comme `usine generer` ; à
+    défaut de ce fichier (paquet installé hors dépôt), du Corpus provisoire en mémoire.
     """
-    generation = generer(programme, graine, date_generation)
+    chemin_corpus = _RACINE_DEPOT / CHEMIN_CORPUS
+    corpus = charger_corpus(chemin_corpus) if chemin_corpus.is_file() else None
+    generation = generer(programme, graine, date_generation, corpus=corpus)
     return ecrire_journal(generation, racine / CHEMIN_JOURNAL.parent)
 
 
@@ -845,3 +918,116 @@ def generer_corpus(
             fournisseur, domaines, version_corpus=version_corpus or VERSION_CORPUS_LLM
         )
     return ecrire_corpus(corpus, chemin)
+
+
+JETONS_SCHEMA_CORPUS = 500
+"""Jetons d'entrée ajoutés à chaque prompt du Corpus pour le schéma de sortie (estimation)."""
+
+
+@dataclass(frozen=True)
+class BilanCorpus:
+    """Bilan d'une production du Corpus par LLM : jetons réels et coût estimé réel."""
+
+    chemin: Path
+    modele_corpus: str
+    appels: int
+    jetons_entree: int
+    jetons_sortie: int
+    cout_eur: Decimal
+    """Coût estimé d'après le registre des prix (0 € pour un modèle hors registre)."""
+
+
+def estimer_corpus(version_modele: str, domaines: Sequence[str]) -> tuple[int, Decimal]:
+    """Nombre d'appels et coût estimé majoré, en euros, du Corpus des `domaines` (Story 1.9).
+
+    Majoration : jetons d'entrée ≈ `len(prompt) / 3 + JETONS_SCHEMA_CORPUS`, jetons de sortie
+    = `MAX_JETONS_CASE` par appel. Aucun appel ; un modèle hors du registre des prix lève une
+    `UsineErreur` qui liste les modèles connus.
+    """
+    # Import différé : le paquet `adaptateurs.llm` charge `pydantic_ai`.
+    from usine.adaptateurs.llm import cout_estime_eur
+
+    prompts = prompts_corpus(domaines)
+    entree = sum(-(-len(prompt) // 3) + JETONS_SCHEMA_CORPUS for prompt in prompts)
+    sortie = MAX_JETONS_CASE * len(prompts)
+    return len(prompts), cout_estime_eur(version_modele, entree, sortie)
+
+
+def verifier_modele_corpus_candidat(racine: Path, version_modele: str) -> None:
+    """Garde-fou AD-19 avant production : `version_modele` doit différer du modèle de
+    classification de `racine/config/llm.yaml` (fichier absent : accepté)."""
+    config = _config_llm(racine, controler_corpus=False)
+    if config is None:
+        return
+    try:
+        verifier_modele_corpus(config, version_modele)
+    except UsineErreur as exc:
+        raise UsineErreur(f"{racine / 'config' / 'llm.yaml'} : {exc}") from exc
+
+
+class _FournisseurCompteur:
+    """Enveloppe d'un `FournisseurLLM` qui compte les appels et les jetons réels."""
+
+    def __init__(self, fournisseur: FournisseurLLM) -> None:
+        self._fournisseur = fournisseur
+        self.appels = 0
+        self.jetons_entree = 0
+        self.jetons_sortie = 0
+
+    @property
+    def version_modele(self) -> str:
+        return self._fournisseur.version_modele
+
+    def generer_structure[T: BaseModel](
+        self, prompt: str, schema: type[T], parametres: ParametresAppel
+    ) -> ReponseStructuree[T]:
+        reponse = self._fournisseur.generer_structure(prompt, schema, parametres)
+        self.appels += 1
+        self.jetons_entree += reponse.jetons_entree
+        self.jetons_sortie += reponse.jetons_sortie
+        return reponse
+
+    def executer_agent(
+        self,
+        messages: Sequence[MessageAgent],
+        outils: Sequence[OutilAgent],
+        parametres: ParametresAppel,
+    ) -> ReponseAgentBrute:
+        reponse = self._fournisseur.executer_agent(messages, outils, parametres)
+        self.appels += 1
+        self.jetons_entree += reponse.jetons_entree
+        self.jetons_sortie += reponse.jetons_sortie
+        return reponse
+
+
+def generer_corpus_llm(
+    fournisseur: FournisseurLLM,
+    domaines: Sequence[str],
+    chemin: Path,
+    *,
+    version_corpus: str | None = None,
+) -> BilanCorpus:
+    """Écrit le Corpus produit par `fournisseur` à `chemin` et renvoie son bilan (Story 1.9).
+
+    Même production que `generer_corpus` ; compte en plus les jetons réels et en déduit le coût
+    estimé réel d'après le registre des prix.
+    """
+    compteur = _FournisseurCompteur(fournisseur)
+    try:
+        ecrit = generer_corpus(compteur, domaines, chemin, version_corpus=version_corpus)
+    except UsineErreur as exc:
+        raise UsineErreur(
+            f"{exc} ; déjà consommés avant l'échec : {compteur.appels} appels,"
+            f" {compteur.jetons_entree} jetons d'entrée, {compteur.jetons_sortie} de sortie"
+        ) from exc
+    cout = _tarif_registre(
+        fournisseur.version_modele, compteur.jetons_entree, compteur.jetons_sortie
+    )
+    return BilanCorpus(
+        ecrit,
+        fournisseur.version_modele,
+        compteur.appels,
+        compteur.jetons_entree,
+        compteur.jetons_sortie,
+        cout,
+    )
