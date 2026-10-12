@@ -13,12 +13,12 @@ repli et `Consultation` viennent des services de `ui/cli.py` (racine de composit
 
 import subprocess
 from pathlib import Path
-from typing import IO
+from typing import IO, Protocol
 
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
-from usine.ui import carte, lancement, navigation, progression
+from usine.ui import carte, detail, lancement, navigation, progression
 from usine.ui.cli import consultation_dernier_passage, mode_repli, racine_ui
 from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import Ecran
@@ -52,7 +52,11 @@ def afficher_bandeau(racine: Path) -> None:
         )
 
 
-def _lecture(racine: Path) -> carte.LectureCarte | None:
+class _Lecture(carte.LectureCarte, detail.LectureDetail, Protocol):
+    """Lectures de la `Consultation` utilisées par la carte et par le détail."""
+
+
+def _lecture(racine: Path) -> _Lecture | None:
     """`Consultation` du dernier Passage publié, ou `None` après un message explicite."""
     if not racine.is_dir():
         st.error(
@@ -99,8 +103,14 @@ def afficher_carte(racine: Path) -> None:
         )
 
 
+def _bloc(titre: str, contenu: str) -> None:
+    """Sous-titre d'un bloc du détail, puis son contenu Markdown."""
+    st.markdown(f"#### {titre}")
+    st.markdown(contenu)
+
+
 def afficher_detail(racine: Path) -> None:
-    """Emplacement du détail d'une Entité (Story 7.2) : sélecteur et Météo de l'Entité."""
+    """Détail d'une Entité (Palier 1) : Météo, Règles, KPI clés, Prévision, Risque, Explication."""
     st.subheader(Ecran.detail.value)
     consultation = _lecture(racine)
     if consultation is None:
@@ -116,8 +126,23 @@ def afficher_detail(racine: Path) -> None:
     if st.session_state.get(navigation.CLE_ENTITE) not in meteos:
         st.session_state.pop(navigation.CLE_ENTITE, None)  # Entité absente de ce Passage
     entite = st.selectbox("Entité", list(meteos), key=navigation.CLE_ENTITE)
-    st.markdown(f"**Météo** : {carte.libelle_meteo(meteos[entite].couleur)}")
-    st.info(f"Détail complet : Story {navigation.STORY_A_VENIR[Ecran.detail]}.")
+    meteo = meteos[entite]
+    try:
+        palier = consultation.manifeste().palier
+        regles = detail.lignes_regles(meteo, consultation.url_ticket)
+        kpi = detail.lignes_kpi(consultation.kpi(entite=entite))
+        calculees = detail.previsions_calculees(consultation)
+        previsions = consultation.previsions(entite=entite)
+        risques = consultation.risques(entite=entite)
+    except UsineErreur as exc:
+        st.error(f"Lecture du dernier Passage impossible : {exc}")
+        return
+    st.markdown(f"**Météo** : {carte.libelle_meteo(meteo.couleur)}")
+    _bloc("Règles déclenchantes", carte.tableau_markdown(regles) or detail.AUCUNE_REGLE)
+    _bloc("KPI clés", carte.tableau_markdown(kpi) or detail.AUCUN_KPI)
+    _bloc("Prévision de sortie du rouge", detail.texte_prevision(meteo, previsions, calculees))
+    _bloc("Risque d'entrée en rouge", detail.texte_risques(meteo, risques, calculees))
+    _bloc("Explication", detail.texte_explication(palier))
 
 
 def afficher_a_venir(ecran: Ecran) -> None:
