@@ -66,8 +66,8 @@ def generer(
         bool,
         typer.Option(
             "--sans-scenarios",
-            help="Désactive les Scénarios de démo A, B et C : toutes les Entités suivent le"
-            " profil normal.",
+            help="Désactive les Scénarios de démo A, B et C, même ceux de la configuration :"
+            " toutes les Entités suivent le profil normal.",
         ),
     ] = False,
 ) -> None:
@@ -76,8 +76,9 @@ def generer(
 
     Les clés de tickets sont `<cle_projet>-<n>`, avec la clé de projet de `--config-jira`.
     Les textes viennent du Corpus `--corpus`, déjà écrit : aucun appel LLM. Les Scénarios de
-    démo par défaut sont appliqués s'ils tiennent dans l'historique (`--sans-scenarios` : aucun) ;
-    la sortie liste les Scénarios appliqués.
+    démo sont lus dans la clé `scenarios` de `--config` (à défaut, ceux du générateur) et
+    appliqués s'ils tiennent dans l'historique (`--sans-scenarios` : aucun) ; la sortie liste
+    les Scénarios appliqués.
     """
     jour = jour_local(datetime.now(UTC)) if date_generation is None else _date(date_generation)
     programme = charger_yaml(config, ConfigProgramme)
