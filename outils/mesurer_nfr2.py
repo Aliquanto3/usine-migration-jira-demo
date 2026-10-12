@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from usine.composition import generer_journal, lancer_rapport
+from usine.composition import CHEMIN_GABARIT, generer_journal, lancer_rapport
 from usine.contrats.config import ConfigProgramme
 from usine.contrats.evenements import EnteteJournal
 
@@ -40,9 +40,10 @@ def programme_cible(graine: int) -> ConfigProgramme:
             for n in range(1, NB_ENTITES + 1)
         ],
     )
-    # Le générateur tire dans [anomalies] ∩ NB_SEMAINES × [Entrées par semaine] : on élargit
-    # le maximum d'Entrées hebdomadaires pour que 5 000 Anomalies restent atteignables, avec
-    # une marge (double du strict nécessaire) pour que les réouvertures ne soient pas refusées.
+    # Le générateur tire dans [anomalies] ∩ NB_SEMAINES × [Entrées par semaine], sous des
+    # plafonds de créations qui réservent 10 % du maximum hebdomadaire aux réouvertures : on
+    # élargit le maximum d'Entrées hebdomadaires (double du strict nécessaire) pour que
+    # 5 000 Anomalies restent atteignables et que les réouvertures ne soient pas refusées.
     entrees_max = max(
         donnees["volumetrie"]["entrees_semaine_max"], 2 * -(-NB_ANOMALIES // NB_SEMAINES)
     )
@@ -59,6 +60,9 @@ def mesurer(graine: int, date_generation: date) -> None:
         racine = Path(temporaire)
         (racine / "config").mkdir()
         shutil.copy(RACINE_DEPOT / "config" / "grille_meteo.yaml", racine / "config")
+        # Gabarit PowerPoint lu par l'étape `rendu`.
+        (racine / CHEMIN_GABARIT).parent.mkdir(parents=True)
+        shutil.copy(RACINE_DEPOT / CHEMIN_GABARIT, racine / CHEMIN_GABARIT)
         (racine / "config" / "chaine.yaml").write_text(
             "# Palier de la Chaîne : la mesure NFR-2 porte sur le Palier 1.\npalier: 1\n",
             encoding="utf-8",

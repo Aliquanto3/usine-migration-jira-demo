@@ -159,8 +159,11 @@ domaines:
 volumetrie:
   # Nombre minimal d'Anomalies générées, toutes Entités confondues.
   anomalies_min: 3000
-  # Nombre maximal d'Anomalies générées ; le générateur tire dans l'intersection avec
-  # `nb_semaines` × bornes d'Entrées par semaine (ici 3 000 à 4 000).
+  # Nombre maximal d'Anomalies générées. Chaque Anomalie compte au moins une Entrée (sa
+  # création) : le générateur tire dans l'intersection avec `nb_semaines` × bornes d'Entrées
+  # par semaine (ici 3 000 à 4 000), proratisées pour une dernière semaine partielle. Il
+  # réserve aussi 10 % du maximum hebdomadaire aux réouvertures (au plus 450 créations par
+  # semaine), d'où environ 3 000 à 3 600 Anomalies ; 5 000 reste le majorant de la mesure NFR-2.
   anomalies_max: 5000
   # Nombre minimal d'Entrées d'Anomalies (créations et réouvertures) par semaine.
   entrees_semaine_min: 200

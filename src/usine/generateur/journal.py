@@ -1,4 +1,4 @@
-"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1 et 1.2, amorce de FR-2).
+"""Générateur déterministe du Journal d'événements (Stories 0.3, 1.1, 1.2 et 1.3, FR-2).
 
 Cœur pur : ni horloge, ni `random` global, ni I/O. La sortie ne dépend que de
 `(config, graine, date_generation, cle_projet, corpus)` (la clé de projet ne fixe que le préfixe
@@ -24,12 +24,18 @@ from usine.contrats.calendrier import (
     semaine_programme,
     verifier_lundi,
 )
-from usine.contrats.config import ConfigProgramme, EntiteProgramme, VagueProgramme
+from usine.contrats.config import (
+    ConfigProgramme,
+    EntiteProgramme,
+    VagueProgramme,
+    VolumetrieProgramme,
+)
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, NatureEvenement, SourceEvenement
 from usine.contrats.passage import CHEMIN_JOURNAL, CHEMIN_VERITE_TERRAIN
 from usine.contrats.tickets import (
     CHAMPS_PAR_TYPE,
+    STATUTS_FERMES,
     CauseRacine,
     Champ,
     Gravite,
@@ -57,8 +63,29 @@ HEURE_DEBUT = 8
 HEURE_FIN = 18
 """Fin de journée ouvrée (exclue) : les horodatages tombent entre 8 h et 17 h 59."""
 
-TRANSITIONS_MAX = 4
-"""Nombre maximal de transitions de statut par Anomalie."""
+TRANSITIONS_MAX = 12
+"""Garde : nombre maximal de transitions de statut par Anomalie (boucles de retest et
+réouvertures comprises)."""
+
+DELAIS_PAR_STATUT: Mapping[StatutAnomalie, tuple[int, int]] = MappingProxyType(
+    {
+        StatutAnomalie.nouvelle: (1, 2),
+        StatutAnomalie.en_analyse: (1, 3),
+        StatutAnomalie.en_correction: (2, 5),
+        StatutAnomalie.a_retester: (1, 3),
+        StatutAnomalie.fermee: (2, 10),
+        StatutAnomalie.rejetee: (2, 10),
+    }
+)
+"""Bornes, en Jours ouvrés (≥ 1), du séjour d'une Anomalie dans un statut avant l'étape
+suivante : un cycle complet Nouvelle → Fermée dure environ deux semaines."""
+
+MARGE_REOUVERTURES_POURCENT = 10
+"""Part (en %) du maximum d'Entrées d'une semaine laissée libre par les créations, pour les
+réouvertures."""
+
+JOURS_OUVRES_SEMAINE = 5
+"""Jours ouvrés d'une semaine pleine (lundi à vendredi), base de la proratisation."""
 
 CAS_DE_TEST_PAR_ENTITE = (2, 3)
 """Bornes du nombre de Cas de test par Entité."""
@@ -69,17 +96,14 @@ PROBA_EXECUTION_TEST = 0.7
 PROBA_TEST_OK = 0.6
 """Probabilité qu'un Cas de test exécuté soit `ok`."""
 
-PROBA_CORRECTION_DIRECTE = 0.3
-"""Probabilité qu'une Anomalie nouvelle passe directement en correction."""
-
 PROBA_REJET = 0.15
 """Probabilité qu'une Anomalie en analyse soit rejetée."""
 
 PROBA_RETOUR_CORRECTION = 0.2
 """Probabilité qu'un nouveau test renvoie l'Anomalie en correction."""
 
-PROBA_REOUVERTURE = 0.2
-"""Probabilité qu'une Anomalie fermée soit rouverte (rare : il faut d'abord la fermer)."""
+PROBA_REOUVERTURE = 0.1
+"""Probabilité qu'une Anomalie fermée ou rejetée soit rouverte (retour en analyse)."""
 
 
 @dataclass(frozen=True)
@@ -130,11 +154,13 @@ def _jours_ulterieurs(
 
 
 def _statut_suivant(statut: StatutAnomalie, rng: random.Random) -> StatutAnomalie | None:
-    """Statut suivant le long du workflow H-17 ; `None` si le statut est terminal."""
+    """Statut suivant le long du workflow H-17 ; `None` si le statut terminal n'est pas rouvert.
+
+    Nouvelle → En analyse → En correction ou Rejetée ; En correction → À retester → Fermée
+    ou retour En correction ; Fermée ou Rejetée → En analyse (réouverture).
+    """
     match statut:
         case StatutAnomalie.nouvelle:
-            if rng.random() < PROBA_CORRECTION_DIRECTE:
-                return StatutAnomalie.en_correction
             return StatutAnomalie.en_analyse
         case StatutAnomalie.en_analyse:
             if rng.random() < PROBA_REJET:
@@ -146,11 +172,9 @@ def _statut_suivant(statut: StatutAnomalie, rng: random.Random) -> StatutAnomali
             if rng.random() < PROBA_RETOUR_CORRECTION:
                 return StatutAnomalie.en_correction
             return StatutAnomalie.fermee
-        case StatutAnomalie.fermee:
+        case StatutAnomalie.fermee | StatutAnomalie.rejetee:
             if rng.random() < PROBA_REOUVERTURE:
                 return StatutAnomalie.en_analyse
-            return None
-        case StatutAnomalie.rejetee:
             return None
 
 
@@ -196,7 +220,8 @@ class _Calendrier:
     ancrage: date
     jours: tuple[date, ...]
     vagues: Mapping[str, VagueProgramme]
-    entrees_max: int
+    entrees_max: Mapping[int, int]
+    """Maximum d'Entrées de chaque semaine, proratisé à ses Jours ouvrés."""
     entrees: dict[int, int] = field(default_factory=dict)
     """Entrées (créations et réouvertures) par semaine du Programme."""
 
@@ -206,10 +231,23 @@ class _Calendrier:
     def phase(self, entite: EntiteProgramme, jour: date) -> Phase:
         return _phase_du_calendrier(self.vagues[entite.vague], self.semaine(jour))
 
+    _rangs: dict[date, int] = field(init=False, repr=False)
+    """Rang de chaque Jour ouvré dans `jours`."""
+
+    def __post_init__(self) -> None:
+        self._rangs = {jour: rang for rang, jour in enumerate(self.jours)}
+
+    def jour_apres(self, jour: date, delai: int) -> date | None:
+        """Jour ouvré `delai` Jours ouvrés après `jour` ; `None` au-delà de la Date d'injection."""
+        if jour not in self._rangs:
+            raise UsineErreur(f"{jour.isoformat()} : hors des Jours ouvrés de l'historique")
+        rang = self._rangs[jour] + delai
+        return self.jours[rang] if rang < len(self.jours) else None
+
     def accepter_reouverture(self, jour: date) -> bool:
         """Compte une réouverture le jour `jour` si sa semaine reste sous le maximum d'Entrées."""
         semaine = self.semaine(jour)
-        if self.entrees.get(semaine, 0) >= self.entrees_max:
+        if self.entrees.get(semaine, 0) >= self.entrees_max[semaine]:
             return False
         self.entrees[semaine] = self.entrees.get(semaine, 0) + 1
         return True
@@ -245,14 +283,21 @@ def _anomalie(
         },
         cause=cause,
     )
+    # Marche le long du workflow : séjour tiré en Jours ouvrés (≥ 1) dans chaque statut, d'où
+    # des transitions sur des jours distincts, arrêtée à la Date d'injection.
     statut = StatutAnomalie.nouvelle
-    nb_transitions = rng.randint(0, TRANSITIONS_MAX)
-    for jour_transition in _jours_ulterieurs(calendrier.jours, jour, nb_transitions, rng):
+    jour_courant = jour
+    for _ in range(TRANSITIONS_MAX):
+        jour_transition = calendrier.jour_apres(
+            jour_courant, rng.randint(*DELAIS_PAR_STATUT[statut])
+        )
+        if jour_transition is None:
+            break
         suivant = _statut_suivant(statut, rng)
         if suivant is None:
             break
         # Une réouverture est une Entrée : refusée si sa semaine a atteint son maximum.
-        if statut is StatutAnomalie.fermee and not calendrier.accepter_reouverture(jour_transition):
+        if statut in STATUTS_FERMES and not calendrier.accepter_reouverture(jour_transition):
             break
         ticket.changements.append(
             _Changement(
@@ -264,6 +309,7 @@ def _anomalie(
             )
         )
         statut = suivant
+        jour_courant = jour_transition
     return ticket
 
 
@@ -352,36 +398,68 @@ def _verifier_cle_projet(cle_projet: str) -> None:
         )
 
 
-def _bornes_anomalies(config: ConfigProgramme) -> tuple[int, int]:
-    """Bornes du nombre d'Anomalies : bornes configurées ∩ `nb_semaines` × bornes d'Entrées."""
-    volumetrie = config.volumetrie
-    semaines = config.nb_semaines
-    entrees_min = semaines * volumetrie.entrees_semaine_min
-    entrees_max = semaines * volumetrie.entrees_semaine_max
+def _bornes_entrees(
+    volumetrie: VolumetrieProgramme, jours_par_semaine: Mapping[int, int]
+) -> dict[int, tuple[int, int]]:
+    """`(minimum, maximum)` d'Entrées de chaque semaine, proratisés à ses Jours ouvrés.
+
+    Une semaine de `n` Jours ouvrés sur 5 a pour bornes ⌊min × n / 5⌋ et ⌈max × n / 5⌉ : une
+    semaine pleine garde les bornes configurées.
+    """
+    return {
+        semaine: (
+            volumetrie.entrees_semaine_min * nombre // JOURS_OUVRES_SEMAINE,
+            -(-volumetrie.entrees_semaine_max * nombre // JOURS_OUVRES_SEMAINE),
+        )
+        for semaine, nombre in jours_par_semaine.items()
+    }
+
+
+def _bornes_anomalies(
+    volumetrie: VolumetrieProgramme, bornes_entrees: Mapping[int, tuple[int, int]]
+) -> tuple[int, int, dict[int, int]]:
+    """`(minimum, maximum, plafonds)` : bornes du nombre d'Anomalies et plafond de créations
+    de chaque semaine.
+
+    Bornes : bornes configurées ∩ [Σ minimums, Σ maximums] d'Entrées des semaines. Plafond
+    d'une semaine : son maximum moins `MARGE_REOUVERTURES_POURCENT` % (arrondi bas), au moins
+    son minimum, pour laisser place aux réouvertures ; le maximum d'Anomalies est alors
+    ramené à Σ plafonds. Si Σ plafonds est sous le minimum d'Anomalies, pas de marge :
+    plafond = maximum de la semaine.
+    """
+    entrees_min = sum(minimum for minimum, _ in bornes_entrees.values())
+    entrees_max = sum(maximum for _, maximum in bornes_entrees.values())
     minimum = max(volumetrie.anomalies_min, entrees_min)
     maximum = min(volumetrie.anomalies_max, entrees_max)
     if minimum > maximum:
         raise UsineErreur(
             "volumétrie infaisable : Anomalies dans"
             f" [{volumetrie.anomalies_min}, {volumetrie.anomalies_max}], hors de"
-            f" [{entrees_min}, {entrees_max}] ({semaines} semaines × Entrées par semaine dans"
-            f" [{volumetrie.entrees_semaine_min}, {volumetrie.entrees_semaine_max}])"
+            f" [{entrees_min}, {entrees_max}] ({len(bornes_entrees)} semaines × Entrées par"
+            f" semaine dans [{volumetrie.entrees_semaine_min}, {volumetrie.entrees_semaine_max}],"
+            " proratisées aux Jours ouvrés d'une semaine partielle)"
         )
-    return minimum, maximum
+    plafonds = {
+        semaine: max(mini, maxi - maxi * MARGE_REOUVERTURES_POURCENT // 100)
+        for semaine, (mini, maxi) in bornes_entrees.items()
+    }
+    if minimum <= sum(plafonds.values()):
+        return minimum, min(maximum, sum(plafonds.values())), plafonds
+    return minimum, maximum, {semaine: maxi for semaine, (_, maxi) in bornes_entrees.items()}
 
 
 def _repartition_par_semaine(
-    nombre: int, semaines: int, minimum: int, maximum: int, rng: random.Random
+    nombre: int, minimums: list[int], plafonds: list[int], rng: random.Random
 ) -> list[int]:
-    """`nombre` créations sur `semaines` : `minimum` par semaine, puis le complément tiré
-    unité par unité parmi les semaines encore sous `maximum`."""
-    repartition = [minimum] * semaines
-    ouvertes = [s for s in range(semaines) if repartition[s] < maximum]
-    for _ in range(nombre - minimum * semaines):
+    """`nombre` créations sur les semaines : son minimum à chaque semaine, puis le complément
+    tiré unité par unité parmi les semaines encore sous leur plafond."""
+    repartition = list(minimums)
+    ouvertes = [s for s in range(len(repartition)) if repartition[s] < plafonds[s]]
+    for _ in range(nombre - sum(minimums)):
         indice = rng.randrange(len(ouvertes))
         semaine = ouvertes[indice]
         repartition[semaine] += 1
-        if repartition[semaine] >= maximum:
+        if repartition[semaine] >= plafonds[semaine]:
             ouvertes.pop(indice)
     return repartition
 
@@ -440,13 +518,20 @@ def generer(
 ) -> Generation:
     """Génère le Journal du Programme fictif pour `graine` et `date_generation`.
 
-    Tirages dans un ordre fixe : nombre d'Anomalies (bornes d'Anomalies ∩ `nb_semaines` ×
-    bornes d'Entrées), répartition par semaine, puis, semaine par semaine, le jour, l'Entité
-    et le cycle de vie de chaque Anomalie ; enfin, Entité par Entité (ordre de la
-    configuration), ses Cas de test et sa Certification. La Phase d'un ticket est celle du
-    calendrier de la Vague de son Entité la semaine de sa création. Une réouverture n'est
-    gardée que si sa semaine reste sous le maximum d'Entrées. Les clés `<cle_projet>-<n>`
-    sont ensuite attribuées dans l'ordre chronologique de création.
+    Les bornes d'Entrées d'une semaine sont proratisées à ses Jours ouvrés (dernière semaine
+    partielle). Tirages dans un ordre fixe : nombre d'Anomalies (bornes d'Anomalies ∩ Σ
+    bornes d'Entrées, sous Σ plafonds de créations qui réservent une marge aux
+    réouvertures), répartition par semaine, puis, semaine par semaine, le jour, l'Entité et
+    le cycle de vie de chaque Anomalie ; enfin, Entité par Entité (ordre de la
+    configuration), ses Cas de test et sa Certification.
+
+    Cycle de vie : marche le long du workflow H-17 (`_statut_suivant`), un séjour tiré en
+    Jours ouvrés (`DELAIS_PAR_STATUT`) dans chaque statut, arrêtée au-delà de la Date
+    d'injection, sur un statut fermé non rouvert ou après `TRANSITIONS_MAX` transitions. Une
+    réouverture (depuis Fermée ou Rejetée) n'est gardée que si sa semaine reste sous le
+    maximum d'Entrées. La Phase d'un ticket est celle du calendrier de la Vague de son
+    Entité la semaine de sa création. Les clés `<cle_projet>-<n>` sont ensuite attribuées
+    dans l'ordre chronologique de création.
 
     Titre et description forment une paire tirée d'un seul coup dans la case du `corpus`
     (défaut : Corpus provisoire des Domaines de `config`) : (Domaine, Cause racine) pour une
@@ -461,31 +546,34 @@ def generer(
     _verifier_cle_projet(cle_projet)
     for vague in config.vagues:
         _verifier_phases(vague)
-    anomalies_min, anomalies_max = _bornes_anomalies(config)
     ancrage, date_injection = fenetre_generation(date_generation, config.nb_semaines)
-    volumetrie = config.volumetrie
+    jours = jours_ouvres(ancrage, date_injection)
+    jours_par_semaine: dict[int, list[date]] = {}
+    for jour in jours:
+        jours_par_semaine.setdefault(semaine_programme(jour, ancrage), []).append(jour)
+    bornes_entrees = _bornes_entrees(
+        config.volumetrie, {s: len(j) for s, j in sorted(jours_par_semaine.items())}
+    )
+    anomalies_min, anomalies_max, plafonds = _bornes_anomalies(config.volumetrie, bornes_entrees)
     calendrier = _Calendrier(
         ancrage,
-        jours_ouvres(ancrage, date_injection),
+        jours,
         {vague.code: vague for vague in config.vagues},
-        volumetrie.entrees_semaine_max,
+        {semaine: maximum for semaine, (_, maximum) in bornes_entrees.items()},
     )
-    jours_par_semaine: dict[int, list[date]] = {}
-    for jour in calendrier.jours:
-        jours_par_semaine.setdefault(calendrier.semaine(jour), []).append(jour)
     rng = random.Random(graine)
 
     nb_anomalies = rng.randint(anomalies_min, anomalies_max)
+    semaines = sorted(bornes_entrees)
     repartition = _repartition_par_semaine(
         nb_anomalies,
-        config.nb_semaines,
-        volumetrie.entrees_semaine_min,
-        volumetrie.entrees_semaine_max,
+        [bornes_entrees[s][0] for s in semaines],
+        [plafonds[s] for s in semaines],
         rng,
     )
-    calendrier.entrees.update(enumerate(repartition, start=1))
+    calendrier.entrees.update(zip(semaines, repartition, strict=True))
     tickets: list[_Ticket] = []
-    for semaine, nombre in enumerate(repartition, start=1):
+    for semaine, nombre in zip(semaines, repartition, strict=True):
         jours_semaine = jours_par_semaine[semaine]
         for _ in range(nombre):
             jour = rng.choice(jours_semaine)
