@@ -136,3 +136,33 @@ deferred:
 - `uv run lint-imports` -- tous les contrats tenus.
 - `uv run pytest -q` -- tout passe.
 - `uv run python .github/scripts/controle_lanes.py --branche lane/2-extraction --base main` -- seuls les fichiers hors lane listés.
+
+## Auto Run Result
+
+Status: done
+
+- **Changement** : nouveau paquet `usine.adaptateurs.composite`. `SourceComposite` rend tout le Journal aux clés Jira, puis les seuls événements Jira postérieurs à `horodatage_fin_injection`, alignements compris. Le flux est trié, sans doublon, et le Journal passe en premier à horodatage égal. `DetecteurAlignements` compare l'état rejoué à l'état Jira (H-27) et `convertir_etat_jira` sert à FR-49. L'étape `extraction` persiste les alignements nouveaux dans la même transaction que les événements et le repère, puis expose leur nombre. Le manifeste du Passage reçoit un vrai `nb_alignements` et l'`horodatage_extraction`, ce qui clôt le constat 17. La composition bascule en source `composite` quand l'extraction Jira est active et qu'un manifeste existe ; l'instant d'extraction est alors figé une seule fois. `version_donnees` tient compte du manifeste, ce qui clôt le point différé de la 2.5.
+- **Fichiers** :
+  - `src/usine/adaptateurs/composite/{__init__,source,alignements}.py` -- source composite, rejeu d'état, alignements, conversion FR-49, détecteur.
+  - `src/usine/adaptateurs/entrepot_duckdb/{extraction,__init__}.py` -- paramètre `aligner`, bilan (`alignements`, `evenements`), `nb_alignements()`, `evenements_extraits()`, type `Aligneur`.
+  - `src/usine/chaine/execution.py` (hors lane) -- `horodatage_extraction` et `nb_alignements` recopiés au manifeste.
+  - `src/usine/composition.py` (hors lane) -- sélection composite, instant figé, empreinte Journal + manifeste, `Rapport.horodatage_extraction`.
+  - `tests/unit/adaptateurs/composite/{__init__,conftest,outils,test_source,test_alignements,test_coherence}.py` -- matrice I/O, injection simulée, test FR-49 sur le vrai domaine.
+  - `tests/unit/adaptateurs/entrepot_duckdb/test_extraction.py` -- persistance unique, atomicité, bilan.
+  - `tests/unit/chaine/test_execution.py` (hors lane) -- valeurs recopiées au manifeste.
+  - `tests/unit/test_composition.py` (hors lane) -- Passages composites de bout en bout, instant partagé sous une horloge qui avance, effet d'un alignement dans un rapport publié, empreintes.
+  - `tests/contrat/source_tickets/fabriques.py` (hors lane) -- fabrique `composite`.
+- **Revue** : 26 constats.
+  - **Patchés** : 1 entrée medium (instant figé vérifié avec une horloge qui avance) et 4 low (effet d'un alignement dans un rapport publié, parité de `CHAMPS_ETAT` avec le domaine, message après un échec, docstring de `horodatage_extraction`).
+  - **Différé** : 1 maybe-false (alignement coupé après une réinjection, qui dépend de la Story 1.7).
+  - **Rejetés** : tous les autres, motifs dans le Review Triage Log. Il s'agit de la décision sur `version_donnees`, du compte par Passage, de l'existence des tickets (non exprimable par le contrat) et des cas qui exigent une modification de Jira pendant l'injection.
+- **Relecture de suivi recommandée** : non, une seule entrée medium patchée et aucune high.
+- **Vérification** :
+  - `ruff check`, `ruff format --check`, `mypy` (224 fichiers) et `lint-imports` (13 contrats) sont verts.
+  - `pytest -q` : 1656 réussis, 1 ignoré.
+  - Chaque ligne de la matrice I/O est couverte par un test exécuté.
+- **Risques résiduels** :
+  - Le manifeste réel de l'injecteur (Story 1.6) et le vrai Jira (recette 2.7) n'ont pas été éprouvés.
+  - Inclure le manifeste dans `version_donnees` s'écarte de la lettre du Glossaire (AD-16), point à porter par `bmad-correct-course`.
+  - Un ticket supprimé dans Jira n'est pas aligné : le contrat n'a pas de nature « suppression ».
+  - Chaque Passage composite relit tout l'entrepôt, sans mesure de durée à l'échelle.
