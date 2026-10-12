@@ -125,7 +125,7 @@ development_status:
   6-1-adaptateurs-anthropic-et-mistral: done
   6-2-pseudonymisation-par-presidio: done
   6-3-passerelle-complète-cache-coût-et-dégradation: done
-  6-4-classification-incrémentale-des-causes-racines: backlog
+  6-4-classification-incrémentale-des-causes-racines: done
   6-5-répartition-des-causes-racines: backlog
   6-6-explication-sourcée-et-brouillon-de-commentaire: done
   6-7-narration-de-la-prévision: backlog
