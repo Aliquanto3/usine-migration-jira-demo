@@ -8,7 +8,16 @@ from pathlib import Path
 from usine.composition import generer_journal
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigProgramme
+from usine.contrats.meteo import CodeIndicateur
 from usine.contrats.passage import EXCLUSIONS_REJEU
+from usine.contrats.prevision import (
+    ContenuPrevisions,
+    FacteurExplicatif,
+    MethodePrevision,
+    Prevision,
+    RisqueEntreeRouge,
+    StatutPrevision,
+)
 
 RACINE_DEPOT = Path(__file__).resolve().parents[3]
 PROGRAMME_REDUIT = RACINE_DEPOT / "tests/unit/generateur/programme_reduit.yaml"
@@ -38,6 +47,39 @@ def horloge_pas_a_pas(instant: datetime = INSTANT) -> Callable[[], datetime]:
     """Horloge qui avance d'une seconde à chaque lecture."""
     compteur = iter(range(10_000))
     return lambda: instant + timedelta(seconds=next(compteur))
+
+
+def contenu_previsions(date_arrete: date, version_grille: str) -> ContenuPrevisions:
+    """Une Prévision (ENT-A, sortie projetée) et un Risque (ENT-B, IND-1), fictifs."""
+    prevision = Prevision(
+        date_arrete=date_arrete,
+        entite="ENT-A",
+        methode=MethodePrevision.baseline,
+        statut=StatutPrevision.sortie_projetee,
+        date_sortie_estimee=date_arrete + timedelta(days=14),
+        probabilite_numerateur=3,
+        probabilite_denominateur=4,
+        horizon_jours_ouvres=20,
+        facteurs=(
+            FacteurExplicatif(
+                nom="stock", libelle="Stock de bloquantes", numerateur=12, denominateur=1
+            ),
+        ),
+        version_grille=version_grille,
+    )
+    risque = RisqueEntreeRouge(
+        date_arrete=date_arrete,
+        entite="ENT-B",
+        indicateur=CodeIndicateur.ind_1,
+        date_franchissement_estimee=date_arrete + timedelta(days=7),
+        horizon_jours_ouvres=20,
+        numerateur=4,
+        denominateur=1,
+        seuil_numerateur=5,
+        seuil_denominateur=1,
+        version_grille=version_grille,
+    )
+    return ContenuPrevisions(previsions=(prevision,), risques=(risque,))
 
 
 def sans_exclusions(nom: str, valeur: object) -> object:

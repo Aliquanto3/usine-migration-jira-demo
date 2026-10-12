@@ -1,4 +1,7 @@
-"""Racine de composition : secrets, URL Jira et sélection de l'extraction Jira (Story 2.4)."""
+"""Racine de composition : secrets, URL Jira et sélection de l'extraction Jira (Story 2.4).
+
+Source composite, alignements et `version_donnees` (Story 2.6).
+"""
 
 from datetime import date, timedelta
 from pathlib import Path
@@ -8,14 +11,29 @@ import httpx
 import polars as pl
 import pytest
 
+from tests.doublures import SourceEnMemoire
+from tests.unit.adaptateurs.composite.outils import (
+    autre_valeur,
+    etat_a_l_injection,
+    injection_simulee,
+    premiere_anomalie,
+    transition_jira,
+)
 from tests.unit.adaptateurs.jira_dc.outils import ServeurFixturesDC
 from tests.unit.adaptateurs.jira_dc.outils import (
     evenements_attendus as evenements_attendus_dc,
 )
 from tests.unit.adaptateurs.jira_http.outils import Attentes
 from tests.unit.adaptateurs.journal.outils import couper_reseau, manifeste_pour
-from tests.unit.chaine.environnement import DATE_ARRETE, INSTANT, horloge_figee, preparer_racine
+from tests.unit.chaine.environnement import (
+    DATE_ARRETE,
+    INSTANT,
+    horloge_figee,
+    horloge_pas_a_pas,
+    preparer_racine,
+)
 from usine import composition
+from usine.adaptateurs.composite import DetecteurAlignements, id_alignement
 from usine.adaptateurs.entrepot_duckdb import EntrepotDuckDB, EtapeExtraction
 from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.adaptateurs.jira_dc import SourceJiraDC
@@ -25,7 +43,10 @@ from usine.chaine.etapes import EtapeBouchon
 from usine.config import charger_yaml
 from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.evenements import Evenement, NatureEvenement
 from usine.contrats.passage import Etape
+from usine.contrats.tickets import Champ
+from usine.contrats.versions import version_donnees
 from usine.ports.etape import Etape as PortEtape
 
 _VARIABLES_JIRA = ("USINE_MODE_REPLI", "JIRA_EMAIL", "JIRA_TOKEN_LECTURE", "JIRA_DC_PAT")
@@ -290,3 +311,185 @@ def test_client_ferme_si_le_passage_echoue_avant_l_extraction(
         composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
     assert fermetures == ["fermé"]
     assert serveur.requetes == []
+
+
+# --- Source composite (Story 2.6) ---
+
+
+def _ecrire_manifeste(racine: Path) -> SourceJournal:
+    """Écrit un manifeste d'injection fictif et rend le Journal lu aux clés Jira."""
+    chemin_journal = racine / "donnees" / "journal.jsonl"
+    brut = SourceJournal(chemin_journal)
+    manifeste = manifeste_pour(brut.entete, brut.evenements())
+    chemin = racine / CHEMIN_MANIFESTE_INJECTION
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    chemin.write_text(manifeste.model_dump_json(indent=2), encoding="utf-8")
+    return SourceJournal(chemin_journal, manifeste)
+
+
+class _ClientDouble:
+    """Client Jira doublé : aucune requête, fermeture notée."""
+
+    def __init__(self, fermetures: list[str]) -> None:
+        self._fermetures = fermetures
+
+    def fermer(self) -> None:
+        self._fermetures.append("fermé")
+
+
+def _doubler_jira(
+    monkeypatch: pytest.MonkeyPatch, evenements: list[Evenement], fermetures: list[str]
+) -> None:
+    """Cloud actif (jeton et e-mail fictifs) ; client et source Jira remplacés par des doublures."""
+    monkeypatch.setenv("JIRA_TOKEN_LECTURE", "jeton-fictif")
+    monkeypatch.setenv("JIRA_EMAIL", "lecteur@example.invalid")
+    monkeypatch.setattr(
+        composition, "construire_client_lecture", lambda *a, **k: _ClientDouble(fermetures)
+    )
+    monkeypatch.setattr(composition, "SourceJiraCloud", lambda *a, **k: SourceEnMemoire(evenements))
+    couper_reseau(monkeypatch)
+
+
+def _etat(repertoire: Path, cle: str, colonne: str, jour: date = DATE_ARRETE) -> object:
+    etats = pl.read_parquet(repertoire / "tickets_etats.parquet")
+    ligne = etats.filter((pl.col("date") == jour) & (pl.col("cle_ticket") == cle))
+    return ligne[colonne].item()
+
+
+def _alignements(racine: Path) -> list[tuple[str, object]]:
+    entrepot = EntrepotDuckDB(racine / "donnees" / "entrepot.duckdb")
+    return [
+        (e.id_evenement, e.horodatage)
+        for e in entrepot.evenements()
+        if e.nature is NatureEvenement.alignement
+    ]
+
+
+def test_passage_composite_de_bout_en_bout(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    journal = _ecrire_manifeste(racine_journal)
+    assert journal.manifeste is not None
+    fin = journal.manifeste.horodatage_fin_injection
+    ecart = premiere_anomalie(journal)
+    gravite = autre_valeur(Champ.gravite, etat_a_l_injection(journal, ecart, Champ.gravite))
+    manuel = premiere_anomalie(journal, sauf=frozenset({ecart}))
+    statut = etat_a_l_injection(journal, manuel, Champ.statut)
+    nouveau_statut = autre_valeur(Champ.statut, statut)
+    jira = [
+        *injection_simulee(journal, {ecart: {Champ.gravite: gravite}}),
+        transition_jira(manuel, statut, nouveau_statut, fin + timedelta(hours=1)),
+    ]
+    fermetures: list[str] = []
+    _doubler_jira(monkeypatch, jira, fermetures)
+
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    extraction = rapport.registre[Etape.extraction]
+    assert isinstance(extraction, EtapeExtraction)
+    assert isinstance(extraction.aligner, DetecteurAlignements)
+    assert rapport.donnees.source == "composite"
+    assert rapport.horodatage_extraction == INSTANT
+    extraction.fermer()
+
+    lance = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+
+    assert lance.manifeste.source == "composite"
+    assert lance.manifeste.horodatage_extraction == INSTANT
+    assert lance.manifeste.nb_alignements == 1
+    assert fermetures == ["fermé", "fermé"]
+    # La transition faite à la main dans Jira après l'injection apparaît au Passage.
+    assert statut != nouveau_statut
+    assert _etat(lance.repertoire, manuel, "statut") == nouveau_statut
+    # L'alignement, horodaté à la détection (après la Date d'arrêté), ne change pas cette date.
+    assert _etat(lance.repertoire, ecart, "gravite") != gravite
+    attendu = [(id_alignement(ecart, Champ.gravite, gravite), INSTANT)]
+    assert _alignements(racine_journal) == attendu
+    entrepot = EntrepotDuckDB(racine_journal / "donnees" / "entrepot.duckdb")
+    assert entrepot.repere() == INSTANT
+
+    # Deuxième Passage, même écart : rien d'ajouté, première détection gardée.
+    plus_tard = INSTANT + timedelta(days=1)
+    second = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee(plus_tard))
+    assert second.manifeste.nb_alignements == 0
+    assert second.manifeste.horodatage_extraction == plus_tard
+    assert _alignements(racine_journal) == attendu
+    assert entrepot.repere() == plus_tard
+    assert _etat(second.repertoire, manuel, "statut") == nouveau_statut
+
+
+def test_passage_composite_instant_d_extraction_partage(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Horloge qui avance : repère, alignement, manifeste et empreinte gardent un même instant.
+
+    Passage à la Date d'arrêté du jour de la détection : la valeur Jira alignée y est publiée.
+    """
+    journal = _ecrire_manifeste(racine_journal)
+    ecart = premiere_anomalie(journal)
+    gravite = autre_valeur(Champ.gravite, etat_a_l_injection(journal, ecart, Champ.gravite))
+    _doubler_jira(monkeypatch, injection_simulee(journal, {ecart: {Champ.gravite: gravite}}), [])
+    jour_detection = date(2026, 10, 12)
+    assert jour_detection == INSTANT.date()
+
+    lance = composition.lancer_rapport(racine_journal, jour_detection, horloge_pas_a_pas())
+
+    instant = lance.manifeste.horodatage_extraction
+    assert instant is not None
+    assert instant != lance.manifeste.horodatage_debut  # l'horloge a bien avancé
+    entrepot = EntrepotDuckDB(racine_journal / "donnees" / "entrepot.duckdb")
+    assert entrepot.repere() == instant
+    assert _alignements(racine_journal) == [(id_alignement(ecart, Champ.gravite, gravite), instant)]
+    octets = (racine_journal / "donnees" / "journal.jsonl").read_bytes()
+    octets += b"\n" + (racine_journal / CHEMIN_MANIFESTE_INJECTION).read_bytes()
+    assert lance.manifeste.version_donnees == version_donnees(octets, instant)
+    # Jira fait foi : à la Date d'arrêté de la détection, la gravité publiée est celle de Jira.
+    assert _etat(lance.repertoire, ecart, "gravite", jour_detection) == gravite
+    assert _etat(lance.repertoire, ecart, "gravite") != gravite
+
+
+def test_extraction_sans_manifeste_reste_journal(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _doubler_jira(monkeypatch, [], [])
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    extraction = rapport.registre[Etape.extraction]
+    assert isinstance(extraction, EtapeExtraction)
+    assert extraction.aligner is None
+    assert rapport.donnees.source == "journal"
+    assert rapport.horodatage_extraction is None
+    lance = composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee())
+    assert lance.manifeste.source == "journal"
+    assert lance.manifeste.horodatage_extraction is None
+    assert lance.manifeste.nb_alignements == 0
+
+
+def test_detection_avant_la_fin_d_injection_echoue(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    journal = _ecrire_manifeste(racine_journal)
+    assert journal.manifeste is not None
+    fin = journal.manifeste.horodatage_fin_injection
+    _doubler_jira(monkeypatch, injection_simulee(journal), [])
+    with pytest.raises(UsineErreur, match="fin d'injection") as erreur:
+        composition.lancer_rapport(racine_journal, DATE_ARRETE, horloge_figee(fin))
+    assert "extraction" in str(erreur.value)
+    entrepot = EntrepotDuckDB(racine_journal / "donnees" / "entrepot.duckdb")
+    assert entrepot.repere() is None
+
+
+def test_version_donnees_trois_empreintes(
+    racine_journal: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    octets_journal = (racine_journal / "donnees" / "journal.jsonl").read_bytes()
+    sans_manifeste = composition.construire_rapport(racine_journal).donnees.version_donnees
+    assert sans_manifeste == version_donnees(octets_journal, None)
+
+    _ecrire_manifeste(racine_journal)
+    octets = octets_journal + b"\n" + (racine_journal / CHEMIN_MANIFESTE_INJECTION).read_bytes()
+    avec_manifeste = composition.construire_rapport(racine_journal).donnees.version_donnees
+    assert avec_manifeste == version_donnees(octets, None)
+
+    _doubler_jira(monkeypatch, [], [])
+    rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
+    assert rapport.donnees.version_donnees == version_donnees(octets, INSTANT)
+    assert len({sans_manifeste, avec_manifeste, rapport.donnees.version_donnees}) == 3

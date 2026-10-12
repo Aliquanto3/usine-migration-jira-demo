@@ -86,7 +86,7 @@ development_status:
   2-3-entrepôt-duckdb-et-extraction-incrémentale: done
   2-4-adaptateur-jira-data-center-v2-et-sélection-par-configuratio: done
   2-5-source-journal-à-l-échelle-et-correspondance-des-clés: done
-  2-6-source-composite-et-cohérence-à-la-date-d-injection: backlog
+  2-6-source-composite-et-cohérence-à-la-date-d-injection: done
   2-7-recette-en-direct-sur-jira-cloud: backlog  # prérequis : 1.7
   epic-2-retrospective: optional
 
@@ -101,9 +101,9 @@ development_status:
   3-8-rapport-de-référence-et-réconciliation-à-100: done
   epic-3-retrospective: optional
 
-  epic-4: backlog  # lane L4 Prévision (après L3)
-  4-1-prévision-de-sortie-du-rouge-par-baseline: backlog
-  4-2-risque-d-entrée-en-rouge: backlog
+  epic-4: in-progress  # lane L4 Prévision (après L3)
+  4-1-prévision-de-sortie-du-rouge-par-baseline: done
+  4-2-risque-d-entrée-en-rouge: done
   4-3-conversion-du-public-jira-dataset-en-seriestock: backlog
   4-4-évaluation-de-la-baseline-sur-données-réelles: backlog
   4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: backlog  # prérequis : 1.8 et Epic 3
@@ -111,9 +111,9 @@ development_status:
   4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
   epic-4-retrospective: optional
 
-  epic-5: backlog  # lane L5 Rapport (après L3)
-  5-1-étapes-déterministes-complètes-et-passage-autoportant: backlog
-  5-2-consultation-complète: backlog
+  epic-5: in-progress  # lane L5 Rapport (après L3)
+  5-1-étapes-déterministes-complètes-et-passage-autoportant: done
+  5-2-consultation-complète: done
   5-3-classeur-excel-en-9-onglets: backlog
   5-4-présentation-powerpoint-en-7-sections: backlog
   5-5-commande-unique-et-rejeu-idempotent: backlog

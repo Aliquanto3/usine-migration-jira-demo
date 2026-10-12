@@ -47,8 +47,16 @@ def executer_passage(
     horloge: Callable[[], datetime],
     alea: Callable[[], str],
     donnees: DonneesPassage,
+    horodatage_extraction: datetime | None = None,
+    nb_alignements: Callable[[], int] | None = None,
 ) -> ManifestePassage:
-    """Exécute toutes les étapes du registre et publie le Passage ; lève une `UsineErreur`."""
+    """Exécute toutes les étapes du registre et publie le Passage ; lève une `UsineErreur`.
+
+    `horodatage_extraction` (instant d'extraction Jira ; `None` hors source composite, les
+    données du Passage ne dépendant alors d'aucune extraction) est recopié au manifeste ;
+    `nb_alignements`, lu après les étapes, y donne le nombre d'alignements persistés par ce
+    Passage (0 sans lui).
+    """
     manquantes = [etape.value for etape in Etape if etape not in registre]
     if manquantes:
         raise UsineErreur(f"étape(s) absente(s) du registre : {', '.join(manquantes)}")
@@ -91,10 +99,11 @@ def executer_passage(
             source=donnees.source,
             horodatage_debut=debut,
             horodatage_fin=horloge(),
+            horodatage_extraction=horodatage_extraction,
             version_grille=donnees.version_grille,
             version_donnees=donnees.version_donnees,
             cout_llm_eur=Decimal(0),
-            nb_alignements=0,
+            nb_alignements=0 if nb_alignements is None else nb_alignements(),
             nb_tickets=nb_tickets,
             etapes=tuple(executions),
         )

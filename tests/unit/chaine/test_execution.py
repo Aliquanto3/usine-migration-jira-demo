@@ -16,6 +16,7 @@ from tests.doublures.source_en_memoire import SourceEnMemoire
 from tests.unit.chaine.environnement import (
     DATE_ARRETE,
     INSTANT,
+    contenu_previsions,
     horloge_figee,
     horloge_pas_a_pas,
     preparer_racine,
@@ -25,7 +26,7 @@ from tests.unit.domaine.constructeur import Flux
 from usine.adaptateurs.journal import SourceJournal
 from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
 from usine.chaine.ecrivain import EcrivainPassage
-from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo
+from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo, EtapePrevision
 from usine.chaine.execution import executer_passage
 from usine.composition import PassageLance, Rapport, construire_rapport, lancer_rapport
 from usine.consultation.passage import ConsultationPassage
@@ -46,8 +47,11 @@ from usine.contrats.passage import (
     StatutEtape,
     lire_enveloppe,
 )
-from usine.contrats.trace import EntreeTrace
-from usine.contrats.versions import version_prompt
+from usine.contrats.prevision import ContenuPrevisions
+from usine.contrats.trace import EntreeTrace, TypeTrace
+from usine.contrats.versions import CONTRATS_VERSION, version_prompt
+from usine.domaine.kpi import kpi as calculer_kpi
+from usine.domaine.kpi import tendances as calculer_tendances
 from usine.domaine.meteo import indicateurs as calculer_indicateurs
 from usine.domaine.meteo import meteo as calculer_meteo
 from usine.ia.explication import lire_prompt
@@ -112,10 +116,12 @@ def test_passage_publie(rapport: Rapport) -> None:
     assert sorted(p.name for p in repertoire.iterdir()) == [
         "indicateurs.parquet",
         "instantanes.parquet",
+        "kpi.parquet",
         "manifeste.json",
         "meteo.json",
         "rapport-2026-10-09.pptx",
         "rapport-2026-10-09.xlsx",
+        "tendances.parquet",
         "tickets_etats.parquet",
         "tickets_textes.parquet",
     ]
@@ -140,6 +146,141 @@ def test_manifeste(rapport: Rapport) -> None:
     nb_attendu = etats.filter(pl.col("date") == DATE_ARRETE).height
     assert manifeste.nb_tickets == nb_attendu > 0
     assert manifeste.horodatage_debut < manifeste.horodatage_fin
+    assert manifeste.horodatage_extraction is None
+    assert manifeste.nb_alignements == 0
+
+
+class EtapeNotee:
+    """Étape réussie sans sortie qui note son passage."""
+
+    def __init__(self, journal: list[str], nom: str) -> None:
+        self._journal = journal
+        self._nom = nom
+
+    def executer(self, ctx: ContextePassage[Consultation]) -> ResultatEtape:
+        self._journal.append(self._nom)
+        return ResultatEtape(StatutEtape.reussie)
+
+
+def test_extraction_et_alignements_recopies_au_manifeste(rapport: Rapport) -> None:
+    """Constat 17 : `nb_alignements` et `horodatage_extraction` viennent de l'extraction."""
+    ordre: list[str] = []
+
+    def compter() -> int:
+        ordre.append("compte")
+        return 3
+
+    extraction = INSTANT - timedelta(minutes=5)
+    horloge = horloge_pas_a_pas()
+    registre = {
+        **rapport.registre,
+        Etape.extraction: EtapeNotee(ordre, "extraction"),
+        Etape.rendu: EtapeNotee(ordre, "rendu"),
+    }
+    manifeste = executer_passage(
+        registre,
+        rapport.configuration,
+        DATE_ARRETE,
+        EcrivainPassage(rapport.racine_sorties, horloge),
+        ConsultationPassage,
+        horloge,
+        lambda: "abc123",
+        rapport.donnees,
+        horodatage_extraction=extraction,
+        nb_alignements=compter,
+    )
+    assert ordre == ["extraction", "rendu", "compte"]
+    assert manifeste.horodatage_extraction == extraction
+    assert manifeste.nb_alignements == 3
+
+
+def test_manifeste_complet_relu(rapport: Rapport) -> None:
+    """AC 3 : chaque champ de traçabilité est présent dans `manifeste.json` relu."""
+    manifeste, ecrivain = _executer(rapport)
+    assert ecrivain.repertoire_publie is not None
+    brut = json.loads((ecrivain.repertoire_publie / "manifeste.json").read_text(encoding="utf-8"))
+    for champ in (
+        "date_arrete",
+        "source",
+        "horodatage_extraction",
+        "nb_tickets",
+        "nb_alignements",
+        "version_grille",
+        "version_donnees",
+        "etapes",
+        "contrats_version",
+    ):
+        assert champ in brut, champ
+    assert brut["date_arrete"] == "2026-10-09"
+    assert brut["source"] == "journal"
+    assert brut["horodatage_extraction"] is None  # aucune extraction Jira dans l'essai
+    assert brut["nb_tickets"] == manifeste.nb_tickets > 0
+    assert isinstance(brut["nb_alignements"], int)
+    assert brut["nb_alignements"] == manifeste.nb_alignements >= 0
+    assert brut["version_grille"] == rapport.donnees.version_grille
+    assert brut["version_donnees"] == rapport.donnees.version_donnees
+    assert brut["contrats_version"] == CONTRATS_VERSION
+    assert [e["etape"] for e in brut["etapes"]] == [e.value for e in Etape]
+    for execution in brut["etapes"]:
+        assert execution["horodatage_debut"]
+        assert execution["horodatage_fin"]
+    consultation = ConsultationPassage(ecrivain.repertoire_publie)
+    assert consultation.manifeste() == manifeste
+
+
+def test_autoportance_kpi(rapport: Rapport) -> None:
+    """AC 1 : KPI et Tendances publiés = sorties directes du domaine, chaque Jour ouvré."""
+    manifeste, ecrivain = _executer(rapport)
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    racine = rapport.racine_sorties.parent
+    ancrage = SourceJournal(racine / CHEMIN_JOURNAL).entete.ancrage_semaines
+    programme = rapport.configuration.programme
+    assert programme is not None
+    entites = [entite.code for entite in programme.entites]
+    etats = pl.read_parquet(repertoire / "tickets_etats.parquet")
+    quotidiens = pl.read_parquet(repertoire / "kpi.parquet")
+    hebdo = pl.read_parquet(repertoire / "tendances.parquet")
+    dates = sorted(quotidiens.get_column("date").unique().to_list())
+    assert dates == list(jours_ouvres(ancrage, DATE_ARRETE))
+    directs = calculer_kpi(etats, entites)
+    assert quotidiens.equals(directs)
+    assert hebdo.equals(calculer_tendances(directs, DATE_ARRETE, ancrage))
+    assert hebdo.get_column("date").max() == DATE_ARRETE
+    consultation = ConsultationPassage(repertoire)
+    assert consultation.kpi().equals(directs.filter(pl.col("date") == DATE_ARRETE))
+    assert consultation.tendances().equals(hebdo)
+    assert manifeste.date_arrete == DATE_ARRETE
+
+
+def test_passage_avec_previsions(rapport: Rapport) -> None:
+    """AC 2 : une `EtapePrevision` injectée publie `previsions.json` et ses traces."""
+    contenu = contenu_previsions(DATE_ARRETE, rapport.donnees.version_grille)
+
+    def prevoir(ctx: ContextePassage[Consultation]) -> ContenuPrevisions:
+        # La prévision lit le Passage en cours : la Météo y est déjà.
+        assert ctx.consultation.meteo(ctx.date_arrete)
+        return contenu
+
+    etape = EtapePrevision(prevoir, rapport.donnees.version_donnees, horloge_figee())
+    manifeste, ecrivain = _executer(rapport, remplacements={Etape.prevision: etape})
+    repertoire = ecrivain.repertoire_publie
+    assert repertoire is not None
+    assert (repertoire / "previsions.json").is_file()
+    assert (repertoire / "trace" / "previsions.jsonl").is_file()
+    assert not (repertoire / "trace" / "llm.jsonl").exists()
+    consultation = ConsultationPassage(repertoire)
+    assert consultation.previsions() == contenu.previsions
+    assert consultation.risques() == contenu.risques
+    traces = consultation.traces()
+    assert [(t.type_trace, t.cible) for t in traces] == [
+        (TypeTrace.prevision, "ENT-A"),
+        (TypeTrace.prevision, "ENT-B"),
+    ]
+    assert {t.passage_id for t in traces} == {manifeste.passage_id}
+    assert {t.horodatage for t in traces} == {INSTANT}
+    assert {t.version_grille for t in traces} == {manifeste.version_grille}
+    assert {t.version_donnees for t in traces} == {manifeste.version_donnees}
 
 
 def test_progression(rapport: Rapport) -> None:

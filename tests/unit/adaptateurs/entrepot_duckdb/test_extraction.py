@@ -1,7 +1,10 @@
-"""Extraction incrémentale : repère, marge, atomicité et bout en bout sur Jira Cloud (Story 2.3)."""
+"""Extraction incrémentale : repère, marge, atomicité et bout en bout sur Jira Cloud (Story 2.3).
+
+Avec `aligner` (Story 2.6) : alignements persistés une seule fois, dans la même transaction.
+"""
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import cast
@@ -25,8 +28,9 @@ from usine.adaptateurs.entrepot_duckdb import (
 from usine.adaptateurs.jira_cloud import SourceJiraCloud
 from usine.contrats.config import ConfigChaine, ConfigUsine
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.evenements import Evenement
+from usine.contrats.evenements import Evenement, NatureEvenement, SourceEvenement
 from usine.contrats.passage import ContextePassage, StatutEtape
+from usine.contrats.tickets import Champ, TypeTicket
 from usine.ports import Etape
 from usine.ports.consultation import Consultation
 
@@ -239,3 +243,170 @@ def test_etape_extraction_fermer_une_seule_fois(tmp_path: Path) -> None:
     etape.fermer()
     etape.fermer()
     assert fermetures == ["fermé"]
+
+
+# --- Alignements (Story 2.6) ---
+
+TA = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
+TB = TA + timedelta(days=1)
+
+
+def _alignement(instant: datetime) -> Evenement:
+    return Evenement(
+        id_evenement="A-DEMO-1-gravite-0a1b2c3d",
+        cle_ticket="DEMO-1",
+        type_ticket=TypeTicket.anomalie,
+        horodatage=instant,
+        nature=NatureEvenement.alignement,
+        champ=Champ.gravite,
+        de="bloquante",
+        vers="mineure",
+        source=SourceEvenement.jira_cloud,
+    )
+
+
+class AligneurEspion:
+    """Signale toujours le même écart (même identifiant), à l'instant reçu ; note ses appels."""
+
+    def __init__(self) -> None:
+        self.appels: list[tuple[tuple[Evenement, ...], datetime]] = []
+
+    def __call__(self, evenements: Iterable[Evenement], instant: datetime) -> list[Evenement]:
+        self.appels.append((tuple(evenements), instant))
+        return [_alignement(instant)]
+
+
+class EntrepotEspion:
+    """`EntrepotDuckDB` qui note les identifiants de chaque `enregistrer`."""
+
+    def __init__(self, entrepot: EntrepotDuckDB) -> None:
+        self._entrepot = entrepot
+        self.enregistrements: list[list[str]] = []
+
+    def repere(self) -> datetime | None:
+        return self._entrepot.repere()
+
+    def enregistrer(self, evenements: Iterable[Evenement], repere: datetime) -> int:
+        liste = list(evenements)
+        self.enregistrements.append([e.id_evenement for e in liste])
+        return self._entrepot.enregistrer(liste, repere)
+
+    def evenements(self) -> Iterator[Evenement]:
+        return self._entrepot.evenements()
+
+
+def test_sans_aligner_ni_alignement_ni_flux(tmp_path: Path) -> None:
+    resultat = extraire(SourceEnMemoire(evenements_essai()), _entrepot(tmp_path), MARGE, lambda: TA)
+    assert resultat.alignements == 0
+    assert resultat.evenements is None
+
+
+def test_alignement_persiste_une_seule_fois(tmp_path: Path) -> None:
+    entrepot = _entrepot(tmp_path)
+    aligner = AligneurEspion()
+    essai = evenements_essai()
+
+    premier = extraire(SourceEnMemoire(essai), entrepot, MARGE, lambda: TA, aligner)
+
+    assert (premier.ajouts, premier.alignements) == (len(essai) + 1, 1)
+    assert aligner.appels == [(essai, TA)]
+    stockes = tuple(entrepot.evenements())
+    assert stockes == (*essai, _alignement(TA))
+    assert premier.evenements == stockes
+
+    second = extraire(SourceEnMemoire(essai), entrepot, MARGE, lambda: TB, aligner)
+
+    assert (second.ajouts, second.alignements) == (0, 0)
+    assert aligner.appels[1] == ((*essai, _alignement(TA)), TB)
+    # Horodatage de la première détection gardé.
+    assert tuple(entrepot.evenements()) == stockes
+    assert second.evenements == stockes
+    assert entrepot.repere() == TB
+
+
+def test_evenements_et_alignements_dans_un_seul_enregistrement(tmp_path: Path) -> None:
+    entrepot = EntrepotEspion(_entrepot(tmp_path))
+    essai = evenements_essai()
+    extraire(SourceEnMemoire(essai), entrepot, MARGE, lambda: TA, AligneurEspion())
+    assert entrepot.enregistrements == [
+        [*(e.id_evenement for e in essai), _alignement(TA).id_evenement]
+    ]
+
+
+def test_doublons_de_la_source_ignores(tmp_path: Path) -> None:
+    entrepot = _entrepot(tmp_path)
+    essai = evenements_essai()
+    entrepot.enregistrer(essai[:4], TA - timedelta(days=30))
+    # Repère ancien : la source renvoie tout, y compris les quatre événements déjà stockés.
+    aligner = AligneurEspion()
+    resultat = extraire(SourceEnMemoire(essai), entrepot, MARGE, lambda: TA, aligner)
+    assert resultat.ajouts == len(essai) - 4 + 1
+    assert aligner.appels[0][0] == essai
+    assert resultat.evenements == (*essai, _alignement(TA))
+
+
+def test_aligner_en_echec_rien_n_est_valide(tmp_path: Path) -> None:
+    entrepot = _entrepot(tmp_path)
+
+    def echouer(evenements: Iterable[Evenement], instant: datetime) -> list[Evenement]:
+        raise UsineErreur("détection impossible")
+
+    with pytest.raises(UsineErreur, match="détection impossible"):
+        extraire(SourceEnMemoire(evenements_essai()), entrepot, MARGE, lambda: TA, echouer)
+    assert entrepot.repere() is None
+    assert list(entrepot.evenements()) == []
+
+
+def test_etape_avec_aligner_bilan_et_evenements_extraits(tmp_path: Path) -> None:
+    chemin = tmp_path / "entrepot.duckdb"
+    aligner = AligneurEspion()
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()), chemin, MARGE, lambda: TA, aligner=aligner
+    )
+    assert etape.aligner is aligner
+    with pytest.raises(UsineErreur, match="non exécutée"):
+        etape.nb_alignements()
+    with pytest.raises(UsineErreur, match="non exécutée"):
+        etape.evenements_extraits()
+    assert etape.executer(_contexte()).statut is StatutEtape.reussie
+    assert etape.nb_alignements() == 1
+    assert etape.evenements_extraits() == tuple(EntrepotDuckDB(chemin).evenements())
+
+    seconde = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()), chemin, MARGE, lambda: TB, aligner=aligner
+    )
+    seconde.executer(_contexte())
+    assert seconde.nb_alignements() == 0
+    assert seconde.evenements_extraits() == etape.evenements_extraits()
+
+
+def test_etape_sans_aligner_pas_de_flux_extrait(tmp_path: Path) -> None:
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()), tmp_path / "entrepot.duckdb", MARGE, lambda: TA
+    )
+    assert etape.aligner is None
+    etape.executer(_contexte())
+    assert etape.nb_alignements() == 0
+    with pytest.raises(UsineErreur, match="détecteur d'alignements"):
+        etape.evenements_extraits()
+
+
+def test_etape_en_echec_oublie_le_bilan_precedent(tmp_path: Path) -> None:
+    chemin = tmp_path / "entrepot.duckdb"
+    appels: list[datetime] = []
+
+    def aligner(evenements: Iterable[Evenement], instant: datetime) -> list[Evenement]:
+        appels.append(instant)
+        if len(appels) > 1:
+            raise UsineErreur("détection impossible")
+        return []
+
+    etape = EtapeExtraction(
+        SourceEnMemoire(evenements_essai()), chemin, MARGE, lambda: TA, aligner=aligner
+    )
+    etape.executer(_contexte())
+    assert etape.nb_alignements() == 0
+    with pytest.raises(UsineErreur, match="détection impossible"):
+        etape.executer(_contexte())
+    with pytest.raises(UsineErreur, match="non exécutée ou en échec"):
+        etape.nb_alignements()
