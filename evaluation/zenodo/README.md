@@ -128,7 +128,7 @@ Hyperledger). Exemples : `Spring/SPR` (2003-12-11 → 2019-01-07, 319 Entrées, 
 
 Le défaut `PRIORITES_MAXIMALES = {Blocker, Highest}` couvre les schémas Apache (Blocker) et
 Jira par défaut (Highest) ; les instances à schéma propre se convertissent avec `--priorite`.
-L'évaluation de la Baseline sur ces séries relève de la Story 4.4.
+L'évaluation de la Baseline sur ces séries (Story 4.4) est décrite dans [`RAPPORT.md`](RAPPORT.md).
 
 ## Limites connues
 

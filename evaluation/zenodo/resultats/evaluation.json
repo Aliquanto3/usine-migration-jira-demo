@@ -1,0 +1,94 @@
+{
+  "protocole": {
+    "indicateur": "IND-1",
+    "operateur": ">=",
+    "seuil": 3.0,
+    "horizon_jours_ouvres": 10,
+    "historique_jours_ouvres": 20,
+    "parametres_baseline": {
+      "fenetre_velocite": 10,
+      "horizon": 10,
+      "fenetre_fourchette": 5,
+      "profondeur_fourchette": 20
+    },
+    "echantillonnage": "premier Jour ouvré présent de chaque semaine ISO",
+    "projets_tenus_a_l_ecart": "sha256(nom de série) mod 4 == 0",
+    "coupure_temporelle": "centile 70 (rang le plus proche) des dates par dépôt",
+    "naive": "taux de la cible à l'entraînement du projet, repli taux global"
+  },
+  "donnees": {
+    "depots": {
+      "Hyperledger": {
+        "series": 24,
+        "series_tenues_a_l_ecart": 8,
+        "unites": 775,
+        "coupure": "2019-09-30"
+      },
+      "IntelDAOS": {
+        "series": 2,
+        "series_tenues_a_l_ecart": 1,
+        "unites": 162,
+        "coupure": "2020-07-27"
+      },
+      "JFrog": {
+        "series": 7,
+        "series_tenues_a_l_ecart": 3,
+        "unites": 1437,
+        "coupure": "2019-01-28"
+      },
+      "SecondLife": {
+        "series": 2,
+        "series_tenues_a_l_ecart": 1,
+        "unites": 22,
+        "coupure": "2011-10-03"
+      },
+      "Spring": {
+        "series": 58,
+        "series_tenues_a_l_ecart": 20,
+        "unites": 2761,
+        "coupure": "2019-06-03"
+      }
+    },
+    "series": 93,
+    "unites": 5157
+  },
+  "entrainement": {
+    "effectif": 2743,
+    "positifs": 107,
+    "taux_cible": 0.039008
+  },
+  "jeux": {
+    "test_temporel": {
+      "effectif": 1191,
+      "positifs": 15,
+      "series": 15,
+      "baseline": {
+        "brier": 0.011922,
+        "auc": 0.657653,
+        "erreur_absolue_moyenne": 0.498741
+      },
+      "naive": {
+        "brier": 0.013638,
+        "auc": 0.400879,
+        "erreur_absolue_moyenne": 0.342569
+      },
+      "baseline_bat_naive_brier": true
+    },
+    "test_projets_tenus_a_l_ecart": {
+      "effectif": 1203,
+      "positifs": 57,
+      "series": 10,
+      "baseline": {
+        "brier": 0.047625,
+        "auc": 0.637657,
+        "erreur_absolue_moyenne": 1.281796
+      },
+      "naive": {
+        "brier": 0.045207,
+        "auc": 0.5,
+        "erreur_absolue_moyenne": 0.842062
+      },
+      "baseline_bat_naive_brier": false
+    }
+  }
+}
