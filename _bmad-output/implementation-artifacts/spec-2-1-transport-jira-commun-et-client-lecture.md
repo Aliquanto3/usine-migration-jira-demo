@@ -126,6 +126,41 @@ deferred:
   - `[medium]` `[patch]` (verification-gap) `tentatives_max` des fabriques non testé — `test_client_lecture_respecte_tentatives_max` (Cloud, DC) et `test_client_ecriture_respecte_tentatives_max`.
   - `[low]` `[defer]` (verification-gap) branches jeton vide / non textuel non testées — à épingler avec les vrais enregistrements (2.7).
 
+### 2026-10-12 — Review pass (revue de suivi)
+- verdicts: 31 findings — high 0, medium 5, low 22, false 4, maybe-false 0
+- findings:
+  - `[low]` `[defer]` (verification-gap) `nextPageToken` vide ou non textuel jamais exercé — carried : même constat que la ligne verification-gap de la première passe, code inchangé ; déjà dans `deferred`.
+  - `[low]` `[reject]` (verification-gap) garde `taille_page < 1` non testée — aucun appelant ne passe de taille, valeur non lue de la configuration ; correctif = test pour un paramètre sans usage.
+  - `[false]` `[reject]` (verification-gap, autre) page courte avec jeton non épinglée — aucune branche « page courte » : la boucle ne s'arrête que sur jeton absent ou vide, ou sur `isLast` ; rien qui puisse régresser.
+  - `[medium]` `[patch]` (verification-gap, autre) la garde du client d'écriture n'est qu'une recherche textuelle — groupe G : garde structurelle ajoutée (voir ci-dessous).
+  - `[medium]` `[patch]` (intent) `client._transport.requete(...)` contourne la liste blanche sans être vu — groupe G : l'attribut `._transport` hors du paquet est détecté par l'arbre syntaxique.
+  - `[medium]` `[patch]` (intent) `TransportJira` et `Authentification` exportés publiquement, seule la recherche textuelle les garde — groupe G : imports (absolus, relatifs, `import *`), noms, attributs et accès dynamiques détectés par AST ; graphe grimp : seul le paquet importe `jira_http.transport`.
+  - `[medium]` `[patch]` (intent) la recherche textuelle ne voit ni `jira_http.transport` atteint par attribut ni les imports réels — groupe G : même correctif.
+  - `[low]` `[reject]` (intent) la séparation des jetons repose sur l'appelant — la composition est hors de cette story (Never) ; les paramètres `jeton_lecture` / `jeton_injection` et les messages nomment la variable attendue.
+  - `[false]` `[reject]` (intent) `params` et `corps` non contrôlés — l'intention définit la liste blanche par `(méthode, gabarit de chemin)` ; aucune entrée n'est un point d'accès d'écriture (`test_liste_blanche_sans_ecriture`).
+  - `[low]` `[reject]` (intent) `Retry-After` plafonné à 120 s — la ligne « attend 7 s » est tenue ; le plafond est demandé par la tâche du transport ; correctif = modifier le spec.
+  - `[low]` `[reject]` (intent) pagination DC en GET seulement — carried : même constat que la première passe, code inchangé.
+  - `[low]` `[reject]` (blind) seul 429 est repris (503, délais réseau) — carried.
+  - `[low]` `[reject]` (blind) `paginer_par_position` peut boucler si `startAt` est ignoré — carried.
+  - `[low]` `[reject]` (blind) `POST /rest/api/2/search` sans paginateur — carried.
+  - `[medium]` `[patch]` (blind) la liste blanche se contourne par `._transport` et la garde ne le voit pas — groupe G. Un `import httpx` direct dans un futur adaptateur reste hors de cette garde (le contrat de couches permet httpx aux adaptateurs) ; risque résiduel noté.
+  - `[low]` `[reject]` (blind) `taille_page` vérifiée au premier `next()`, pas à l'appel — aucun appelant ne passe de taille invalide ; correctif = scinder le générateur.
+  - `[low]` `[reject]` (blind) pas de gigue ni de durée totale maximale des reprises — pagination séquentielle, un seul processus ; correctif = nouvelle fonction.
+  - `[low]` `[reject]` (blind) reprises sur 429 non journalisées — hors exigence ; correctif = nouvelle surface.
+  - `[low]` `[patch]` (blind) docstring de `paginer_par_position` limitée à « Jira Data Center » alors que le changelog Cloud se pagine par position — docstring corrigée. Le volet jeton vide / non textuel est carried (defer).
+  - `[low]` `[reject]` (blind) pas de `User-Agent` propre — pas un défaut ; Atlassian ne l'exige pas ; nouvelle fonction.
+  - `[false]` `[reject]` (blind) `construire_client_lecture` retombe sur DC pour tout mode — `ConfigJira.mode` est `Literal["cloud", "dc"]` dans un modèle strict et figé.
+  - `[low]` `[reject]` (blind) tests dépendants de `config/jira.yaml` — choix délibéré (la configuration réelle reste chargeable) ; une rupture serait bruyante.
+  - `[low]` `[patch]` (blind) `"://"` redondant avec `"//"` dans `_FRAGMENTS_INTERDITS` — supprimé.
+  - `[low]` `[reject]` (edge) boucle si le serveur ignore `startAt` — carried.
+  - `[low]` `[patch]` (edge) `float(2 ** 1024)` déborde au-delà de 1024 tentatives (`tentatives_max` sans borne haute) — exposant borné ; `test_attente_exponentielle_sans_debordement_au_dela_de_1024_tentatives`.
+  - `[low]` `[patch]` (edge) `httpx.InvalidURL` (caractère de contrôle dans le chemin, client d'écriture) sort hors `UsineErreur` — capturée, message sans secret, `from None` ; `test_chemin_invalide_leve_usine_erreur_sans_envoi`. Le volet `UnicodeEncodeError` (PAT non ASCII) est carried (reject).
+  - `[low]` `[reject]` (edge) itérateur paresseux consommé après fermeture → `RuntimeError` — carried.
+  - `[low]` `[reject]` (edge) 503 et erreurs réseau non reprises — carried.
+  - `[low]` `[reject]` (edge) `isLast` en chaîne `"true"` — Jira renvoie un booléen ; correctif = garde supplémentaire.
+  - `[low]` `[reject]` (edge) `JIRA_EMAIL` contenant `:` — improbable pour un compte Atlassian ; correctif = garde supplémentaire.
+  - `[false]` `[reject]` (edge) la garde refuse `composition.py`, que le critère cite — le spine (AD-5) dit « seul `generateur/injecteur` construit un client d'écriture », et le contrat de couches n'autorise que les modules `cli` du générateur à importer les adaptateurs ; `composition.py` racine n'a pas à le construire.
+
 ## Design Notes
 
 - **Liste blanche** : gabarits à segments ; `{x}` accepte un segment `[A-Za-z0-9_.~-]+` sauf `.` et `..`. Le chemin doit commencer par `/rest/`, sans `?`, `#`, `//`, `%` ni `://` ; la méthode est comparée en majuscules. Cloud : `GET|POST /rest/api/3/search/jql`, `POST /rest/api/3/search/approximate-count`, `POST /rest/api/3/changelog/bulkfetch`, `GET /rest/api/3/issue/{cle}`, `GET /rest/api/3/issue/{cle}/changelog`, `GET /rest/api/3/field`, `GET /rest/api/3/serverInfo`, `GET /rest/api/3/myself`. DC : `GET|POST /rest/api/2/search`, `GET /rest/api/2/issue/{cle}`, `GET /rest/api/2/field`, `GET /rest/api/2/serverInfo`, `GET /rest/api/2/myself`.
@@ -160,3 +195,19 @@ Status: done
 - **Vérification** : `ruff check`, `ruff format --check`, `mypy`, `lint-imports` verts ; `pytest -q` : 1111 réussis, 1 ignoré ; `controle_lanes.py` : tous les fichiers dans la lane.
 - **Critère reporté** : fixtures réellement enregistrées → recette 2.7 (aucun site Jira pour ce run).
 - **Risques résiduels** : seul 429 est repris (pas 503) ; pagination DC en GET seulement.
+
+### Revue de suivi (2026-10-12)
+
+- **Changement** : garde structurelle du client d'écriture ; `httpx.InvalidURL` rendue en `UsineErreur` ; exposant de l'attente exponentielle borné ; docstring de `paginer_par_position` ; fragment redondant retiré.
+- **Fichiers** :
+  - `tests/unit/adaptateurs/jira_http/test_ecriture.py` -- garde AST (imports absolus, relatifs, `import *`, noms, attributs dont `._transport`, accès dynamiques par `import_module`/`getattr`) sur tout `src/usine` hors du paquet et des modules `generateur/**/cli` ; graphe grimp : seul le paquet importe `jira_http.transport` ; tests de la garde elle-même (11 contournements détectés, client de lecture accepté). La recherche textuelle d'origine est conservée en complément.
+  - `src/usine/adaptateurs/jira_http/transport.py` -- capture de `httpx.InvalidURL` ; exposant borné.
+  - `src/usine/adaptateurs/jira_http/clients.py` -- `"://"` retiré de `_FRAGMENTS_INTERDITS` ; docstring.
+  - `src/usine/adaptateurs/jira_http/pagination.py` -- docstring.
+  - `tests/unit/adaptateurs/jira_http/test_transport.py` -- chemin invalide, débordement.
+- **Choix** : un contrat import-linter ne voit que des modules, alors que lecture et écriture partagent `clients.py`, et `pyproject.toml` est hors lane. Sortir l'écriture dans son propre module a été écarté pendant ce run (le garde-fou de l'environnement a refusé la suppression de code). La garde AST + grimp vit dans la lane et teste ses propres contournements.
+- **Garde hôte et secrets** : sondes manuelles sur `TransportJira.requete` (`/\evil`, `/@evil`, `/%2F%2Fevil`, `/..//evil`, `/./evil`, espaces) : toutes restent sur l'hôte du site ; tabulation et saut de ligne lèvent désormais une `UsineErreur` sans envoi.
+- **Revue** : 31 constats ; 5 corrigés (1 entrée medium regroupant 5 constats, 4 low) ; 1 report déjà inscrit (carried) ; le reste rejeté, motifs dans le Review Triage Log.
+- **Relecture de suivi recommandée** : non (passe de suivi sans correctif high ; medium corrigées : 1 entrée).
+- **Vérification** : `ruff check`, `ruff format --check`, `mypy`, `lint-imports` (13 contrats tenus) verts ; `pytest -q` : 1195 réussis, 1 ignoré ; `controle_lanes.py` : tous les fichiers dans la lane.
+- **Risques résiduels** : la garde ne voit pas un adaptateur qui importerait `httpx` directement pour contourner le paquet (le contrat de couches le permet) ; à surveiller à la revue des Stories 2.2 et 2.4.
