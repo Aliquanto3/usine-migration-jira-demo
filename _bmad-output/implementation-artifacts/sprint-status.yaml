@@ -111,14 +111,14 @@ development_status:
   4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
   epic-4-retrospective: optional
 
-  epic-5: in-progress  # lane L5 Rapport (après L3)
+  epic-5: done  # lane L5 Rapport (après L3)
   5-1-étapes-déterministes-complètes-et-passage-autoportant: done
   5-2-consultation-complète: done
   5-3-classeur-excel-en-9-onglets: done
   5-4-présentation-powerpoint-en-7-sections: done
   5-5-commande-unique-et-rejeu-idempotent: done
   5-6-recette-du-rapport-sur-données-complètes: done
-  5-7-porte-palier-1-m3: backlog  # PORTE PALIER 1 (M3) — bloque l Epic 6
+  5-7-porte-palier-1-m3: done  # PORTE PALIER 1 (M3) passée le 2026-10-13
   epic-5-retrospective: optional
 
   epic-6: in-progress  # lane L6 Couche LLM — démarre après 5.7 (porte M3)
