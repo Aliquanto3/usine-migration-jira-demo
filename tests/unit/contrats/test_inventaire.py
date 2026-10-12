@@ -80,6 +80,7 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "ReponseAgentEnregistree",
         "EnveloppeCache",
         "ReponseExplication",
+        "ReponseNarration",
         "LONGUEUR_EMPREINTE_JETON",
         "MOTIF_TYPE_JETON",
         "CANDIDAT_JETON",

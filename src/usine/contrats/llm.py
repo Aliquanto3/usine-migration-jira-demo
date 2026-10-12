@@ -186,6 +186,12 @@ class ReponseClassification(Enregistrement):
     justification: str = ""
 
 
+class ReponseNarration(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `narration` ; publiée : `SortieNarration`."""
+
+    texte: str
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
