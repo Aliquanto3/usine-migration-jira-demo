@@ -48,6 +48,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 | contrats v1.1 | — (PR de contrats `contrats/v1-1`, autorisée par Anaël, AD-2) | done | `2fcd49a` | Contrats 1.1.0 additifs : Scénarios A, B, C déplacés dans `config/programme.yaml` (clé optionnelle `scenarios`, lue par le générateur, Journal inchangé), paramètres Baseline/Risque (H-7, H-8) et décalage J-5 (H-19) dans `ConfigChaine` non branchés, valeur projetée optionnelle de `RisqueEntreeRouge` (omise du JSON si absente), `anomalies_max` à 4 000 (H-2 modifiée), `CONTRATS_VERSION` 1.1.0 au dernier commit ; revue de suivi recommandée. |
 | 5.3 | L5 | done | `83c979d` | Étape `prevision` branchée (SerieStock, Baseline, Risques) et classeur Excel en 9 onglets ; intégrée par l'orchestrateur après la coupure de quota. |
 | 4.5 | L4 (`lane-4-prevision`) | blocked (contrats) | — | Reprise après la coupure de quota : revue faite (24 constats triés). Mais main a reçu entre-temps les contrats 1.1 (Scénarios dans `config/programme.yaml` via les `ConfigScenario*` gelés, config = défauts exigée) et la 5.3 (`serie.py` à 3 arguments, `prevision_du_passage`). Le flux scripté de A et B ne s'exprime pas dans les contrats gelés ; travail conservé sur `bloque/4-5`. |
+| 7.2 | L7 | done | `3baffd7` | Détail d'une Entité (Palier 1) : Règles, KPI clés, Prévision et Risques réels du Passage (valeur projetée si présente), état « non calculée » lu dans le manifeste ; reprise après coupure, une passe de revue (5 patchs en tests). |
 
 ## File humaine
 
