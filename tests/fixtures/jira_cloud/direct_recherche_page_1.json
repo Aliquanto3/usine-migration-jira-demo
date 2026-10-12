@@ -1,0 +1,444 @@
+{
+  "issues": [
+    {
+      "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+      "id": "10013",
+      "self": "https://jira.example.invalid/rest/api/3/issue/10013",
+      "key": "DEMO-1",
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 4,
+        "total": 4,
+        "histories": [
+          {
+            "id": "10035",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:07.708+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10011",
+                "fromString": "À retester",
+                "to": "10012",
+                "toString": "Fermée"
+              }
+            ]
+          },
+          {
+            "id": "10034",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:06.872+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10010",
+                "fromString": "En correction",
+                "to": "10011",
+                "toString": "À retester"
+              }
+            ]
+          },
+          {
+            "id": "10033",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:06.106+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10009",
+                "fromString": "En analyse",
+                "to": "10010",
+                "toString": "En correction"
+              }
+            ]
+          },
+          {
+            "id": "10032",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:05.275+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10008",
+                "fromString": "Nouvelle",
+                "to": "10009",
+                "toString": "En analyse"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "summary": "Écart de volumétrie après reprise sur les virements permanents",
+        "customfield_10049": null,
+        "issuetype": {
+          "self": "https://jira.example.invalid/rest/api/3/issuetype/10010",
+          "id": "10010",
+          "description": "Anomalie de migration (Programme fictif de la démo).",
+          "iconUrl": "https://jira.example.invalid/rest/api/2/universal_avatar/view/type/issuetype/avatar/10300?size=medium",
+          "name": "Anomalie",
+          "subtask": false,
+          "avatarId": 10300,
+          "hierarchyLevel": 0
+        },
+        "created": "2026-10-12T16:27:03.961+0200",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Le nombre d'enregistrements chargés pour l'Entité ENT-H diffère de l'extraction de l'ancien système (paiements)."
+                }
+              ]
+            }
+          ]
+        },
+        "customfield_10043": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10030",
+          "value": "ENT-H",
+          "id": "10030"
+        },
+        "customfield_10044": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10035",
+          "value": "V3",
+          "id": "10035"
+        },
+        "customfield_10045": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10040",
+          "value": "paiements",
+          "id": "10040"
+        },
+        "customfield_10046": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10021",
+          "value": "Majeure",
+          "id": "10021"
+        },
+        "customfield_10047": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10042",
+          "value": "Migration à blanc",
+          "id": "10042"
+        },
+        "status": {
+          "self": "https://jira.example.invalid/rest/api/3/status/10012",
+          "description": "",
+          "iconUrl": "https://jira.example.invalid/",
+          "name": "Fermée",
+          "id": "10012",
+          "statusCategory": {
+            "self": "https://jira.example.invalid/rest/api/3/statuscategory/3",
+            "id": 3,
+            "key": "done",
+            "colorName": "green",
+            "name": "Terminé"
+          }
+        },
+        "customfield_10048": null
+      }
+    },
+    {
+      "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+      "id": "10014",
+      "self": "https://jira.example.invalid/rest/api/3/issue/10014",
+      "key": "DEMO-2",
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 2,
+        "total": 2,
+        "histories": [
+          {
+            "id": "10038",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:09.863+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10009",
+                "fromString": "En analyse",
+                "to": "10013",
+                "toString": "Rejetée"
+              }
+            ]
+          },
+          {
+            "id": "10037",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:09.329+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10008",
+                "fromString": "Nouvelle",
+                "to": "10009",
+                "toString": "En analyse"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "summary": "Nouveau rapport souhaité sur les autorisations de découvert",
+        "customfield_10049": null,
+        "issuetype": {
+          "self": "https://jira.example.invalid/rest/api/3/issuetype/10010",
+          "id": "10010",
+          "description": "Anomalie de migration (Programme fictif de la démo).",
+          "iconUrl": "https://jira.example.invalid/rest/api/2/universal_avatar/view/type/issuetype/avatar/10300?size=medium",
+          "name": "Anomalie",
+          "subtask": false,
+          "avatarId": 10300,
+          "hierarchyLevel": 0
+        },
+        "created": "2026-10-12T16:27:08.510+0200",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "L'Entité ENT-F demande un état qui n'existait pas avant la migration (dépôts)."
+                }
+              ]
+            }
+          ]
+        },
+        "customfield_10043": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10028",
+          "value": "ENT-F",
+          "id": "10028"
+        },
+        "customfield_10044": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10034",
+          "value": "V2",
+          "id": "10034"
+        },
+        "customfield_10045": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10038",
+          "value": "depots",
+          "id": "10038"
+        },
+        "customfield_10046": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10022",
+          "value": "Mineure",
+          "id": "10022"
+        },
+        "customfield_10047": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10042",
+          "value": "Migration à blanc",
+          "id": "10042"
+        },
+        "status": {
+          "self": "https://jira.example.invalid/rest/api/3/status/10013",
+          "description": "",
+          "iconUrl": "https://jira.example.invalid/",
+          "name": "Rejetée",
+          "id": "10013",
+          "statusCategory": {
+            "self": "https://jira.example.invalid/rest/api/3/statuscategory/3",
+            "id": 3,
+            "key": "done",
+            "colorName": "green",
+            "name": "Terminé"
+          }
+        },
+        "customfield_10048": null
+      }
+    },
+    {
+      "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations",
+      "id": "10015",
+      "self": "https://jira.example.invalid/rest/api/3/issue/10015",
+      "key": "DEMO-3",
+      "changelog": {
+        "startAt": 0,
+        "maxResults": 4,
+        "total": 4,
+        "histories": [
+          {
+            "id": "10043",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:12.827+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10011",
+                "fromString": "À retester",
+                "to": "10012",
+                "toString": "Fermée"
+              }
+            ]
+          },
+          {
+            "id": "10042",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:12.285+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10010",
+                "fromString": "En correction",
+                "to": "10011",
+                "toString": "À retester"
+              }
+            ]
+          },
+          {
+            "id": "10041",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:11.744+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10009",
+                "fromString": "En analyse",
+                "to": "10010",
+                "toString": "En correction"
+              }
+            ]
+          },
+          {
+            "id": "10040",
+            "author": {
+              "accountId": "compte-fictif",
+              "displayName": "Compte fictif"
+            },
+            "created": "2026-10-12T16:27:11.096+0200",
+            "items": [
+              {
+                "field": "status",
+                "fieldtype": "jira",
+                "fieldId": "status",
+                "from": "10008",
+                "fromString": "Nouvelle",
+                "to": "10009",
+                "toString": "En analyse"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "summary": "Habilitations mal attribuées sur l'écran de synthèse de l'épargne",
+        "customfield_10049": null,
+        "issuetype": {
+          "self": "https://jira.example.invalid/rest/api/3/issuetype/10010",
+          "id": "10010",
+          "description": "Anomalie de migration (Programme fictif de la démo).",
+          "iconUrl": "https://jira.example.invalid/rest/api/2/universal_avatar/view/type/issuetype/avatar/10300?size=medium",
+          "name": "Anomalie",
+          "subtask": false,
+          "avatarId": 10300,
+          "hierarchyLevel": 0
+        },
+        "created": "2026-10-12T16:27:10.375+0200",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Des profils de l'Entité ENT-I n'accèdent pas aux fonctions prévues (épargne). Cas cité par l'Entité ENT-I : compte FR32 9999 9939 2055 1570 4533 043, identifiant client 9994815989."
+                }
+              ]
+            }
+          ]
+        },
+        "customfield_10043": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10031",
+          "value": "ENT-I",
+          "id": "10031"
+        },
+        "customfield_10044": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10035",
+          "value": "V3",
+          "id": "10035"
+        },
+        "customfield_10045": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10039",
+          "value": "epargne",
+          "id": "10039"
+        },
+        "customfield_10046": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10022",
+          "value": "Mineure",
+          "id": "10022"
+        },
+        "customfield_10047": {
+          "self": "https://jira.example.invalid/rest/api/3/customFieldOption/10042",
+          "value": "Migration à blanc",
+          "id": "10042"
+        },
+        "status": {
+          "self": "https://jira.example.invalid/rest/api/3/status/10012",
+          "description": "",
+          "iconUrl": "https://jira.example.invalid/",
+          "name": "Fermée",
+          "id": "10012",
+          "statusCategory": {
+            "self": "https://jira.example.invalid/rest/api/3/statuscategory/3",
+            "id": 3,
+            "key": "done",
+            "colorName": "green",
+            "name": "Terminé"
+          }
+        },
+        "customfield_10048": null
+      }
+    }
+  ],
+  "isLast": true
+}
