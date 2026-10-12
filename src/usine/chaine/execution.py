@@ -25,6 +25,7 @@ from usine.contrats.passage import (
     StatutEtape,
     former_passage_id,
 )
+from usine.contrats.trace import TypeTrace
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
@@ -55,7 +56,8 @@ def executer_passage(
     `horodatage_extraction` (instant d'extraction Jira ; `None` hors source composite, les
     données du Passage ne dépendant alors d'aucune extraction) est recopié au manifeste ;
     `nb_alignements`, lu après les étapes, y donne le nombre d'alignements persistés par ce
-    Passage (0 sans lui).
+    Passage (0 sans lui). `cout_llm_eur` est la somme des `cout_estime_eur` des traces LLM
+    (FR-34) ; un succès en cache y compte pour 0 €.
     """
     manquantes = [etape.value for etape in Etape if etape not in registre]
     if manquantes:
@@ -69,6 +71,7 @@ def executer_passage(
         consultation = fabrique_consultation(ecrivain.repertoire)
         ctx = ContextePassage(date_arrete, passage_id, configuration, consultation)
         executions: list[ExecutionEtape] = []
+        cout_llm = Decimal(0)
         for etape in Etape:
             etape_courante = etape
             debut_etape = horloge()
@@ -78,6 +81,10 @@ def executer_passage(
                 raise UsineErreur(f"ResultatEtape attendu, pas {type(resultat).__name__}")
             ecrivain.ecrire(resultat.sorties)
             ecrivain.ajouter_traces(resultat.traces)
+            cout_llm += sum(
+                (t.cout_estime_eur for t in resultat.traces if t.type_trace is TypeTrace.llm),
+                Decimal(0),
+            )
             executions.append(
                 ExecutionEtape(
                     etape=etape,
@@ -104,7 +111,7 @@ def executer_passage(
             horodatage_extraction=horodatage_extraction,
             version_grille=donnees.version_grille,
             version_donnees=donnees.version_donnees,
-            cout_llm_eur=Decimal(0),
+            cout_llm_eur=cout_llm,
             nb_alignements=0 if nb_alignements is None else nb_alignements(),
             nb_tickets=nb_tickets,
             etapes=tuple(executions),

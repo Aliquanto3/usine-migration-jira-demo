@@ -1,9 +1,13 @@
-"""Passerelle LLM : ordre d'AD-12, jetons stables, cache, trace (Story 0.7)."""
+"""Passerelle LLM : ordre d'AD-12, jetons stables, cache, trace (Story 0.7), coût et
+plafond (Story 6.3)."""
 
 import re
 from dataclasses import replace
+from datetime import timedelta
+from decimal import Decimal
 from typing import cast
 
+import pytest
 from pydantic import BaseModel
 
 from tests.doublures.fournisseur_factice import FournisseurFactice
@@ -28,7 +32,14 @@ from usine.contrats.llm import (
     Tache,
 )
 from usine.contrats.trace import TypeTrace
-from usine.ia.passerelle import ContexteAppel, Controle, Passerelle, ResultatAppel, cle_cache
+from usine.ia.passerelle import (
+    ContexteAppel,
+    Controle,
+    Passerelle,
+    PlafondCoutAtteint,
+    ResultatAppel,
+    cle_cache,
+)
 from usine.ports.fournisseur_llm import FournisseurLLM
 
 PROMPT = f"Explique ENT-A. DEMO-3 : virement refusé sur le compte {NUMERO_COMPTE}."
@@ -232,3 +243,119 @@ def test_jeton_hors_entree_non_reidentifie() -> None:
     resultat, _ = _appeler(passerelle, [])
     assert resultat.sortie.texte == f"DEMO-3 bloque {NUMERO_COMPTE} et {autre_jeton}."
     assert autre_compte not in resultat.sortie.model_dump_json()
+
+
+def _tarif_fixe(version_modele: str, jetons_entree: int, jetons_sortie: int) -> Decimal:
+    """1 € par million de jetons d'entrée, 5 € par million de jetons de sortie."""
+    return (Decimal(jetons_entree) + 5 * Decimal(jetons_sortie)) / 1_000_000
+
+
+def test_cle_de_cache_classification_sans_date_arrete() -> None:
+    """Une classification garde sa clé d'une Date d'arrêté à l'autre ; pas une explication."""
+    entree = pseudonymiseur().apercu(PROMPT)
+    lendemain = replace(CONTEXTE, date_arrete=DATE_ARRETE + timedelta(days=1))
+    classification = ParametresAppel(tache=Tache.classification, max_jetons_sortie=256)
+    assert cle_cache(classification, CONTEXTE, "f:m", entree) == cle_cache(
+        classification, lendemain, "f:m", entree
+    )
+    assert "date_arrete" not in cle_cache(classification, CONTEXTE, "f:m", entree)
+    assert cle_cache(PARAMETRES, CONTEXTE, "f:m", entree) != cle_cache(
+        PARAMETRES, lendemain, "f:m", entree
+    )
+
+
+def test_cout_trace_et_cumule_un_succes_en_cache_coute_zero() -> None:
+    factice = FournisseurFactice([_reponse()])
+    recus: list[tuple[str, int, int]] = []
+
+    def tarif(version_modele: str, jetons_entree: int, jetons_sortie: int) -> Decimal:
+        recus.append((version_modele, jetons_entree, jetons_sortie))
+        return _tarif_fixe(version_modele, jetons_entree, jetons_sortie)
+
+    passerelle = Passerelle(
+        factice, pseudonymiseur(), CacheMemoire(), horloge_espion([]), tarif=tarif
+    )
+    premier, _ = _appeler(passerelle, [])
+    second, _ = _appeler(passerelle, [])
+    trace = premier.trace
+    assert recus == [("factice:modele", trace.jetons_entree, trace.jetons_sortie)]
+    attendu = _tarif_fixe("", trace.jetons_entree, trace.jetons_sortie)
+    assert trace.cout_estime_eur == attendu > 0
+    assert second.trace.depuis_cache
+    assert second.trace.cout_estime_eur == 0
+    assert passerelle.cout_cumule_eur(PASSAGE_ID) == attendu
+    assert passerelle.cout_cumule_eur("autre-passage") == 0
+
+
+def test_sans_tarif_cout_nul() -> None:
+    passerelle = Passerelle(
+        FournisseurFactice([_reponse()]), pseudonymiseur(), CacheMemoire(), horloge_espion([])
+    )
+    resultat, _ = _appeler(passerelle, [])
+    assert resultat.trace.cout_estime_eur == 0
+
+
+def test_plafond_nul_aucun_appel() -> None:
+    factice = FournisseurFactice([_reponse()])
+    passerelle = Passerelle(
+        factice,
+        pseudonymiseur(),
+        CacheMemoire(),
+        horloge_espion([]),
+        tarif=_tarif_fixe,
+        plafond_cout_passage_eur=Decimal(0),
+    )
+    with pytest.raises(PlafondCoutAtteint, match="plafond_cout_passage_eur"):
+        _appeler(passerelle, [])
+    assert factice.appels == []
+
+
+def test_l_appel_qui_franchit_le_plafond_passe_les_suivants_non() -> None:
+    factice = FournisseurFactice([_reponse(), _reponse(), _reponse()])
+    passerelle = Passerelle(
+        factice,
+        pseudonymiseur(),
+        CacheMemoire(),
+        horloge_espion([]),
+        tarif=lambda *_: Decimal("0.6"),
+        plafond_cout_passage_eur=Decimal(1),
+    )
+    _appeler(passerelle, [])
+    autre_tentative = PARAMETRES.model_copy(update={"tentative": 1})
+    passerelle.executer_structure(
+        PROMPT, ReponseExplication, autre_tentative, CONTEXTE, Controleur([])
+    )  # 0,6 € < 1 € : passe, et franchit le plafond (1,2 €)
+    assert passerelle.cout_cumule_eur(PASSAGE_ID) == Decimal("1.2")
+    autre_cible = replace(CONTEXTE, cible="ENT-B")
+    with pytest.raises(PlafondCoutAtteint):
+        passerelle.executer_structure(
+            PROMPT, ReponseExplication, PARAMETRES, autre_cible, Controleur([])
+        )
+    assert len(factice.appels) == 2
+    # Un autre Passage a son propre cumul.
+    autre_passage = replace(CONTEXTE, passage_id="20261012T073000Z-bbbbbb", cible="ENT-B")
+    passerelle.executer_structure(
+        PROMPT, ReponseExplication, PARAMETRES, autre_passage, Controleur([])
+    )
+    assert len(factice.appels) == 3
+
+
+def test_plafond_atteint_le_cache_reste_servi() -> None:
+    cache = CacheMemoire()
+    premier = Passerelle(
+        FournisseurFactice([_reponse()]), pseudonymiseur(), cache, horloge_espion([])
+    )
+    _appeler(premier, [])
+    factice = FournisseurFactice()
+    plafonnee = Passerelle(
+        factice,
+        pseudonymiseur(),
+        cache,
+        horloge_espion([]),
+        tarif=_tarif_fixe,
+        plafond_cout_passage_eur=Decimal(0),
+    )
+    resultat, _ = _appeler(plafonnee, [])
+    assert resultat.trace.depuis_cache
+    assert resultat.trace.cout_estime_eur == 0
+    assert factice.appels == []

@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Iterable
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,7 @@ from usine.ia import explication
 from usine.ia.controles import ControleCitations, controler_citations
 from usine.ia.explication import (
     TEXTE_INDISPONIBLE,
+    TEXTE_PLAFOND,
     ContexteExplication,
     expliquer,
     lire_prompt,
@@ -257,3 +259,41 @@ def test_ticket_en_cause_sans_texte_journalise(caplog: pytest.LogCaptureFixture)
         expliquer(passerelle, meteo_rouge(tickets=("DEMO-3", "DEMO-42")), TEXTES, _contexte())
     assert any("DEMO-42" in message for message in caplog.messages)
     assert not any("DEMO-3 " in message for message in caplog.messages)
+
+
+def test_plafond_de_cout_atteint_libelle_explicite(caplog: pytest.LogCaptureFixture) -> None:
+    """Plafond nul : aucun appel, libellé de plafond, `rejete`, sans exception (NFR-9)."""
+    factice = FournisseurFactice()
+    passerelle = Passerelle(
+        factice,
+        pseudonymiseur(),
+        CacheMemoire(),
+        horloge_espion([]),
+        plafond_cout_passage_eur=Decimal(0),
+    )
+    with caplog.at_level(logging.WARNING):
+        sortie, traces = expliquer(passerelle, meteo_rouge(), TEXTES, _contexte())
+    assert factice.appels == []
+    assert traces == ()
+    assert sortie.texte == TEXTE_PLAFOND
+    assert TEXTE_PLAFOND == "explication indisponible : plafond de coût du Passage atteint"
+    assert sortie.statut_controle is StatutControle.rejete
+    assert sortie.citations == ()
+    assert "plafond" in caplog.text
+
+
+def test_plafond_atteint_entre_deux_tentatives_garde_la_premiere_trace() -> None:
+    factice = FournisseurFactice([ReponseExplication(texte="Aucune citation ici.")])
+    passerelle = Passerelle(
+        factice,
+        pseudonymiseur(),
+        CacheMemoire(),
+        horloge_espion([]),
+        tarif=lambda *_: Decimal(1),
+        plafond_cout_passage_eur=Decimal(1),
+    )
+    sortie, traces = expliquer(passerelle, meteo_rouge(), TEXTES, _contexte())
+    assert len(factice.appels) == 1
+    (trace,) = traces
+    assert trace.cout_estime_eur == 1
+    assert sortie.texte == TEXTE_PLAFOND

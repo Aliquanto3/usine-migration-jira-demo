@@ -6,6 +6,8 @@ qui citent un ticket en cause. Plus de la moitié des phrases retirées déclenc
 régénération (`tentative = 1`) ; un échec persistant donne « explication indisponible »
 (`statut_controle = rejete`) sans faire échouer le Passage. Sans ticket en cause, aucune
 Citation n'est possible : l'explication est indisponible d'emblée, sans appel au fournisseur.
+Plafond de coût du Passage atteint (`PlafondCoutAtteint`) : l'explication porte
+`TEXTE_PLAFOND` (`rejete`), sans faire échouer le Passage.
 
 Les titres et descriptions des tickets sont des données, placées entre délimiteurs dans le
 prompt ; `version_prompt` est calculée à partir des octets du gabarit envoyé.
@@ -32,10 +34,13 @@ from usine.contrats.tickets import rang_cle
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_prompt
 from usine.ia.controles import controler_citations, retirer_citations_hors
-from usine.ia.passerelle import ContexteAppel, Controle, Passerelle
+from usine.ia.passerelle import ContexteAppel, Controle, Passerelle, PlafondCoutAtteint
 
 TEXTE_INDISPONIBLE = "explication indisponible"
 """Texte d'une explication rejetée après régénération."""
+
+TEXTE_PLAFOND = "explication indisponible : plafond de coût du Passage atteint"
+"""Texte d'une explication non demandée, le plafond de coût du Passage étant atteint."""
 
 MAX_JETONS_SORTIE = 1024
 """Plafond de jetons de sortie d'une explication."""
@@ -189,9 +194,13 @@ def expliquer(
         parametres = ParametresAppel(
             tache=Tache.explication, max_jetons_sortie=MAX_JETONS_SORTIE, tentative=tentative
         )
-        resultat = passerelle.executer_structure(
-            prompt, ReponseExplication, parametres, appel, controleur
-        )
+        try:
+            resultat = passerelle.executer_structure(
+                prompt, ReponseExplication, parametres, appel, controleur
+            )
+        except PlafondCoutAtteint:
+            journal.warning("explication de %s non demandée : plafond de coût", appel.cible)
+            return _indisponible(meteo_entite, phrases_retirees, TEXTE_PLAFOND), tuple(traces)
         traces.append(resultat.trace)
         if resultat.statut is not StatutControle.rejete:
             return resultat.sortie, tuple(traces)
@@ -199,12 +208,14 @@ def expliquer(
     return _indisponible(meteo_entite, phrases_retirees), tuple(traces)
 
 
-def _indisponible(meteo_entite: MeteoEntite, phrases_retirees: int) -> SortieExplication:
+def _indisponible(
+    meteo_entite: MeteoEntite, phrases_retirees: int, texte: str = TEXTE_INDISPONIBLE
+) -> SortieExplication:
     """Repli « explication indisponible » (`rejete`)."""
     return SortieExplication(
         date_arrete=meteo_entite.date_arrete,
         entite=meteo_entite.entite,
-        texte=TEXTE_INDISPONIBLE,
+        texte=texte,
         citations=(),
         brouillon_commentaire="",
         phrases_retirees=phrases_retirees,

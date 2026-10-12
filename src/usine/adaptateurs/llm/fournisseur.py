@@ -215,9 +215,12 @@ class FournisseurPydanticAI:
         tentatives_max: int,
         attendre: Callable[[float], None] = time.sleep,
         horloge: Callable[[], float] = time.monotonic,
-        temperature: bool = True,
+        temperature: float | None = 0.0,
     ) -> None:
-        """`temperature` : faux si le modèle refuse ce réglage (Claude Sonnet 5.5 et suivants)."""
+        """`temperature` : valeur de `config/llm.yaml`, `None` si le modèle refuse ce réglage.
+
+        `ParametresAppel.temperature` ne prime que s'il est fixé explicitement par l'appelant.
+        """
         self._temperature = temperature
         self._version = version_modele(fournisseur, nom_modele)
         self._espacement = tarif(self._version).espacement_s
@@ -286,8 +289,9 @@ class FournisseurPydanticAI:
 
     def _reglages(self, parametres: ParametresAppel) -> ModelSettings:
         reglages = ModelSettings(max_tokens=parametres.max_jetons_sortie)
-        if self._temperature:
-            reglages["temperature"] = parametres.temperature
+        if self._temperature is not None:
+            explicite = "temperature" in parametres.model_fields_set
+            reglages["temperature"] = parametres.temperature if explicite else self._temperature
         return reglages
 
     def generer_structure[T: BaseModel](
@@ -394,7 +398,11 @@ def construire_fournisseur_llm(
         config.tentatives_max,
         attendre,
         horloge,
-        temperature=config.fournisseur != "anthropic",
+        temperature=(
+            config.temperature
+            if tarif(version_modele(config.fournisseur, config.modele)).temperature
+            else None
+        ),
     )
 
 

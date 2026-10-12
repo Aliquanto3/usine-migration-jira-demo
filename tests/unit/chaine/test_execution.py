@@ -5,6 +5,7 @@ import re
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import polars as pl
@@ -23,8 +24,11 @@ from tests.unit.chaine.environnement import (
     sans_exclusions,
 )
 from tests.unit.domaine.constructeur import Flux
+from usine import composition
 from usine.adaptateurs.journal import SourceJournal
-from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT
+from usine.adaptateurs.llm import REGISTRE
+from usine.adaptateurs.presidio import PseudonymiseurPresidio
+from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT, PseudonymiseurHmac
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo, EtapePrevision
 from usine.chaine.execution import executer_passage
@@ -57,7 +61,8 @@ from usine.domaine.meteo import meteo as calculer_meteo
 from usine.domaine.prevision.baseline import prevoir_sortie
 from usine.domaine.prevision.risque import risques_entree_rouge
 from usine.domaine.prevision.serie import series_stock
-from usine.ia.explication import lire_prompt
+from usine.ia.etape import EtapeExplications
+from usine.ia.explication import TEXTE_PLAFOND, lire_prompt
 from usine.ports.consultation import Consultation
 from usine.ports.etape import Etape as PortEtape
 
@@ -835,3 +840,169 @@ def test_palier_2_deux_reconnaisseurs_du_meme_type(
         assert NUMERO_COMPTE not in entree
         assert autre_compte not in entree
         assert len(set(re.findall(r"\bCOMPTE_[0-9a-f]{6}\b", entree))) >= 2
+
+
+def _ecrire_plafond(racine: Path, plafond: str) -> None:
+    chemin = racine / "config" / "llm.yaml"
+    texte = chemin.read_text(encoding="utf-8")
+    assert "plafond_cout_passage_eur: 2.00" in texte
+    chemin.write_text(
+        texte.replace("plafond_cout_passage_eur: 2.00", f"plafond_cout_passage_eur: {plafond}"),
+        encoding="utf-8",
+    )
+
+
+def test_palier_2_cout_llm_du_manifeste(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """FR-34, NFR-9 : chaque trace LLM porte son coût ; le manifeste porte leur somme."""
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    version = "anthropic:claude-sonnet-5-5"  # au registre des prix : coût non nul
+    fournisseur = FournisseurFactice(_reponses(a_expliquer), version_modele=version)
+    lance = lancer_rapport(racine, DATE_ARRETE, horloge_pas_a_pas(), fournisseur=fournisseur)
+    traces = [
+        t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
+    ]
+    assert traces and all(t.cout_estime_eur > 0 for t in traces)
+    assert lance.manifeste.cout_llm_eur == sum((t.cout_estime_eur for t in traces), Decimal(0))
+    tarif = REGISTRE[version]
+    attendu = (
+        tarif.prix_entree_eur_mtok * traces[0].jetons_entree
+        + tarif.prix_sortie_eur_mtok * traces[0].jetons_sortie
+    ) / 1_000_000
+    assert traces[0].cout_estime_eur == attendu
+
+    # Rejeu : tout vient du cache, coût nul.
+    rejeu = lancer_rapport(
+        racine,
+        DATE_ARRETE,
+        horloge_pas_a_pas(INSTANT + timedelta(hours=1)),
+        fournisseur=FournisseurFactice(version_modele=version),
+    )
+    assert rejeu.manifeste.cout_llm_eur == 0
+
+
+def test_palier_2_plafond_nul_explications_degradees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`plafond_cout_passage_eur: 0` : aucun appel, libellé de plafond, Passage publié."""
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    _ecrire_plafond(racine, "0")
+    fournisseur = FournisseurFactice()
+    lance = lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=fournisseur)
+    assert fournisseur.appels == []
+    explications = ConsultationPassage(lance.repertoire).explications()
+    assert explications
+    assert {e.texte for e in explications} == {TEXTE_PLAFOND}
+    assert {e.statut_controle for e in explications} == {StatutControle.rejete}
+    statuts = {e.etape: e.statut for e in lance.manifeste.etapes}
+    assert statuts[Etape.explications] is StatutEtape.reussie
+    assert lance.manifeste.cout_llm_eur == 0
+
+
+def test_palier_2_fournisseur_en_echec_nomme_l_etape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """H-31 : une erreur du fournisseur fait échouer le Passage en nommant l'étape."""
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    with pytest.raises(UsineErreur, match="étape « explications »"):
+        lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=FournisseurFactice())
+    publies = racine / "sorties" / "passages" / DATE_ARRETE.isoformat()
+    assert not publies.exists() or not any(publies.iterdir())
+
+
+class _FournisseurFermable(FournisseurFactice):
+    """Fournisseur factice qui compte ses fermetures (adaptateur construit par la composition)."""
+
+    def __init__(self, reponses: list[ReponseExplication] | None = None) -> None:
+        super().__init__(reponses or ())
+        self.fermetures = 0
+
+    def fermer(self) -> None:
+        self.fermetures += 1
+
+
+@pytest.mark.parametrize("reussite", [True, False])
+def test_fournisseur_construit_ferme_en_fin_de_passage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reussite: bool
+) -> None:
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    construit = _FournisseurFermable(_reponses(a_expliquer) if reussite else None)
+    monkeypatch.setattr(composition, "construire_fournisseur", lambda *_: construit)
+    if reussite:
+        lancer_rapport(racine, DATE_ARRETE, horloge_figee())
+    else:
+        with pytest.raises(UsineErreur, match="explications"):
+            lancer_rapport(racine, DATE_ARRETE, horloge_figee())
+    assert construit.fermetures == 1
+
+
+def test_fournisseur_construit_ferme_si_la_construction_echoue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("USINE_CLE_PSEUDO", raising=False)
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    construit = _FournisseurFermable()
+    monkeypatch.setattr(composition, "construire_fournisseur", lambda *_: construit)
+    with pytest.raises(UsineErreur, match="USINE_CLE_PSEUDO"):
+        construire_rapport(racine)
+    assert construit.fermetures == 1
+
+
+def test_fournisseur_injecte_jamais_ferme(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    injecte = _FournisseurFermable()
+    with pytest.raises(UsineErreur):
+        lancer_rapport(racine, DATE_ARRETE, horloge_figee(), fournisseur=injecte)
+    assert injecte.fermetures == 0
+
+
+def _pseudonymiseur_du_rapport(rapport: Rapport) -> object:
+    etape = rapport.registre[Etape.explications]
+    assert isinstance(etape, EtapeExplications)
+    return etape._passerelle._pseudonymiseur
+
+
+@pytest.mark.parametrize(
+    ("moteur", "attendu"),
+    [("regex", PseudonymiseurHmac), ("presidio", PseudonymiseurPresidio), (None, None)],
+)
+def test_moteur_de_pseudonymisation_choisi_par_la_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, moteur: str | None, attendu: type | None
+) -> None:
+    """AD-15 : `moteur` de `config/pseudonymisation.yaml` ; absent, `presidio`."""
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    chemin = racine / "config" / "pseudonymisation.yaml"
+    texte = chemin.read_text(encoding="utf-8")
+    assert "moteur: presidio\n" in texte
+    nouveau = "" if moteur is None else f"moteur: {moteur}\n"
+    chemin.write_text(texte.replace("moteur: presidio\n", nouveau), encoding="utf-8")
+    rapport = construire_rapport(racine, FournisseurFactice())
+    assert type(_pseudonymiseur_du_rapport(rapport)) is (attendu or PseudonymiseurPresidio)
+
+
+def test_moteur_de_pseudonymisation_inconnu_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    chemin = racine / "config" / "pseudonymisation.yaml"
+    texte = chemin.read_text(encoding="utf-8")
+    chemin.write_text(texte.replace("moteur: presidio", "moteur: spacy"), encoding="utf-8")
+    with pytest.raises(UsineErreur, match="moteur"):
+        construire_rapport(racine, FournisseurFactice())
+    assert not (racine / "donnees" / "pseudonymes.sqlite").exists()

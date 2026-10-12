@@ -31,6 +31,8 @@ class TarifModele:
     jetons_par_minute: int
     gratuit: bool = False
     """Quota gratuit (offre « Experiment » de Mistral) : coût réel nul, coût estimé conservé."""
+    temperature: bool = True
+    """Faux si le modèle refuse le réglage de température (Claude Sonnet et Opus 5.5)."""
 
     @property
     def espacement_s(self) -> float:
@@ -48,8 +50,8 @@ _OPUS = _usd("5", "25")
 
 REGISTRE: dict[str, TarifModele] = {
     # Anthropic, palier 1 de l'API (50 requêtes par minute).
-    "anthropic:claude-sonnet-5-5": TarifModele(*_SONNET, 50, 30_000),
-    "anthropic:claude-opus-5-5": TarifModele(*_OPUS, 50, 30_000),
+    "anthropic:claude-sonnet-5-5": TarifModele(*_SONNET, 50, 30_000, temperature=False),
+    "anthropic:claude-opus-5-5": TarifModele(*_OPUS, 50, 30_000, temperature=False),
     "anthropic:claude-haiku-4-5": TarifModele(*_HAIKU, 50, 50_000),
     # Mistral, offre gratuite « Experiment » : 1 requête par seconde, 500 000 jetons par minute.
     "mistral:mistral-large-latest": TarifModele(*_usd("2", "6"), 60, 500_000, gratuit=True),

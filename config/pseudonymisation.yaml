@@ -4,6 +4,10 @@
 # remplacées. Les motifs sont des expressions régulières Python, sans drapeau (sensibles à la
 # casse), appliquées à l'identique par le moteur regex et par le moteur Presidio.
 
+# Moteur (AD-15) : presidio (Presidio et spaCy, moteur du Palier 2, défaut) ou regex (motifs
+# des reconnaisseurs seuls, repli sans modèle spaCy).
+moteur: presidio
+
 # Langue des textes analysés par Presidio (code spaCy).
 langue: fr
 

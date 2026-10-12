@@ -6,7 +6,9 @@
 fournisseur: anthropic
 # Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
 modele: claude-sonnet-5-5
-# Plafond de coût estimé par Passage, en euros (NFR-9, calibré en Story 6.3).
+# Plafond de coût estimé par Passage, en euros (NFR-9) : une fois atteint, plus aucun appel
+# frais au fournisseur ; le cache reste servi et les tâches se dégradent (explication
+# indisponible) sans faire échouer le Passage. 2 € couvrent largement un Passage de démo.
 plafond_cout_passage_eur: 2.00
 # Tentatives maximales d'un appel repris sur 429 (attente croissante, Retry-After respecté).
 tentatives_max: 5

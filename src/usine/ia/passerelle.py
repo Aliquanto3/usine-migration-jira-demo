@@ -9,6 +9,13 @@ dans l'entrée pseudonymisée de l'appel sont ré-identifiés ; tout autre jeton
 Le cache est reçu par injection, par le port `CacheLLM` (implémenté par
 `adaptateurs/stockage_sqlite`). La valeur stockée est une `contrats.llm.EnveloppeCache` JSON :
 réponse brute et `version_modele` reçu. Les jetons suivent la grammaire de `contrats.llm`.
+
+Coût (NFR-9) : chaque appel frais porte dans sa trace le coût estimé que donne le tarif injecté
+(`Callable[[version_modele, jetons_entree, jetons_sortie], Decimal]`, fourni par la
+composition : `ia` n'importe pas `adaptateurs`) ; un succès en cache coûte 0 €. La passerelle
+cumule ces coûts par `passage_id` ; une fois le cumul au plafond ou au-delà, tout appel frais
+lève `PlafondCoutAtteint` avant le fournisseur, tandis que le cache reste servi. L'appel qui
+franchit le plafond passe : seuls les suivants sont refusés. Chaque tâche choisit son repli.
 """
 
 import hashlib
@@ -18,14 +25,17 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ValidationError
 
+from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
     CANDIDAT_JETON,
     EnveloppeCache,
     ParametresAppel,
     StatutControle,
+    Tache,
     variantes_jeton,
 )
 from usine.contrats.trace import EntreeTrace, TypeTrace
@@ -34,6 +44,18 @@ from usine.ports.fournisseur_llm import FournisseurLLM
 from usine.ports.pseudonymiseur import Pseudonymiseur
 
 journal = logging.getLogger(__name__)
+
+Tarif = Callable[[str, int, int], Decimal]
+"""Coût estimé d'un appel, en euros : `(version_modele, jetons_entree, jetons_sortie)`."""
+
+
+def tarif_nul(version_modele: str, jetons_entree: int, jetons_sortie: int) -> Decimal:
+    """Tarif par défaut : tout appel est estimé à 0 €."""
+    return Decimal(0)
+
+
+class PlafondCoutAtteint(UsineErreur):
+    """Plafond de coût du Passage atteint : aucun appel frais au fournisseur (NFR-9)."""
 
 
 @dataclass(frozen=True)
@@ -79,18 +101,22 @@ def cle_cache(
 ) -> str:
     """Clé de cache stable (JSON trié) ; `entree` est l'entrée déjà pseudonymisée.
 
-    `version_donnees` n'y entre pas : elle figure seulement dans la trace.
+    `version_donnees` n'y entre pas : elle figure seulement dans la trace. La Date d'arrêté
+    n'entre pas dans la clé d'une classification : un ticket inchangé garde sa Classification
+    d'un jour à l'autre.
     """
+    champs: dict[str, object] = {
+        "tache": parametres.tache.value,
+        "cible": contexte.cible,
+        "version_prompt": contexte.version_prompt,
+        "version_modele": version_modele,
+        "empreinte_entree": empreinte(entree),
+        "tentative": parametres.tentative,
+    }
+    if parametres.tache is not Tache.classification:
+        champs["date_arrete"] = contexte.date_arrete.isoformat()
     return json.dumps(
-        {
-            "tache": parametres.tache.value,
-            "cible": contexte.cible,
-            "date_arrete": contexte.date_arrete.isoformat(),
-            "version_prompt": contexte.version_prompt,
-            "version_modele": version_modele,
-            "empreinte_entree": empreinte(entree),
-            "tentative": parametres.tentative,
-        },
+        champs,
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -147,11 +173,21 @@ class Passerelle:
         pseudonymiseur: Pseudonymiseur,
         cache: CacheLLM,
         horloge: Callable[[], datetime],
+        tarif: Tarif = tarif_nul,
+        plafond_cout_passage_eur: Decimal | None = None,
     ) -> None:
+        """`plafond_cout_passage_eur` : `None` pour aucun plafond."""
         self._fournisseur = fournisseur
         self._pseudonymiseur = pseudonymiseur
         self._cache = cache
         self._horloge = horloge
+        self._tarif = tarif
+        self._plafond = plafond_cout_passage_eur
+        self._cumul: dict[str, Decimal] = {}
+
+    def cout_cumule_eur(self, passage_id: str) -> Decimal:
+        """Coût estimé cumulé des appels frais du Passage `passage_id`."""
+        return self._cumul.get(passage_id, Decimal(0))
 
     @property
     def version_modele(self) -> str:
@@ -179,6 +215,7 @@ class Passerelle:
         reponse: T | None = None
         version_reponse = version_modele
         jetons_entree = jetons_sortie = 0
+        cout = Decimal(0)
         stocke = self._cache.lire(cle)
         if stocke is not None:
             try:
@@ -193,12 +230,27 @@ class Passerelle:
                 )
         depuis_cache = reponse is not None
         if reponse is None:
+            cumul = self.cout_cumule_eur(contexte.passage_id)
+            if self._plafond is not None and cumul >= self._plafond:
+                journal.warning(
+                    "plafond de coût du Passage %s atteint (%s € ≥ %s €) : %s sans appel",
+                    contexte.passage_id,
+                    cumul,
+                    self._plafond,
+                    contexte.cible,
+                )
+                raise PlafondCoutAtteint(
+                    f"plafond de coût du Passage atteint ({cumul} € pour un plafond de"
+                    f" {self._plafond} €, config/llm.yaml, clé « plafond_cout_passage_eur »)"
+                )
             appel = self._fournisseur.generer_structure(entree, schema, parametres)
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)
             self._cache.ecrire(cle, enveloppe.model_dump_json())
             reponse = appel.sortie
             jetons_entree, jetons_sortie = appel.jetons_entree, appel.jetons_sortie
             version_reponse = appel.version_modele
+            cout = self._tarif(version_reponse, jetons_entree, jetons_sortie)
+            self._cumul[contexte.passage_id] = cumul + cout
 
         controle = controler(reponse)
         donnees = _reidentifier(
@@ -226,5 +278,6 @@ class Passerelle:
             depuis_cache=depuis_cache,
             jetons_entree=jetons_entree,
             jetons_sortie=jetons_sortie,
+            cout_estime_eur=cout,
         )
         return ResultatAppel(sortie, controle.statut, controle.phrases_retirees, trace)

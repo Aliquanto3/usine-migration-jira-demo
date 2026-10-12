@@ -282,3 +282,42 @@ def test_adaptateur_ferme_refuse_l_appel() -> None:
     adaptateur.fermer()
     with pytest.raises(UsineErreur, match="fermé"):
         adaptateur.generer_structure("p", Sortie, STRUCTURE)
+
+
+def _avec_temperature(
+    fournisseur: str, modele: str, transport: TransportScripte, temperature: float
+) -> FournisseurPydanticAI:
+    config = ConfigLLM(
+        fournisseur=fournisseur,
+        modele=modele,
+        plafond_cout_passage_eur=Decimal(1),
+        temperature=temperature,
+    )
+    return construire_fournisseur_llm(config, "k", transport.client(), lambda _: None)
+
+
+def test_temperature_de_la_configuration_sauf_explicite() -> None:
+    """Report 6.1 : la température vient de `config/llm.yaml` ; un appel explicite prime."""
+    transport = TransportScripte([_sortie("mistral"), _sortie("mistral")])
+    adaptateur = _avec_temperature("mistral", "mistral-large-latest", transport, 0.3)
+    adaptateur.generer_structure("Classe DEMO-1.", Sortie, STRUCTURE)
+    explicite = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300, temperature=0.7)
+    adaptateur.generer_structure("Classe DEMO-1.", Sortie, explicite)
+    assert [corps["temperature"] for corps in transport.requetes] == [0.3, 0.7]
+
+
+@pytest.mark.parametrize(
+    ("modele", "accepte"),
+    [("claude-sonnet-5-5", False), ("claude-opus-5-5", False), ("claude-haiku-4-5", True)],
+)
+def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
+    """Claude Sonnet et Opus 5.5 refusent la température : elle n'est pas envoyée."""
+    assert tarif(f"anthropic:{modele}").temperature is accepte
+    transport = TransportScripte([_sortie("anthropic")])
+    _avec_temperature("anthropic", modele, transport, 0.2).generer_structure(
+        "Classe DEMO-1.", Sortie, STRUCTURE
+    )
+    (corps,) = transport.requetes
+    assert ("temperature" in corps) is accepte
+    if accepte:
+        assert corps["temperature"] == 0.2
