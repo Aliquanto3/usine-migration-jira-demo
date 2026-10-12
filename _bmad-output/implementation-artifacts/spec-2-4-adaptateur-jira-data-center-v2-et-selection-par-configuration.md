@@ -5,7 +5,7 @@ created: '2026-10-12'
 status: 'done'
 baseline_revision: '131eef4fadd6f830c78fce200195c63a23ab4697'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-2-context.md'
 warnings: ['oversized']
@@ -110,11 +110,40 @@ deferred: []
   - `[false]` `[reject]` (intent) test par `lancer_rapport` et non par la commande `usine rapport` — `chaine/cli.py` délègue directement à `lancer_rapport` ; le comportement testé est celui de la commande.
   - `[false]` `[reject]` (intent) équivalence de contrat non démontrée par une exécution — la suite tourne : 8 tests `jira_dc` passent, comme `jira_cloud`.
 
+### 2026-10-12 — Review pass (revue de suivi)
+- verdicts: 26 findings (25 des couches + 1 de la revue dirigée) — high 0, medium 2, low 19, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind) client Jira ouvert à la composition, jamais fermé si le Passage échoue avant `extraction` — groupe F : réexaminé à la demande du run (le rejet précédent supposait une nouvelle surface) ; `EtapeExtraction.fermer()` idempotent, appelé dans un `finally` de `lancer_rapport` ; test `test_client_ferme_si_le_passage_echoue_avant_l_extraction`.
+  - `[low]` `[reject]` (blind) étape réexécutée sur un client fermé — carried : le registre est reconstruit à chaque `lancer_rapport` ; aucune réexécution n'existe.
+  - `[low]` `[reject]` (blind) `fermer()` qui lève masque l'erreur d'extraction — carried : `httpx.Client.close` ne lève pas en pratique.
+  - `[low]` `[patch]` (blind) curseur sur un ticket supprimé : la docstring promettait la tenue — Jira refuse `key > "<clé supprimée>"` (HTTP 400, donc `UsineErreur` bruyante, aucun ticket perdu en silence) ; docstring corrigée (ordre projet puis numéro, `DEMO-9` avant `DEMO-10`, seule la suppression du curseur fait échouer).
+  - `[low]` `[reject]` (blind) ordre des clés non vérifié dans une page, doublons entre pages — la JQL porte `ORDER BY key ASC` et un seul projet ; Jira trie par projet puis numéro (`DEMO-9` < `DEMO-10`), identique à `rang_cle` ; un serveur qui ignorerait la JQL est hors contrat, et l'absence de progression est déjà détectée ; garde par ticket = complexité sans défaut constaté.
+  - `[false]` `[reject]` (blind) items d'un champ renommé ignorés en silence — comportement exigé par l'intention (« nom sans champ configuré → item ignoré (rang conservé) »).
+  - `[false]` `[reject]` (blind) aucune issue à l'erreur d'ambiguïté — l'intention exige l'`UsineErreur` nommant le nom.
+  - `[low]` `[reject]` (blind) `GET /issue/{cle}` sans `fields` lit tous les champs — lecture seule sous liste blanche, rien n'est stocké hors conversion ; aucun préjudice nommé.
+  - `[low]` `[reject]` (blind) complément de changelog non validé (`KeyError`) — `changelog_tronque` exige un changelog lisible ; un échec resterait bruyant.
+  - `[low]` `[reject]` (blind) import de `_maintenant` privé depuis `jira_cloud` — style, aucun défaut ; réutilisation voulue (Code Map).
+  - `[low]` `[reject]` (blind) pas de test `mode: dc` avec un jeton Cloud sans e-mail — `test_dc_avec_pat` et `_etape_extraction` ne lisent que le secret de `mode` ; couverture supplémentaire sans défaut.
+  - `[low]` `[reject]` (blind) la garde AST cite `paginer_par_position` inutilisé — exemple autorisé dans un test de garde, sans effet.
+  - `[low]` `[reject]` (blind) aucun test de serveur qui plafonne `maxResults` et omet `total` — le code continue alors jusqu'à une page vide (`test_pagination_par_curseur_de_cle` couvre l'arrêt sur page vide) ; pas de défaut.
+  - `[low]` `[reject]` (blind) activation par le secret documentée seulement dans une docstring — décision consignée dans les Design Notes ; documentation utilisateur hors périmètre de la story.
+  - `[medium]` `[patch]` (revue dirigée, isolation des tests) un `JIRA_TOKEN_LECTURE`/`JIRA_DC_PAT` du shell active l'extraction dans les tests hors lane — avéré : avec ces variables, 31 erreurs (appel `POST /rest/api/3/search/jql` tenté, `ConnectError`, ou `JIRA_EMAIL` exigé) dans les fixtures de module de `consultation`, `rendu`, `ui` et la suite de contrat ; fixture autouse de session `_sans_secret_jira` dans `tests/conftest.py` (hors lane) ; suite verte avec et sans ces variables. Un `.env` à la racine du dépôt n'a aucun effet (vérifié : 1531 réussis), les Passages tournent sur des racines temporaires.
+  - `[low]` `[patch]` (verification-gap, autre) client non fermé si le Passage avorte avant l'extraction — groupe F, traité ci-dessus.
+  - `[low]` `[reject]` (intent) pagination par curseur seul au lieu de `startAt` 0 puis 2 — carried : le curseur par clé est le correctif medium de la première revue (groupe P) ; il contourne la fenêtre de 10 000, but de l'intention.
+  - `[false]` `[reject]` (intent) règle d'ambiguïté plus large que « parmi les champs configurés » — carried : correctif medium de la première revue (groupe N) ; un homonyme non configuré rendrait l'attribution indécidable.
+  - `[low]` `[patch]` (intent) fermeture dans l'étape et non à la composition — groupe F, traité ci-dessus.
+  - `[low]` `[reject]` (edge) tickets hors ordre ou curseur ignoré — même motif que la ligne blind correspondante.
+  - `[low]` `[patch]` (edge) client non fermé si le Passage avorte — groupe F, traité ci-dessus.
+  - `[low]` `[reject]` (edge) réexécution sur client fermé — carried ; `fermer()` est désormais idempotent.
+  - `[low]` `[reject]` (edge) `fermer()` masque l'erreur d'origine — carried.
+  - `[false]` `[reject]` (edge) `GET /issue/{cle}` rendant un autre ticket — carried : Jira rend le ticket demandé.
+  - `[false]` `[reject]` (edge) `fenetre=FENETRE_RESULTATS` de la spec absent, « paginé par position » — carried (groupe P) : `taille_page` remplace `fenetre` depuis la première revue ; aucun appelant ne passe `fenetre`.
+
 ## Design Notes
 
 - **Curseur par clé plutôt que tranches de dates** : la recherche est triée par clé ; chaque page est une recherche `startAt=0` restreinte par `key > "<dernière clé reçue>"`. Elle reprend exactement après le dernier ticket reçu, sans chevauchement ni fuseau, contourne la fenêtre de 10 000 résultats quel que soit le plafond du serveur, et ne saute aucun ticket si l'ensemble change entre deux pages (fenêtre `updated` relative réévaluée par Jira).
 - **Activation par secret** : la Story 2.5 ne peut pas ajouter `journal` à `ConfigJira.mode` (contrat gelé) ; la présence du secret de lecture de la plateforme est le seul signal disponible. Le Mode repli reste manuel (H-30) et coupe l'extraction.
-- **Fichiers hors lane** : `src/usine/composition.py` (câblage de l'extraction et sélection Cloud/DC, report medium de la 2.3, AD-1) ; `tests/unit/test_composition.py` (tests de ce câblage) ; `tests/contrat/source_tickets/fabriques.py` (fabrique DC, prévue par son docstring).
+- **Fichiers hors lane** : `src/usine/composition.py` (câblage de l'extraction et sélection Cloud/DC, report medium de la 2.3, AD-1) ; `tests/unit/test_composition.py` (tests de ce câblage) ; `tests/contrat/source_tickets/fabriques.py` (fabrique DC, prévue par son docstring) ; `tests/conftest.py` (revue de suivi : fixture autouse de session `_sans_secret_jira`, indispensable pour qu'un secret Jira du shell ne déclenche aucun appel Jira dans les tests des autres lanes).
 
 ## Verification
 
@@ -144,3 +173,18 @@ Status: done
 - **Relecture de suivi recommandée** : oui (deux entrées medium patchées) : la pagination DC a été réécrite après revue (curseur par clé, arrêt sur `total`), et la résolution des noms a changé de règle ; une seconde lecture de `jira_dc/source.py` vérifierait l'arrêt sur un serveur DC qui omet `total` ou plafonne `maxResults`.
 - **Vérification** : `ruff check`, `ruff format --check`, `mypy` (207 fichiers), `lint-imports` (13 contrats) verts ; `pytest -q` : 1504 réussis, 1 ignoré ; suite de contrat : 8 tests `jira_dc` comme `jira_cloud` ; chaque ligne de la matrice I/O couverte.
 - **Risques résiduels** : forme réelle des réponses DC (items sans `fieldId`, `total` du curseur) non éprouvée sur un vrai Data Center ; activation de l'extraction par la seule présence du secret (un `JIRA_TOKEN_LECTURE` exporté dans le shell d'un développeur déclenche l'extraction dans les tests hors lane qui appellent `lancer_rapport`, sans réseau donc en échec) ; client Jira non fermé si un Passage avorte avant l'étape `extraction`.
+
+### Revue de suivi (2026-10-12)
+
+- **Changement** : `EtapeExtraction.fermer()` public et idempotent, appelé par l'étape et par un `finally` de `lancer_rapport` (client fermé même si le Passage échoue avant `extraction`) ; fixture autouse de session `_sans_secret_jira` dans `tests/conftest.py` (hors lane) ; docstring de la pagination DC corrigée.
+- **Fichiers** :
+  - `src/usine/adaptateurs/entrepot_duckdb/extraction.py` -- `fermer()` idempotent.
+  - `src/usine/composition.py` (hors lane) -- fermeture en fin de `lancer_rapport`.
+  - `src/usine/adaptateurs/jira_dc/source.py` -- docstring : ordre projet puis numéro, cas du curseur supprimé.
+  - `tests/conftest.py` (hors lane) -- neutralisation de `JIRA_EMAIL`, `JIRA_TOKEN_LECTURE`, `JIRA_TOKEN_INJECTION`, `JIRA_DC_PAT`.
+  - `tests/unit/test_composition.py`, `tests/unit/adaptateurs/entrepot_duckdb/test_extraction.py` -- fermeture sur Passage avorté, idempotence.
+- **Pagination vérifiée** : JQL `project = … ORDER BY key ASC`, un seul projet ; Jira trie par projet puis numéro (`DEMO-9` avant `DEMO-10`), comme `rang_cle` du garde de progression ; un ticket créé pendant la pagination a une clé supérieure et apparaît dans une page suivante ; un ticket sorti de la fenêtre `updated` n'est pas sauté (curseur indépendant de la position) ; seule la suppression du ticket curseur fait échouer bruyamment la JQL.
+- **Revue** : 26 constats ; patchés : 2 entrées medium (isolation des secrets dans les tests ; fermeture du client), 1 low (docstring) ; aucun report ; le reste rejeté ou repris (carried), motifs dans le Review Triage Log.
+- **Relecture de suivi recommandée** : non (aucune entrée high patchée dans cette passe de suivi).
+- **Vérification** : `ruff check`, `ruff format --check`, `mypy` (210 fichiers), `lint-imports` (13 contrats) verts ; `pytest -q` : 1533 réussis, 22 ignorés, sans variable Jira et avec `JIRA_TOKEN_LECTURE`, `JIRA_EMAIL`, `JIRA_DC_PAT` factices exportés (31 erreurs avant correctif) ; un `.env` factice à la racine du worktree sans effet sur la suite.
+- **Risques résiduels** : forme réelle des réponses DC non éprouvée sur un vrai Data Center (recette) ; suppression du ticket curseur pendant une extraction → échec bruyant du Passage, à relancer.

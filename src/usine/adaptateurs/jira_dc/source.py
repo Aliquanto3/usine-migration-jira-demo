@@ -10,8 +10,10 @@ Lecture seule, par `ClientJiraLecture` (liste blanche DC) :
    dans l'historique conservé (les identifiants d'événements restent ceux de Cloud) ;
 2. `GET /rest/api/2/search` (`expand=changelog`), paginé par curseur de clé : chaque page est
    une recherche `startAt=0`, la suivante reprend par `key > "<dernière clé reçue>"`. Triée par
-   clé, la recherche ne saute ni ne répète aucun ticket même si l'ensemble des résultats change
-   entre deux pages (fenêtre `updated` relative réévaluée, ticket supprimé ou déplacé), et la
+   clé (projet puis numéro : `DEMO-9` avant `DEMO-10`), la recherche ne saute ni ne répète
+   aucun ticket même si l'ensemble des résultats change entre deux pages (fenêtre `updated`
+   relative réévaluée, ticket créé ou sorti de la fenêtre) ; seule la suppression du ticket
+   servant de curseur fait refuser la JQL par Jira (erreur HTTP, donc `UsineErreur`). La
    borne de `startAt` de DC (fenêtre de 10 000 résultats) ne s'applique jamais. Arrêt sur une
    page vide ou dont le `total` ne dépasse pas le nombre de tickets reçus ;
 3. pour chaque ticket au changelog en ligne tronqué : `GET /rest/api/2/issue/{cle}`
