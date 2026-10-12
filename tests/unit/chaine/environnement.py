@@ -27,10 +27,15 @@ DATE_ARRETE = date(2026, 10, 9)
 INSTANT = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
 
 
-def preparer_racine(racine: Path, journal: bool = True) -> Path:
-    """Copie `config/` (Programme réduit) et `gabarits/` sous `racine`, y génère le Journal."""
+def preparer_racine(racine: Path, journal: bool = True, programme_complet: bool = False) -> Path:
+    """Copie `config/` et `gabarits/` sous `racine`, y génère le Journal (graine 42).
+
+    Le Programme réduit remplace `config/programme.yaml`, sauf avec `programme_complet` : le
+    Programme livré (10 Entités, volumétrie cible) est alors gardé.
+    """
     shutil.copytree(RACINE_DEPOT / "config", racine / "config")
-    shutil.copyfile(PROGRAMME_REDUIT, racine / "config" / "programme.yaml")
+    if not programme_complet:
+        shutil.copyfile(PROGRAMME_REDUIT, racine / "config" / "programme.yaml")
     shutil.copytree(RACINE_DEPOT / "gabarits", racine / "gabarits")
     if journal:
         programme = charger_yaml(racine / "config" / "programme.yaml", ConfigProgramme)
