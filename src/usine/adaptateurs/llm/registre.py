@@ -44,9 +44,10 @@ def _usd(entree: str, sortie: str) -> tuple[Decimal, Decimal]:
     return Decimal(entree) * TAUX_USD_EUR, Decimal(sortie) * TAUX_USD_EUR
 
 
-_SONNET = _usd("3", "15")
+# Tarifs publics relevés sur platform.claude.com/docs/en/about-claude/pricing le 13/10/2026.
+_SONNET = _usd("2", "10")
 _HAIKU = _usd("1", "5")
-_OPUS = _usd("5", "25")
+_OPUS = _usd("4", "20")
 
 REGISTRE: dict[str, TarifModele] = {
     # Anthropic, palier 1 de l'API (50 requêtes par minute).

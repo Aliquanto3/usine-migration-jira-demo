@@ -229,8 +229,61 @@ def test_justification_citant_la_cible_conforme() -> None:
 
 
 def test_fournisseur_en_erreur_propage() -> None:
-    with pytest.raises(UsineErreur, match="plus de réponse"):
+    """Trois échecs d'affilée (panne franche) : l'étape échoue en nommant la tâche."""
+    with pytest.raises(
+        UsineErreur, match=r"classification : 3 échecs consécutifs.*plus de réponse"
+    ):
         _classer(FournisseurFactice())
+
+
+class FournisseurEchouantSur(FournisseurFactice):
+    """Échoue (comme un `UnexpectedModelBehavior` converti) aux appels de rang donné."""
+
+    def __init__(self, rangs: set[int], reponses: list[ReponseClassification]) -> None:
+        super().__init__(reponses)
+        self._rangs = rangs
+        self._rang = 0
+
+    def generer_structure(self, prompt, schema, parametres):  # type: ignore[no-untyped-def]
+        rang, self._rang = self._rang, self._rang + 1
+        if rang in self._rangs:
+            raise UsineErreur(
+                "anthropic:claude-haiku-5-5 : appel en échec (UnexpectedModelBehavior)"
+            )
+        return super().generer_structure(prompt, schema, parametres)
+
+
+def test_echec_isole_anomalie_sans_suggestion_passage_poursuivi(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Report de la 6.9 : un échec isolé du fournisseur n'arrête plus la classification."""
+    factice = FournisseurEchouantSur({1}, [_reponse(), _reponse()])
+    with caplog.at_level(logging.WARNING, logger="usine.ia.classification"):
+        sorties, traces = _classer(factice)
+    assert [s.cle_ticket for s in sorties] == ["DEMO-1", "DEMO-10"]
+    assert [t.cible for t in traces] == ["DEMO-1", "DEMO-10"]
+    messages = [r.getMessage() for r in caplog.records if r.name == "usine.ia.classification"]
+    assert any("DEMO-2" in m and "UnexpectedModelBehavior" in m for m in messages)
+    assert any(m.startswith("1 Anomalie(s) sans suggestion") and "DEMO-2" in m for m in messages)
+
+
+def test_echecs_non_consecutifs_toleres() -> None:
+    """Le compteur d'échecs d'affilée repart à zéro après un succès."""
+    cles = {f"DEMO-{n}": ("Titre", "Description.") for n in range(1, 6)}
+    factice = FournisseurEchouantSur({0, 1, 3, 4}, [_reponse()])
+    sorties, _ = _classer(factice, textes(cles))
+    assert [s.cle_ticket for s in sorties] == ["DEMO-3"]
+
+
+def test_echec_puis_cache_rejoue_l_anomalie() -> None:
+    """Une Anomalie en échec n'est pas mise en cache : le Passage suivant la redemande."""
+    cache = CacheMemoire()
+    _classer(FournisseurEchouantSur({0}, [_reponse(), _reponse()]), cache=cache)
+    factice = FournisseurFactice([_reponse()])
+    sorties, traces = _classer(factice, cache=cache)
+    assert len(sorties) == 3
+    assert len(factice.appels) == 1
+    assert [t.depuis_cache for t in traces] == [False, True, True]
 
 
 def test_pseudonymisation_de_l_entree() -> None:
@@ -392,3 +445,10 @@ def test_explications_appelees_apres_classification_arretee_a_sa_part() -> None:
         Tache.classification,
         Tache.explication,
     ]
+
+
+def test_sans_tolerance_premier_echec_propage() -> None:
+    """Suite d'évaluation : le premier échec remonte tel quel."""
+    passerelle = _passerelle(FournisseurEchouantSur({0}, [_reponse(), _reponse()]))
+    with pytest.raises(UsineErreur, match="UnexpectedModelBehavior"):
+        classer(passerelle, TEXTES, DATE_ARRETE, _contexte(), tolerer_echecs=False)

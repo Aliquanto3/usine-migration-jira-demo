@@ -1259,3 +1259,65 @@ def test_moteur_de_pseudonymisation_inconnu_refuse(
     with pytest.raises(UsineErreur, match="moteur"):
         construire_rapport(racine, FournisseurFactice())
     assert not (racine / "donnees" / "pseudonymes.sqlite").exists()
+
+
+# --- Story 6.10 : préchauffage du cache de classification ---
+
+
+def test_prechauffage_puis_passage_sans_appel_de_classification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    prechauffe = FournisseurPalier2()
+    bilan = composition.prechauffer_classification(racine, DATE_ARRETE, 1e9, fournisseur=prechauffe)
+    assert bilan.anomalies > 0
+    assert bilan.classees == bilan.appels == bilan.anomalies
+    assert len(_appels(prechauffe, Tache.classification)) == bilan.anomalies
+    assert {a.parametres.tache for a in prechauffe.appels} == {Tache.classification}
+    assert not (racine / "sorties" / "passages").exists()
+
+    # Passage suivant : toute la classification vient du cache, seules les explications partent.
+    fournisseur = FournisseurPalier2(_reponses(a_expliquer))
+    lance = lancer_rapport(racine, DATE_ARRETE, horloge_figee(), lambda: "abc123", fournisseur)
+    assert _appels(fournisseur, Tache.classification) == []
+    traces = ConsultationPassage(lance.repertoire).traces()
+    classification = [t for t in traces if t.tache is Tache.classification]
+    assert len(classification) == bilan.anomalies
+    assert all(t.depuis_cache for t in classification)
+
+    # Relancé sur un stock couvert : aucun appel frais.
+    encore = composition.prechauffer_classification(
+        racine, DATE_ARRETE, 1e9, fournisseur=FournisseurPalier2()
+    )
+    assert (encore.classees, encore.appels, encore.cout_eur) == (bilan.anomalies, 0, Decimal(0))
+
+
+def test_prechauffage_borne_dans_le_temps_puis_repris(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+    secondes = iter(range(1_000_000))
+    bilan = composition.prechauffer_classification(
+        racine,
+        DATE_ARRETE,
+        3,
+        chrono=lambda: float(next(secondes)),
+        fournisseur=FournisseurPalier2(),
+    )
+    # Le chrono avance d'une seconde par lecture : départ, puis une lecture par Anomalie.
+    assert bilan.classees == bilan.appels == 2 < bilan.anomalies
+    suite = FournisseurPalier2()
+    reprise = composition.prechauffer_classification(racine, DATE_ARRETE, 1e9, fournisseur=suite)
+    assert reprise.classees == bilan.anomalies
+    assert reprise.appels == bilan.anomalies - 2
+
+
+def test_prechauffage_exige_le_palier_2(tmp_path: Path) -> None:
+    racine = preparer_racine(tmp_path)
+    with pytest.raises(UsineErreur, match="exige le palier 2"):
+        composition.prechauffer_classification(racine, DATE_ARRETE, 10)
