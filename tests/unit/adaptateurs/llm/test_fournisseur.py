@@ -28,7 +28,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -334,3 +334,66 @@ def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
     assert ("temperature" in corps) is accepte
     if accepte:
         assert corps["temperature"] == 0.2
+
+
+# --- Story 6.12 : `llama-server` local ---
+
+
+def test_local_sans_cle_et_a_l_adresse_par_defaut() -> None:
+    transport = TransportScripte([])
+    adaptateur = fournisseur_scripte("local", transport)
+    assert adaptateur.version_modele == f"local:{MODELES['local']}"
+
+
+def test_local_n_exige_aucune_cle() -> None:
+    config = _config("local", MODELES["local"])
+    adaptateur = construire_fournisseur_llm(config, " ")
+    assert adaptateur.version_modele == f"local:{MODELES['local']}"
+    adaptateur.fermer()
+
+
+def test_local_appelle_le_serveur_configure_sans_cle_reelle() -> None:
+    transport = TransportScripte([reponse_texte("local", "ok")])
+    adaptateur = construire_fournisseur_llm(
+        _config("local", MODELES["local"]),
+        "",
+        transport.client(),
+        url_serveur="http://poste.local:9000/v1",
+    )
+    reponse = adaptateur.executer_agent(
+        [MessageAgent(role="utilisateur", contenu="Bonjour")], [], AGENT
+    )
+    assert reponse.texte == "ok"
+    assert transport.urls == ["http://poste.local:9000/v1/chat/completions"]
+    adaptateur.fermer()
+
+
+def test_local_ne_combine_jamais_schema_et_outils() -> None:
+    transport = TransportScripte([_sortie("local")])
+    adaptateur = fournisseur_scripte("local", transport)
+    adaptateur.generer_structure("Classe.", Sortie, STRUCTURE)
+    assert _noms_outils(transport.requetes[0]) == {"reponse"}
+    transport = TransportScripte([reponse_texte("local", "ok")])
+    adaptateur = fournisseur_scripte("local", transport)
+    adaptateur.executer_agent(
+        [MessageAgent(role="utilisateur", contenu="Salut")], [_outil([])], AGENT
+    )
+    assert _noms_outils(transport.requetes[0]) == {"get_meteo"}
+
+
+def test_local_coute_zero_et_accepte_tout_modele() -> None:
+    assert cout_estime_eur("local:autre-modele-gguf", 10_000, 5_000) == 0
+    assert tarif("local:autre-modele-gguf").gratuit
+
+
+def test_local_serveur_injoignable_traduit_en_usine_erreur() -> None:
+    def refuse(requete: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("refusé", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(refuse))
+    adaptateur = construire_fournisseur_llm(
+        _config("local", MODELES["local"]), "", client, attendre=lambda _s: None
+    )
+    with pytest.raises(UsineErreur, match="local:"):
+        adaptateur.generer_structure("Classe.", Sortie, STRUCTURE)
+    adaptateur.fermer()

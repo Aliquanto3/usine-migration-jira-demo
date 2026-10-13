@@ -325,6 +325,16 @@ def _verifier_llm(
     return _ParametresPseudonymisation(octets_cle, motifs, presidio)
 
 
+def _cle_et_url(config: ConfigLLM, secrets_usine: Secrets) -> tuple[str, str]:
+    """Clé d'API du fournisseur de `config` (vide pour `local`) et adresse de `llama-server`."""
+    from usine.adaptateurs.llm import URL_SERVEUR_LOCAL
+
+    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
+    cle = cles.get(config.fournisseur)
+    url = (secrets_usine.usine_llama_url or "").strip() or URL_SERVEUR_LOCAL
+    return (cle.get_secret_value() if cle is not None else ""), url
+
+
 def construire_fournisseur(
     racine: Path,
     secrets_usine: Secrets | None = None,
@@ -335,7 +345,8 @@ def construire_fournisseur(
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
-    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
+    `MISTRAL_API_KEY` ; `fournisseur: local` vise `llama-server` (`USINE_LLAMA_URL`, sans clé).
+    Un fichier absent, un fournisseur inconnu, un modèle hors du registre
     des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
 
     `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
@@ -362,9 +373,8 @@ def construire_fournisseur(
         chemin = racine / "config" / "llm.yaml"
         raise UsineErreur(f"{chemin} : fichier absent ; aucun fournisseur LLM configuré")
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
-    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
-    cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    cle, url = _cle_et_url(config, secrets_usine)
+    return construire_fournisseur_llm(config, cle, url_serveur=url)
 
 
 def construire_fournisseurs_par_tache(
@@ -382,8 +392,7 @@ def construire_fournisseurs_par_tache(
     if config is None or not config.modeles_par_tache:
         return {}
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
-    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
-    cle = cles.get(config.fournisseur)
+    cle, url = _cle_et_url(config, secrets_usine)
     construits: dict[Tache, FournisseurLLM] = {}
     try:
         for tache, modele in config.modeles_par_tache.items():
@@ -391,7 +400,8 @@ def construire_fournisseurs_par_tache(
                 continue
             construits[tache] = construire_fournisseur_llm(
                 config.model_copy(update={"modele": modele}),
-                cle.get_secret_value() if cle is not None else "",
+                cle,
+                url_serveur=url,
             )
     except BaseException:
         _fermer_tous(construits.values())

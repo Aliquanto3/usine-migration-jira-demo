@@ -16,7 +16,7 @@ RACINE = Path(__file__).resolve().parents[2]
 RACINES_HORS_PRODUIT = ("evaluation", "evals", "outils")
 
 PYPROJECT = tomllib.loads((RACINE / "pyproject.toml").read_text(encoding="utf-8"))
-NOM_ISOLATION_LLM = "pydantic_ai, anthropic, mistralai : adaptateurs/llm seulement"
+NOM_ISOLATION_LLM = "pydantic_ai, anthropic, mistralai, openai : adaptateurs/llm seulement"
 """Contrat transverse d'AD-12 (source `usine` entier), hors du tableau des couches."""
 CONTRATS_INTERDITS: list[dict[str, Any]] = [
     c
@@ -38,7 +38,7 @@ MODULES_DES_DEPENDANCES: dict[str, tuple[str, ...]] = {
     "pyyaml": ("yaml",),
     "typer": ("typer",),
     "httpx": ("httpx",),
-    "pydantic-ai-slim": ("pydantic_ai", "anthropic", "mistralai"),
+    "pydantic-ai-slim": ("pydantic_ai", "anthropic", "mistralai", "openai"),
     "presidio-analyzer": ("presidio_analyzer",),
     "presidio-anonymizer": ("presidio_anonymizer",),
     "spacy": ("spacy",),
@@ -87,6 +87,7 @@ AUTORISATIONS: dict[str, tuple[set[str], set[str] | None]] = {
             "pydantic_ai",
             "anthropic",
             "mistralai",
+            "openai",
             "presidio_analyzer",
             "presidio_anonymizer",
             "spacy",

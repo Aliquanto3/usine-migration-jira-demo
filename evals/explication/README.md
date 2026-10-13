@@ -55,7 +55,7 @@ uv run python -m evals.explication executer --reel
 ```
 
 Lit `config/llm.yaml` (fournisseur, modèle de la tâche `explication`, plafond de coût), la clé
-du fournisseur (`ANTHROPIC_API_KEY` ou `MISTRAL_API_KEY`) et `USINE_CLE_PSEUDO`, comme un
+du fournisseur (`ANTHROPIC_API_KEY` ou `MISTRAL_API_KEY` ; aucune pour `local`, voir `config/llm.yaml`) et `USINE_CLE_PSEUDO`, comme un
 Passage Palier 2. Le cache est en mémoire : le cache de production n'est ni lu ni écrit. Les
 réponses enregistrées des cas sont ignorées.
 

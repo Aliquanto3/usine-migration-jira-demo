@@ -247,3 +247,15 @@ def test_generer_corpus_llm_bilan(tmp_path: Path) -> None:
     assert bilan.jetons_sortie > 0
     assert bilan.cout_eur == Decimal(0)
     assert charger_corpus(bilan.chemin).modele_corpus == "factice:redacteur"
+
+
+def test_fournisseur_local_sans_cle_ni_variable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Story 6.12 : `fournisseur: local` se construit sans aucune clé d'API."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.setenv("USINE_LLAMA_URL", "http://poste.local:9000/v1")
+    adaptateur = construire_fournisseur(_racine(tmp_path, "local", "qwen3-8b-q4_k_m"))
+    assert adaptateur.version_modele == "local:qwen3-8b-q4_k_m"
+    getattr(adaptateur, "fermer", lambda: None)()

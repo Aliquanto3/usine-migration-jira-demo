@@ -22,6 +22,8 @@ class Secrets(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     mistral_api_key: SecretStr | None = None
     usine_cle_pseudo: SecretStr | None = None
+    usine_llama_url: str | None = None
+    """Adresse de `llama-server` (fournisseur `local`) ; vide ou absente : adresse par défaut."""
     usine_mode_repli: bool = False
     usine_racine: str | None = None
     """Racine de l'UI (répertoire du dépôt) ; vide ou absente : le répertoire courant."""

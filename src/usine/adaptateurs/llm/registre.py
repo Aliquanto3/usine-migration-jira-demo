@@ -17,6 +17,10 @@ TAUX_USD_EUR = Decimal("0.92")
 
 _MILLION = Decimal(1_000_000)
 
+FOURNISSEUR_LOCAL = "local"
+"""Fournisseur `llama-server` exécuté sur le poste (Story 6.12) : tout modèle `local:<nom>` est
+admis, sans quota ni prix (coût nul)."""
+
 
 @dataclass(frozen=True)
 class TarifModele:
@@ -38,6 +42,10 @@ class TarifModele:
     def espacement_s(self) -> float:
         """Délai minimal entre deux appels au même modèle, en secondes."""
         return 60.0 / self.requetes_par_minute
+
+
+_TARIF_LOCAL = TarifModele(Decimal(0), Decimal(0), 600, 10_000_000, gratuit=True)
+"""Un modèle local ne coûte rien et n'est pas limité en débit (espacement de 0,1 s)."""
 
 
 def _usd(entree: str, sortie: str) -> tuple[Decimal, Decimal]:
@@ -67,6 +75,8 @@ REGISTRE: dict[str, TarifModele] = {
 
 def tarif(version_modele: str) -> TarifModele:
     """Tarif de `version_modele` ; un modèle absent du registre lève une `UsineErreur`."""
+    if version_modele.startswith(f"{FOURNISSEUR_LOCAL}:"):
+        return _TARIF_LOCAL
     try:
         return REGISTRE[version_modele]
     except KeyError:

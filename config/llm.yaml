@@ -2,7 +2,11 @@
 # se changent ici, sans modification de code. Le modèle doit figurer dans le registre des
 # quotas et des prix (`src/usine/adaptateurs/llm/registre.py`).
 
-# Fournisseur : anthropic (clé ANTHROPIC_API_KEY) ou mistral (clé MISTRAL_API_KEY).
+# Fournisseur : anthropic (clé ANTHROPIC_API_KEY), mistral (clé MISTRAL_API_KEY) ou local
+# (Story 6.12 : `llama-server` b11552 lancé avec `--jinja` sur le poste, API compatible OpenAI,
+# sans clé ; adresse par défaut http://127.0.0.1:8080/v1, modifiable par USINE_LLAMA_URL ;
+# modèle quantifié tenant dans 8 Go de VRAM). Avec `local`, `modele` et `modeles_par_tache`
+# portent le nom du modèle servi (par exemple qwen3-8b-q4_k_m) ; coût estimé nul.
 fournisseur: anthropic
 # Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
 modele: claude-sonnet-5-5
