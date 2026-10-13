@@ -31,6 +31,8 @@ class Tache(StrEnum):
     explication = "explication"
     narration = "narration"
     agent = "agent"
+    doublons = "doublons"
+    """Tâche bonus (FR-36) : score de doublon d'une paire d'Anomalies ouvertes."""
 
 
 class StatutControle(StrEnum):
@@ -192,6 +194,17 @@ class ReponseNarration(Enregistrement):
     texte: str
 
 
+class ReponseDoublon(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `doublons` (FR-36).
+
+    `score` : probabilité, de 0 à 1, que les deux Anomalies décrivent le même problème.
+    Publiée : `SortieDoublon`, après le contrôle déterministe de la justification.
+    """
+
+    score: float = Field(ge=0.0, le=1.0)
+    justification: str = ""
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
@@ -199,6 +212,26 @@ class SortieClassification(Enregistrement):
     cause_racine: CauseRacine
     justification: str = ""
     statut_controle: StatutControle = StatutControle.non_controle
+
+
+class SortieDoublon(Enregistrement):
+    """Paire d'Anomalies ouvertes probablement en doublon (FR-36), à revoir par le Pilote.
+
+    `cle_a` précède `cle_b` dans l'ordre des clés de ticket. Jamais de fusion automatique,
+    jamais écrite dans Jira.
+    """
+
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: float = Field(ge=0.0, le=1.0)
+    justification: str = ""
+    statut_controle: StatutControle = StatutControle.non_controle
+
+    @model_validator(mode="after")
+    def _deux_anomalies(self) -> Self:
+        if self.cle_a == self.cle_b:
+            raise ValueError(f"{self.cle_a} : une paire de doublons porte deux Anomalies")
+        return self
 
 
 SCHEMA_REPARTITION_CAUSES = SchemaTable(

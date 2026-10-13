@@ -15,9 +15,11 @@ from usine.contrats.llm import (
     MessageAgent,
     ReponseAgent,
     ReponseAgentEnregistree,
+    ReponseDoublon,
     ReponseExplication,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublon,
     StatutControle,
     Tache,
     est_type_jeton,
@@ -31,7 +33,13 @@ PASSAGE = "20261012T080000Z-0a1b2c"
 
 
 def test_taches_figees() -> None:
-    assert [t.value for t in Tache] == ["classification", "explication", "narration", "agent"]
+    assert [t.value for t in Tache] == [
+        "classification",
+        "explication",
+        "narration",
+        "agent",
+        "doublons",
+    ]
 
 
 def test_reponse_structuree_generique() -> None:
@@ -67,7 +75,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.8.0"
+    assert enregistree.contrats_version == "1.9.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):
@@ -181,3 +189,24 @@ def test_enveloppe_cache_et_reponse_explication() -> None:
         EnveloppeCache(brut="x", version_modele="")
     reponse = ReponseExplication.model_validate_json(enveloppe.brut)
     assert reponse.brouillon_commentaire == ""
+
+
+def test_doublon_reponse_et_sortie() -> None:
+    reponse = ReponseDoublon.model_validate_json('{"score": 0.8, "justification": "Même flux."}')
+    assert reponse.score == 0.8
+    sortie = SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=reponse.score)
+    assert sortie.statut_controle is StatutControle.non_controle
+    assert SortieDoublon.model_validate_json(sortie.model_dump_json()) == sortie
+
+
+@pytest.mark.parametrize("score", [-0.1, 1.1])
+def test_doublon_score_hors_bornes(score: float) -> None:
+    with pytest.raises(ValidationError):
+        ReponseDoublon(score=score)
+    with pytest.raises(ValidationError):
+        SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=score)
+
+
+def test_doublon_deux_anomalies_distinctes() -> None:
+    with pytest.raises(ValidationError, match="deux Anomalies"):
+        SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-1", score=0.5)
