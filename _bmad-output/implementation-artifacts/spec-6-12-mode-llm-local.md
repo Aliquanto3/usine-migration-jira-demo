@@ -2,15 +2,30 @@
 title: "Story 6.12 : [BONUS] Mode LLM local"
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'in-review'
 baseline_revision: '962ff5453a900b4a4180082493318d46fde9e167'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: [oversized]
 deferred:
-  - "Relance des évaluations explication et classification sur le modèle local et publication des résultats : aucun llama-server ni GPU dans ce run (procédure dans docs/mode-llm-local.md)."
-  - "llama-server b11552 : l'envoi de max_completion_tokens (OpenAI) au lieu de max_tokens n'est pas vérifié sans serveur réel."
+  - summary: >-
+      Relance des suites d'évaluation de l'Explication et de la classification sur le modèle local, et publication des résultats.
+    evidence: |-
+      Critère « And » de la Story 6.12. Le run de livraison interdit tout llama-server et tout appel LLM réel, et n'a pas de GPU.
+      La procédure est dans docs/mode-llm-local.md (§ 4). Aucun résultat local sous evals/*/resultats/.
+      Le contrat local ne passe que sur faux transport : le comportement réel de b11552 (outils avec --jinja, tool_choice) reste à constater au même moment.
+    location: >-
+      docs/mode-llm-local.md
+    severity: medium
+  - summary: >-
+      LLAMA_API_KEY et USINE_URL_LLM_LOCAL absentes de .env.example et de VARIABLES_SECRETES.
+    evidence: |-
+      tests/depot/test_environnement.py:38 liste les variables attendues dans .env.example ; les deux nouvelles variables de Secrets n'y figurent pas.
+      .env.example est protégé par une règle de refus de lecture dans cette session : la modification est laissée à l'auteur.
+    location: >-
+      tests/depot/test_environnement.py:38
+    severity: low
 ---
 
 <intent-contract>
@@ -79,6 +94,37 @@ deferred:
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-13 — Review pass
+- verdicts: 27 findings — high 0, medium 7, low 15, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[defer]` (blind) Critère « suites d'évaluation relancées et publiées » non rempli — exclu par les contraintes du run (aucun llama-server, aucun appel réel) ; reporté dans `deferred` avec la procédure.
+  - `[low]` `[defer]` (blind) `.env.example` et `VARIABLES_SECRETES` sans `LLAMA_API_KEY` ni `USINE_URL_LLM_LOCAL` — réel ; `.env.example` est sous règle de refus dans cette session, reporté dans `deferred`.
+  - `[false]` `[reject]` (blind) Le « mode local » accepte une URL distante et y envoie la clé — l'URL est choisie par l'opérateur (serveur sur le réseau local légitime) ; le défaut est la boucle locale, rien ne part ailleurs sans configuration explicite.
+  - `[medium]` `[patch]` (blind) Un délai dépassé est annoncé « serveur injoignable » — `openai.APITimeoutError` hérite d'`APIConnectionError` ; `_injoignable` exclut désormais les délais, test ajouté.
+  - `[low]` `[patch]` (blind) 503 « Loading model » et 401 `--api-key` non guidés — documentés dans `docs/mode-llm-local.md` (attendre `/health`, `LLAMA_API_KEY`).
+  - `[low]` `[patch]` (blind) Suite de contrat locale sur réponses au format Mistral, docstrings du faux transport périmées — le format Chat Completions est le même ; docstrings corrigées.
+  - `[low]` `[patch]` (blind) Alias imposé par le registre, changement de GGUF invisible de `version_modele` — même règle que les autres fournisseurs (registre exigé) ; contrainte documentée (alias et entrée de registre par modèle ou quantification).
+  - `[low]` `[reject]` (blind) Tests manquants ou fragiles (par tâche en local, 500 local, attribut privé `_url_base`) — le chemin par tâche local est inatteignable avec un seul modèle local ; le 500 local est couvert par `test_autre_erreur_http_sans_reprise_ni_cle[local]` ; le routage d'URL est vérifié par `test_local_url_par_defaut_et_url_configuree`.
+  - `[medium]` `[patch]` (blind) Assertion `max_tokens` affaiblie pour tous les fournisseurs — même cause que la ligne `max_completion_tokens` ci-dessous ; assertion stricte rétablie.
+  - `[low]` `[patch]` (blind) `outils/generer_corpus.py`, `evals/explication/README.md`, docstring `TarifModele.gratuit` ne citent que deux fournisseurs — mention de `local` ajoutée.
+  - `[low]` `[patch]` (blind) `docs/mode-llm-local.md` incomplet (installation b11552, `hf download`, tenue en VRAM non mesurée) — complété.
+  - `[false]` `[reject]` (blind) `tiktoken` ferait un appel réseau — le source de `pydantic_ai.models.openai` ne référence pas `tiktoken` ; aucun comptage de jetons local dans le chemin d'appel.
+  - `[low]` `[reject]` (blind) Repli `self._url_base or URL_LLM_LOCAL_DEFAUT` redondant, `url_base` ignoré pour les distants — sans effet observable.
+  - `[medium]` `[patch]` (edge) Délai dépassé classé injoignable — groupé avec la ligne correspondante ; corrigé.
+  - `[low]` `[reject]` (edge) URL malformée (`http://[::1`) : `InvalidURL` brute à la construction — variable saisie à la main, rare ; la correction ajoute une garde.
+  - `[low]` `[reject]` (edge) URL sans schéma annoncée « injoignable » — le message cite l'URL fautive, l'opérateur la voit.
+  - `[low]` `[patch]` (edge) 503 pendant le chargement du modèle — groupé avec la ligne 503/401 ; documenté.
+  - `[medium]` `[patch]` (edge) `max_completion_tokens` envoyé au lieu de `max_tokens` — vérifié dans le profil Pydantic AI (`openai_chat_supports_max_completion_tokens`, défaut vrai) ; profil local à `False`, assertion stricte.
+  - `[low]` `[patch]` (edge) Autre GGUF refusé hors registre — groupé avec la ligne alias/registre ; documenté.
+  - `[medium]` `[patch]` (verification-gap, autre) Délai dépassé classé injoignable — groupé ; corrigé.
+  - `[medium]` `[defer]` (intent) Clause d'évaluation non livrée — groupée avec la première ligne.
+  - `[low]` `[defer]` (intent) Contrat local éprouvé sur faux transport, pas sur un llama-server réel — exclu par les contraintes du run ; groupé avec la relance des évaluations.
+  - `[low]` `[patch]` (intent) Réponses locales au format Mistral — groupé avec la ligne du faux transport.
+  - `[false]` `[reject]` (intent) `config/llm.yaml` ne désigne pas `local` — le critère est conditionnel (« When … désigne ») ; Anthropic reste le défaut (H-23) et le bloc local est prêt.
+  - `[false]` `[reject]` (intent) `SDK_FOURNISSEURS` sans `openai` — `tests/unit/generateur/test_corpus.py:39` contient déjà `"openai"`.
+  - `[low]` `[reject]` (intent) Test d'URL sur attribut privé — groupé avec la ligne des tests fragiles ; le routage réel est couvert ailleurs.
+  - `[false]` `[reject]` (intent) Aucune revue dans le diff — la revue est cette passe.
 
 ## Design Notes
 

@@ -11,7 +11,8 @@ Corpus provisoire, sans appel :
 Corpus définitif par LLM (Story 1.9), d'abord estimé puis produit :
 `uv run python outils/generer_corpus.py --fournisseur mistral --modele mistral-medium-latest
 --estimer`, puis la même commande sans `--estimer`. La clé du fournisseur
-(`MISTRAL_API_KEY` ou `ANTHROPIC_API_KEY`) se lit dans l'environnement ou `.env`.
+(`MISTRAL_API_KEY` ou `ANTHROPIC_API_KEY` ; `local` : aucune, `LLAMA_API_KEY` facultative) se lit
+dans l'environnement ou `.env`.
 
 Avant tout appel, dans cet ordre : le modèle doit figurer au registre des prix ; il doit
 différer du modèle de classification de `config/llm.yaml` (AD-19) ; le coût estimé majoré
@@ -148,7 +149,9 @@ def _analyseur() -> argparse.ArgumentParser:
     analyseur.add_argument(
         "--provisoire", action="store_true", help="Corpus par gabarits, sans LLM."
     )
-    analyseur.add_argument("--fournisseur", help="Fournisseur LLM : anthropic ou mistral.")
+    analyseur.add_argument(
+        "--fournisseur", help="Fournisseur LLM : anthropic, mistral ou local (sans clé)."
+    )
     analyseur.add_argument("--modele", help="Modèle du fournisseur, présent au registre des prix.")
     analyseur.add_argument(
         "--estimer", action="store_true", help="Affiche appels et coût estimé, sans appel."

@@ -78,7 +78,7 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert (corps.get("max_tokens") or corps.get("max_completion_tokens")) == 300
+    assert corps["max_tokens"] == 300
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -390,3 +390,14 @@ def test_local_serveur_injoignable_invite_a_demarrer_llama_server() -> None:
     with pytest.raises(UsineErreur, match=r"local:ministral-3-8b.*hote:9000.*llama-server") as exc:
         adaptateur.generer_structure("p", Sortie, STRUCTURE)
     assert exc.value.__cause__ is None
+
+
+def test_local_lent_n_est_pas_dit_injoignable() -> None:
+    def transport(requete: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ReadTimeout("trop lent", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(transport))
+    adaptateur = construire_fournisseur_llm(_config_locale(), "", client)
+    with pytest.raises(UsineErreur, match="local:ministral-3-8b") as exc:
+        adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert "injoignable" not in str(exc.value)

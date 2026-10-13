@@ -30,7 +30,7 @@ class TarifModele:
     """Débit autorisé ; l'adaptateur espace ses appels d'au moins `60 / requetes_par_minute` s."""
     jetons_par_minute: int
     gratuit: bool = False
-    """Quota gratuit (offre « Experiment » de Mistral) : coût réel nul, coût estimé conservé."""
+    """Quota gratuit (Mistral) ou modèle `local` (llama-server, sans clé) : coût réel nul."""
     temperature: bool = True
     """Faux si le modèle refuse le réglage de température (Claude Haiku, Sonnet et Opus 5.5)."""
 

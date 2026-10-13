@@ -36,6 +36,8 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.wrapper import WrapperModel
+from pydantic_ai.profiles import merge_profile
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.mistral import MistralProvider
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -91,13 +93,14 @@ def _retry_after(entetes: Mapping[str, str] | None) -> float:
 
 def _injoignable(exc: BaseException) -> bool:
     """Vrai si `exc` est une erreur de connexion (et non une réponse HTTP du serveur)."""
-    if isinstance(exc, ModelHTTPError):
+    if isinstance(exc, ModelHTTPError | openai.APITimeoutError):
         return False
     if isinstance(exc, openai.APIConnectionError):
         return True
-    return isinstance(exc, ModelAPIError) and isinstance(
-        exc.__cause__, openai.APIConnectionError | OSError
-    )
+    cause = exc.__cause__
+    if isinstance(cause, openai.APITimeoutError):
+        return False
+    return isinstance(exc, ModelAPIError) and isinstance(cause, openai.APIConnectionError | OSError)
 
 
 def _vers_pydantic_ai(messages: Sequence[MessageAgent]) -> list[ModelMessage]:
@@ -438,8 +441,15 @@ def construire_fournisseur_llm(
             http_client=client_http,
             max_retries=0,
         )
+        # llama-server documente `max_tokens`, pas `max_completion_tokens`.
+        profil = merge_profile(
+            OpenAIProvider.model_profile(config.modele),
+            OpenAIModelProfile(openai_chat_supports_max_completion_tokens=False),
+        )
         modele = OpenAIChatModel(
-            config.modele, provider=OpenAIProvider(openai_client=client_openai)
+            config.modele,
+            provider=OpenAIProvider(openai_client=client_openai),
+            profile=profil,
         )
     else:
         mistral = Mistral(api_key=cle_api, async_client=client_http)

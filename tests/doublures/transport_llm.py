@@ -1,5 +1,8 @@
 """Faux transport HTTP des API Anthropic, Mistral et llama-server : jamais de réseau.
 
+`local` (llama-server) parle le même format OpenAI Chat Completions que Mistral : il est
+servi par les fonctions `mistral_*`.
+
 `TransportScripte` rejoue une liste de réponses dans l'ordre et garde le corps JSON de chaque
 requête. Les fonctions `anthropic_*` et `mistral_*` produisent les réponses au format des API
 publiques (Messages d'Anthropic, Chat Completions de Mistral).
@@ -23,7 +26,7 @@ MODELES = {
 
 
 def _noms_outils(corps: Mapping[str, Any]) -> set[str]:
-    """Noms des outils déclarés dans une requête Anthropic ou Mistral."""
+    """Noms des outils déclarés dans une requête Anthropic, Mistral ou locale (OpenAI)."""
     noms = set()
     for outil in corps.get("tools") or ():
         noms.add(outil.get("name") or outil.get("function", {}).get("name"))
@@ -148,14 +151,14 @@ def trop_de_requetes(fournisseur: str, retry_after: str | None) -> httpx2.Respon
 def reponse_outil(
     fournisseur: str, nom: str, arguments: Mapping[str, Any], id_appel: str
 ) -> httpx2.Response:
-    """`anthropic_outil` ou `mistral_outil` selon `fournisseur`."""
+    """`anthropic_outil`, ou `mistral_outil` (Mistral et `local`, format OpenAI)."""
     if fournisseur == "anthropic":
         return anthropic_outil(nom, arguments, id_appel)
     return mistral_outil(nom, arguments, id_appel)
 
 
 def reponse_texte(fournisseur: str, texte: str) -> httpx2.Response:
-    """`anthropic_texte` ou `mistral_texte` selon `fournisseur`."""
+    """`anthropic_texte`, ou `mistral_texte` (Mistral et `local`, format OpenAI)."""
     return anthropic_texte(texte) if fournisseur == "anthropic" else mistral_texte(texte)
 
 
