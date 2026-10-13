@@ -374,7 +374,7 @@ def test_local_delai_de_requete_adapte_a_un_modele_lent() -> None:
 
     adaptateur = construire_fournisseur_llm(_config("local", "gguf"), "")
     try:
-        client = adaptateur._modele.client.sdk_configuration  # type: ignore[attr-defined]
+        client = adaptateur._modele.client.sdk_configuration
         assert client.timeout_ms == DELAI_LOCAL_MS
     finally:
         adaptateur.fermer()
