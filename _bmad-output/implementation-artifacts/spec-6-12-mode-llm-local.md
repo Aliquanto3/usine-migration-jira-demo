@@ -2,10 +2,10 @@
 title: "Story 6.12 : [BONUS] Mode LLM local"
 type: 'feature'
 created: '2026-10-13'
-status: 'in-review'
+status: 'done'
 baseline_revision: '962ff5453a900b4a4180082493318d46fde9e167'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: [oversized]
 deferred:
@@ -138,3 +138,53 @@ Critère « suites d'évaluation relancées et résultats publiés » : non réa
 - `uv run --no-sync python outils/controle_rapide.py` -- expected: vert pendant le développement.
 - `uv run pytest -q tests/contrat/fournisseur_llm tests/unit/adaptateurs/llm tests/depot/test_import_linter.py` -- expected: tout passe.
 - Suite complète une fois à la fin : `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest -q` -- expected: tout vert.
+
+## Auto Run Result
+
+Status: done
+
+**Changement livré.** Troisième fournisseur `local` (llama-server, API compatible OpenAI) derrière `FournisseurPydanticAI`, choisi par `fournisseur: local` dans `config/llm.yaml`. Pas de clé exigée (`LLAMA_API_KEY` facultative), URL par défaut `http://127.0.0.1:8080/v1`, remplaçable par `USINE_URL_LLM_LOCAL`. Modèle au registre : `local:ministral-3-8b` (Ministral 3 8B Instruct, GGUF Q4_K_M), coût nul. Le cas `local` est ajouté à la suite de contrat `FournisseurLLM`. Commits : `edfe6a6` (Feat), `64b2abd` (Fix, correctifs de revue).
+
+**Fichiers modifiés.**
+- `pyproject.toml`, `uv.lock` : extra `openai` de `pydantic-ai-slim` (openai 3.29.0, verrou hors ligne), `openai` interdit hors `adaptateurs/llm` (import-linter).
+- `src/usine/adaptateurs/llm/fournisseur.py` : branche `local` (`OpenAIChatModel`, profil `max_tokens`), erreurs `openai` traduites, message « serveur local injoignable » réservé aux erreurs de connexion (délais exclus).
+- `src/usine/adaptateurs/llm/registre.py`, `__init__.py` : entrée `local:ministral-3-8b`, export `URL_LLM_LOCAL_DEFAUT`.
+- `src/usine/config/secrets.py`, `src/usine/composition.py` : `LLAMA_API_KEY`, `USINE_URL_LLM_LOCAL` transmis aux deux constructeurs.
+- `config/llm.yaml` : `local` documenté, bloc « mode local » commenté.
+- `docs/mode-llm-local.md` (nouveau), `docs/fiche-outillage.md`, `evals/explication/README.md`, `outils/generer_corpus.py` : procédure (installation b11552, `hf download`, lancement, `/health`, bascule, relance des évaluations) et mentions de `local`.
+- Tests : `tests/contrat/fournisseur_llm/fabriques.py`, `tests/doublures/transport_llm.py`, `tests/unit/adaptateurs/llm/test_fournisseur.py`, `tests/unit/test_composition_llm.py`, `tests/unit/config/test_secrets.py`, `tests/depot/test_import_linter.py`.
+
+**Revue.** 27 constats : 7 medium, 15 low, 5 false.
+- Patches appliqués :
+  - délai dépassé annoncé « injoignable » (medium) ;
+  - `max_completion_tokens` envoyé à llama-server (medium) ;
+  - docstrings du faux transport ;
+  - documentation complétée (503 et 401, alias et registre, installation) ;
+  - mentions de `local` dans les outils et les README.
+- Reportés (`deferred`) :
+  - relance et publication des évaluations sur le modèle local, avec le contrat contre un vrai serveur (medium) ;
+  - `.env.example` et `VARIABLES_SECRETES` (low, fichier sous règle de refus de lecture).
+- Rejetés :
+  - URL distante acceptée (choix de l'opérateur) ;
+  - `tiktoken` (absent du chemin d'appel) ;
+  - repli `url_base` redondant (sans effet) ;
+  - tests par tâche, 500 local et attribut privé (inatteignable ou déjà couvert) ;
+  - URL malformée ou sans schéma (rare, le message cite l'URL) ;
+  - `config/llm.yaml` ne désigne pas `local` (critère conditionnel) ;
+  - `SDK_FOURNISSEURS` (contient déjà `openai`) ;
+  - « aucune revue » (cette passe).
+
+**Revue de suivi recommandée : oui.** Deux entrées medium ont été patchées (0 high, 2 medium). Risque non vérifié : le comportement réel de llama-server b11552 n'a pas été éprouvé, faute de serveur. Il reste à constater qu'il respecte `max_tokens`, qu'il appelle les outils en mode Tool Output avec `--jinja` et `tool_choice`, et qu'il renvoie bien un 503 pendant le chargement du modèle.
+
+**Vérification.** Suite complète, lancée une fois après les correctifs :
+- `ruff check` : vert ;
+- `ruff format --check` : 368 fichiers déjà formatés ;
+- `mypy` : 349 fichiers sans erreur ;
+- `lint-imports` : 15 contrats respectés ;
+- `pytest -q` : 2840 réussis, 1 ignoré, 39 désélectionnés.
+
+Avant la suite complète, les tests ciblés et le contrôle rapide étaient verts. L'audit de la matrice I/O est fait : chaque ligne est couverte par un test `local` qui passe.
+
+**Risques résiduels.**
+- Aucun appel réel n'a été fait : la qualité du modèle local (SM-3, SM-9) reste inconnue tant que les évaluations n'ont pas été relancées.
+- La tenue en 8 Go de VRAM avec un contexte de 16 k n'a pas été mesurée.
