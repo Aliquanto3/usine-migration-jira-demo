@@ -30,6 +30,7 @@ class Tache(StrEnum):
     classification = "classification"
     explication = "explication"
     narration = "narration"
+    doublons = "doublons"
     agent = "agent"
 
 
@@ -192,6 +193,17 @@ class ReponseNarration(Enregistrement):
     texte: str
 
 
+class ReponseDoublons(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `doublons` (FR-36), pour une paire d'Anomalies.
+
+    Le modèle ne donne aucun chiffre : le score de la paire est calculé localement ; publiée :
+    `SortieDoublon`.
+    """
+
+    doublon: bool
+    justification: str = ""
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
@@ -239,6 +251,26 @@ class SortieNarration(Enregistrement):
     entite: str = Field(min_length=1)
     texte: str
     statut_controle: StatutControle = StatutControle.non_controle
+
+
+class SortieDoublon(Enregistrement):
+    """Paire d'Anomalies probablement en doublon (FR-36), à revoir par le Pilote.
+
+    Jamais fusionnée ni écrite dans Jira. `score` (0 à 1) est la similarité lexicale locale des
+    deux textes, pas une valeur du modèle ; `cle_a` précède `cle_b` dans l'ordre des clés.
+    """
+
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: float = Field(ge=0.0, le=1.0)
+    justification: str = ""
+    statut_controle: StatutControle = StatutControle.non_controle
+
+    @model_validator(mode="after")
+    def _paire(self) -> Self:
+        if self.cle_a == self.cle_b:
+            raise ValueError(f"paire de doublons sur une seule Anomalie : {self.cle_a}")
+        return self
 
 
 class ReponseAgent(Enregistrement):

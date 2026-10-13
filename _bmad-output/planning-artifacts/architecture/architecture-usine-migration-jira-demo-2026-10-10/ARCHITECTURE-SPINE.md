@@ -22,6 +22,7 @@ amendments:
   - '2026-10-12 : Story 6.4 (contrats 1.4 : `ReponseClassification`, schéma demandé au fournisseur pour la tâche `classification`, ajout additif)'
   - '2026-10-12 : Story 6.5 (contrats 1.5 : colonne `part` de `SCHEMA_REPARTITION_CAUSES`, fraction des Anomalies ouvertes classées de l''Entité, ajout additif)'
   - '2026-10-12 : Story 6.7 (contrats 1.6 : `ReponseNarration`, schéma demandé au fournisseur pour la tâche `narration`, ajout additif)'
+  - '2026-10-13 : Story 6.11 (contrats 1.9 : tâche `doublons`, schéma `ReponseDoublons` et sortie `SortieDoublon`, ajout additif)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo
@@ -211,7 +212,7 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Clé de cache.** Elle vaut `(tache, cible, date_arrete, version_prompt, version_modele, empreinte de l'entrée pseudonymisée, tentative)`. Pour la classification, la cible est la clé du ticket et la Date d'arrêté est exclue (FR-35).
   - **Contenu du cache.** `version_donnees` n'entre pas dans la clé, et figure dans la trace. Le cache stocke la réponse brute avant contrôle, et un succès en cache repasse le contrôle.
   - **Stockage du cache.** La passerelle passe par le port `CacheLLM` (`lire(cle) -> str | None`, `ecrire(cle, brut)`), implémenté par `adaptateurs/stockage_sqlite` sur `donnees/cache_llm.sqlite` en mode WAL. Seule la passerelle l'appelle. La valeur stockée est une `EnveloppeCache` de `contrats.llm` : la réponse brute et le `version_modele` qui l'a produite.
-  - **Tâches.** Elles sont figées : `classification`, `explication`, `narration`, `agent`. Leurs sorties sont des contrats de `contrats.llm`, avec `statut_controle`. Le Brouillon de commentaire est un champ de `SortieExplication`.
+  - **Tâches.** Elles sont figées : `classification`, `explication`, `narration`, `doublons`, `agent`. Leurs sorties sont des contrats de `contrats.llm`, avec `statut_controle`. Le Brouillon de commentaire est un champ de `SortieExplication`.
   - **Schémas de réponse.** Le schéma passé à `FournisseurLLM.generer_structure` est, pour chaque tâche, un modèle `Reponse<Tache>` de `contrats.llm` ; la sortie publiée reste `Sortie<Tache>`. `ReponseExplication` est gelée en 0.9 ; `ReponseClassification` et `ReponseNarration` s'ajoutent par une PR courte sur `main` au début de L6 (ajout = version mineure).
   - **Dégradation.** Un contrôle en échec, ou le dépassement du plafond de coût par Passage (`config/llm.yaml`), dégrade l'élément en libellé explicite (« explication indisponible », Prévision brute), sans faire échouer le Passage. Un fournisseur injoignable au démarrage d'une étape LLM fait échouer l'étape, donc le Passage (FR-25). Le Mode repli couvre la démo (décision du 10/10/2026, H-31).
   - **Coût.** `EntreeTrace` porte `jetons_entree`, `jetons_sortie` et `cout_estime_eur`. Le manifeste porte `cout_llm_eur`.

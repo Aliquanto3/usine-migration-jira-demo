@@ -15,9 +15,11 @@ from usine.contrats.llm import (
     MessageAgent,
     ReponseAgent,
     ReponseAgentEnregistree,
+    ReponseDoublons,
     ReponseExplication,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublon,
     StatutControle,
     Tache,
     est_type_jeton,
@@ -31,7 +33,24 @@ PASSAGE = "20261012T080000Z-0a1b2c"
 
 
 def test_taches_figees() -> None:
-    assert [t.value for t in Tache] == ["classification", "explication", "narration", "agent"]
+    assert [t.value for t in Tache] == [
+        "classification",
+        "explication",
+        "narration",
+        "doublons",
+        "agent",
+    ]
+
+
+def test_sortie_doublon_borne_le_score_et_refuse_une_paire_sur_une_seule_anomalie() -> None:
+    paire = SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=0.75)
+    assert paire.statut_controle is StatutControle.non_controle
+    assert ReponseDoublons(doublon=True).justification == ""
+    for score in (-0.1, 1.1):
+        with pytest.raises(ValidationError):
+            SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=score)
+    with pytest.raises(ValidationError, match="une seule Anomalie"):
+        SortieDoublon(cle_a="DEMO-1", cle_b="DEMO-1", score=0.5)
 
 
 def test_reponse_structuree_generique() -> None:
@@ -67,7 +86,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.8.0"
+    assert enregistree.contrats_version == "1.9.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):
