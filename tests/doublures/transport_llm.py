@@ -1,4 +1,4 @@
-"""Faux transport HTTP des API Anthropic et Mistral : réponses enregistrées, jamais de réseau.
+"""Faux transport HTTP des API Anthropic, Mistral et llama-server : jamais de réseau.
 
 `TransportScripte` rejoue une liste de réponses dans l'ordre et garde le corps JSON de chaque
 requête. Les fonctions `anthropic_*` et `mistral_*` produisent les réponses au format des API
@@ -14,7 +14,11 @@ import httpx2
 from usine.adaptateurs.llm import FournisseurPydanticAI, construire_fournisseur_llm
 from usine.contrats.config import ConfigLLM
 
-MODELES = {"anthropic": "claude-sonnet-5-5", "mistral": "mistral-large-latest"}
+MODELES = {
+    "anthropic": "claude-sonnet-5-5",
+    "mistral": "mistral-large-latest",
+    "local": "qwen3-8b-q4_k_m",
+}
 """Modèle par défaut de chaque fournisseur dans les tests."""
 
 

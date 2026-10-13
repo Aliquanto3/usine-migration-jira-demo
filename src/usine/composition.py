@@ -61,6 +61,7 @@ moteur de Pseudonymisation, sur une table en mémoire qui refuse toute écriture
 """
 
 import json
+import os
 import secrets
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -335,7 +336,8 @@ def construire_fournisseur(
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
-    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
+    `MISTRAL_API_KEY`, `fournisseur: local` n'a pas de clé (`llama-server`, adresse dans
+    `LLM_LOCAL_URL`) ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
     des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
 
     `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
@@ -364,7 +366,16 @@ def construire_fournisseur(
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
     cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
     cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    return construire_fournisseur_llm(
+        config, cle.get_secret_value() if cle is not None else "", url_locale=_url_locale()
+    )
+
+
+def _url_locale() -> str:
+    """Adresse de `llama-server` (fournisseur `local`) : `LLM_LOCAL_URL`, sinon le port 8080."""
+    from usine.adaptateurs.llm import URL_LOCALE_DEFAUT, VARIABLE_URL_LOCALE
+
+    return os.environ.get(VARIABLE_URL_LOCALE, "").strip() or URL_LOCALE_DEFAUT
 
 
 def construire_fournisseurs_par_tache(
@@ -392,6 +403,7 @@ def construire_fournisseurs_par_tache(
             construits[tache] = construire_fournisseur_llm(
                 config.model_copy(update={"modele": modele}),
                 cle.get_secret_value() if cle is not None else "",
+                url_locale=_url_locale(),
             )
     except BaseException:
         _fermer_tous(construits.values())

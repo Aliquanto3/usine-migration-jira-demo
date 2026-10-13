@@ -247,3 +247,14 @@ def test_generer_corpus_llm_bilan(tmp_path: Path) -> None:
     assert bilan.jetons_sortie > 0
     assert bilan.cout_eur == Decimal(0)
     assert charger_corpus(bilan.chemin).modele_corpus == "factice:redacteur"
+
+
+def test_fournisseur_local_sans_cle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Story 6.12 : `fournisseur: local` n'exige aucune clé ; `LLM_LOCAL_URL` règle l'adresse."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.setenv("LLM_LOCAL_URL", "http://127.0.0.1:9000/v1")
+    racine = _racine(tmp_path, "local", "qwen3-8b-q4_k_m")
+    adaptateur = construire_fournisseur(racine)
+    assert isinstance(adaptateur, FournisseurLLM)
+    assert adaptateur.version_modele == "local:qwen3-8b-q4_k_m"

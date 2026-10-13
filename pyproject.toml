@@ -16,7 +16,7 @@ dependencies = [
     "pyyaml==6.0.3",
     "typer==0.27.3",
     "httpx==0.28.1",
-    "pydantic-ai-slim[anthropic,mistral]==2.55.0",
+    "pydantic-ai-slim[anthropic,mistral,openai]==2.55.0",
     "presidio-analyzer==2.2.364",
     "presidio-anonymizer==2.2.364",
     "spacy==3.8.16",
@@ -121,7 +121,7 @@ forbidden_modules = [
     "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.config",
     "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -136,7 +136,7 @@ forbidden_modules = [
     "usine.adaptateurs", "usine.generateur", "usine.config", "usine.composition", "usine.cli",
     "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -151,7 +151,7 @@ forbidden_modules = [
     "usine.adaptateurs", "usine.generateur", "usine.config", "usine.composition", "usine.cli",
     "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
     "io", "os", "pathlib", "random", "secrets", "shutil", "socket", "sqlite3", "subprocess",
@@ -167,7 +167,7 @@ forbidden_modules = [
     "usine.domaine", "usine.chaine", "usine.ia", "usine.rendu", "usine.adaptateurs",
     "usine.generateur", "usine.config", "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -183,7 +183,7 @@ forbidden_modules = [
     "usine.ia", "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.config",
     "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -199,7 +199,7 @@ forbidden_modules = [
     "usine.domaine", "usine.chaine", "usine.rendu", "usine.adaptateurs", "usine.generateur",
     "usine.config", "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -230,7 +230,7 @@ forbidden_modules = [
     "usine.domaine", "usine.chaine", "usine.ia", "usine.adaptateurs", "usine.generateur",
     "usine.config", "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -259,11 +259,12 @@ allow_indirect_imports = true
 name = "pydantic_ai, anthropic, mistralai : adaptateurs/llm seulement"
 type = "forbidden"
 source_modules = ["usine"]
-forbidden_modules = ["pydantic_ai", "anthropic", "mistralai"]
+forbidden_modules = ["pydantic_ai", "anthropic", "mistralai", "openai"]
 ignore_imports = [
     "usine.adaptateurs.llm -> pydantic_ai", "usine.adaptateurs.llm.** -> pydantic_ai",
     "usine.adaptateurs.llm -> anthropic", "usine.adaptateurs.llm.** -> anthropic",
     "usine.adaptateurs.llm -> mistralai", "usine.adaptateurs.llm.** -> mistralai",
+    "usine.adaptateurs.llm -> openai", "usine.adaptateurs.llm.** -> openai",
 ]
 unmatched_ignore_imports_alerting = "none"
 allow_indirect_imports = true
@@ -276,7 +277,7 @@ forbidden_modules = [
     "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
     "usine.adaptateurs", "usine.config", "usine.composition", "usine.cli", "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer", "yaml",
 ]
@@ -296,7 +297,7 @@ forbidden_modules = [
     "usine.rendu", "usine.adaptateurs", "usine.generateur", "usine.composition", "usine.cli",
     "usine.ui",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "streamlit", "time_machine", "typer",
 ]
@@ -310,7 +311,7 @@ forbidden_modules = [
     "usine.ports", "usine.domaine", "usine.chaine", "usine.ia", "usine.rendu",
     "usine.adaptateurs", "usine.generateur", "usine.config", "usine.cli",
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
-    "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
+    "mistralai", "mypy", "numpy", "openai", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
     "ruff", "sklearn", "spacy", "time_machine", "typer", "yaml",
 ]

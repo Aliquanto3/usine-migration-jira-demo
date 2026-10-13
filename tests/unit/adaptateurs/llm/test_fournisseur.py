@@ -28,7 +28,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -77,7 +77,7 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert corps["max_tokens"] == 300
+    assert corps.get("max_tokens", corps.get("max_completion_tokens")) == 300
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -334,3 +334,55 @@ def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
     assert ("temperature" in corps) is accepte
     if accepte:
         assert corps["temperature"] == 0.2
+
+
+def test_local_sans_cle_ni_cout() -> None:
+    """Story 6.12 : `llama-server` n'exige aucune clé d'API et ne coûte rien."""
+    config = _config("local", MODELES["local"])
+    adaptateur = construire_fournisseur_llm(config, "")
+    try:
+        assert adaptateur.version_modele == f"local:{MODELES['local']}"
+    finally:
+        adaptateur.fermer()
+    assert cout_estime_eur(f"local:{MODELES['local']}", 10_000, 5_000) == 0
+    assert tarif("local:autre-modele.gguf").gratuit
+
+
+def test_local_sans_nom_de_modele_refuse() -> None:
+    with pytest.raises(UsineErreur, match="registre"):
+        tarif("local:")
+
+
+def test_local_vise_l_url_configuree() -> None:
+    transport = TransportScripte([_sortie("local")])
+    config = _config("local", MODELES["local"])
+    adaptateur = construire_fournisseur_llm(
+        config, "", transport.client(), lambda _: None, url_locale="http://127.0.0.1:9999/v1"
+    )
+    adaptateur.generer_structure("Classe DEMO-1.", Sortie, STRUCTURE)
+    assert transport.urls == ["http://127.0.0.1:9999/v1/chat/completions"]
+
+
+def test_local_ne_combine_jamais_schema_et_outils() -> None:
+    """Structure : le seul outil est la sortie ; Agent : aucun outil de sortie."""
+    appels: list[Mapping[str, JsonValue]] = []
+    structure = TransportScripte([_sortie("local")])
+    fournisseur_scripte("local", structure).generer_structure("p", Sortie, STRUCTURE)
+    assert _noms_outils(structure.requetes[0]) == {"reponse"}
+    agent = TransportScripte([reponse_texte("local", "ok")])
+    fournisseur_scripte("local", agent).executer_agent(
+        (MessageAgent(role="utilisateur", contenu="?"),), (_outil(appels),), AGENT
+    )
+    assert _noms_outils(agent.requetes[0]) == {"get_meteo"}
+
+
+def test_local_serveur_injoignable_devient_une_erreur_usine() -> None:
+    def refuse(requete: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("refusé", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(refuse))
+    adaptateur = construire_fournisseur_llm(
+        _config("local", MODELES["local"]), "", client, lambda _: None
+    )
+    with pytest.raises(UsineErreur, match="local:"):
+        adaptateur.generer_structure("p", Sortie, STRUCTURE)
