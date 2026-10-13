@@ -72,3 +72,14 @@ Les fichiers versionnés sont donc des réponses rejouées et non des réponses 
 **Commands:**
 - `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run lint-imports && uv run pytest -q` -- expected: tout vert
 - `USINE_MODE_REPLI=1 uv run usine ui` -- expected: écran Agent jouable sans réseau
+
+## Revue
+
+Revue Edge Case Hunter du commit `846542d` : aucun constat medium ni high, aucun correctif de code.
+
+- low, rejeté : `SessionAgent.repondre` ré-identifie le texte avant écriture dans `demo/repli/agent/*.json` ; les valeurs ré-identifiées viennent de la copie `demo/repli/passage/`, déjà versionnée et affichée telle quelle par l'UI, et `ReponseAgentEnregistree` ne porte aucun secret : pas de nouvelle exposition.
+- low, rejeté : la réponse rejouée disparaît au rerun suivant (bouton Streamlit) et un nouveau clic la rejoue ; comportement identique au formulaire hors repli, acceptable pour la démo.
+- low, rejeté : écriture des fichiers non atomique (anciens `*.json` supprimés puis réécrits un à un) ; un échec disque en cours laisserait un jeu partiel, détecté au rejeu seulement si un fichier est illisible. Cas improbable, enregistrement relancé à la main.
+- low, rejeté : `charger_reponses` accepte un fichier édité à la main au statut `rejete` (affiché en avertissement) ; `enregistrer_reponses` n'en écrit jamais, fichiers versionnés et relus en revue.
+- low, rejeté : index de radio périmé dans `session_state` si le nombre de réponses diminue pendant que la page tourne ; seulement après un réenregistrement en cours de démo.
+- info : Mode repli sans LLM vérifié (branche avant toute session, test qui fait échouer `session_agent`), pas de saisie libre (test `not page.text_input`), `passage_id` différent et répertoire vide refusés avec message explicite (tests UI et unitaires). Écran Agent hors repli inchangé (extraction de `_afficher_reponse` seule).
