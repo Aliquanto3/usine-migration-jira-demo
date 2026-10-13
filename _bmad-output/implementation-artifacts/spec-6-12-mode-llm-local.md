@@ -5,7 +5,7 @@ created: '2026-10-13'
 status: 'review'
 baseline_revision: '962ff5453a900b4a4180082493318d46fde9e167'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred:
@@ -124,3 +124,26 @@ llama-server expose `/v1/chat/completions` au format OpenAI, outils compris avec
 - `uv run --no-sync python outils/controle_rapide.py` -- expected: vert pendant le développement.
 - `uv run pytest -q tests/contrat/fournisseur_llm tests/unit/adaptateurs/llm tests/unit/test_composition_llm.py tests/depot/test_import_linter.py` -- expected: vert.
 - `uv run ruff check . ; uv run ruff format --check . ; uv run mypy ; uv run lint-imports ; uv run pytest -q` -- expected: tout vert, une fois à la fin.
+
+## Auto Run Result
+
+Status: done
+
+**Résumé.** Troisième fournisseur `llama` (llama.cpp `llama-server`, API compatible OpenAI) servi par `FournisseurPydanticAI` via `OpenAIChatModel` (extra `openai` de `pydantic-ai-slim`), choisi par `fournisseur: llama` dans `config/llm.yaml`, sans clé, adresse par `USINE_LLAMA_URL` (défaut `http://127.0.0.1:8080/v1`), coût nul au registre (`llama:qwen3-8b-q4_k_m`). L'adaptateur passe la suite de contrat `FournisseurLLM` sur faux transport.
+
+**Fichiers.**
+- `pyproject.toml`, `uv.lock` : extra `openai` ; `openai` interdit hors `adaptateurs/llm` dans tous les contrats import-linter.
+- `src/usine/adaptateurs/llm/fournisseur.py` : branche `llama`, `URL_LLAMA_DEFAUT`, clé non exigée, profil OpenAI qui envoie `max_tokens`, `openai.APIError` traduite.
+- `src/usine/adaptateurs/llm/registre.py`, `__init__.py` : modèle local à coût nul, export.
+- `src/usine/config/secrets.py`, `src/usine/composition.py` : `USINE_LLAMA_URL` transmis aux deux constructions.
+- `config/llm.yaml`, `.env.example` : bascule documentée (valeurs actives inchangées).
+- `docs/mode-llm-local.md` (nouveau), `docs/fiche-outillage.md`, `evals/*/README.md` : procédure (llama-server b11552, Qwen3-8B Q4_K_M, `--reasoning-budget 0`, `/health`), relance des suites.
+- Tests : fabrique `llama` de la suite de contrat, unitaires paramétrés et propres à llama, composition (URL transmise), import-linter.
+
+**Revue.** 28 constats : 8 correctifs appliqués (3 medium, 5 low ; commit `Fix: Story 6.12, correctifs de revue`), 0 nouveau report, rejets motivés dans le journal de triage (clé llama-server, reprise du 503, validation d'URL, bascule de `modeles_par_tache` : low à surcoût de complexité ; exécution réelle : exclue par la consigne ; 3 faux).
+
+**Revue de suivi recommandée : oui** (3 entrées medium corrigées). Risque nommé : le profil OpenAI fusionné (`merge_profile`) et la commande llama-server documentée n'ont été relus par aucune passe ; leur comportement contre llama-server b11552 n'est pas observé.
+
+**Vérification.** `ruff check`, `ruff format --check`, `mypy`, `lint-imports` (15 contrats tenus), `pytest -q` (2838 réussis, 1 sauté) : tout vert, une fois à la fin ; tests ciblés et contrôle rapide verts pendant le développement.
+
+**Risques résiduels.** Aucun essai contre un vrai llama-server (interdit par la consigne) : `tool_choice: required`, `max_tokens`, `--reasoning-budget 0` et l'empreinte VRAM restent à confirmer ; relance des suites d'évaluation et publication des résultats reportées (`deferred`).

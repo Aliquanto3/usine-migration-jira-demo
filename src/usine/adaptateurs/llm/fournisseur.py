@@ -417,7 +417,7 @@ def construire_fournisseur_llm(
             max_retries=0,
         )
         fournisseur_openai = OpenAIProvider(openai_client=client_llama)
-        # llama-server ignore `max_completion_tokens` : on envoie `max_tokens` (sortie bornée).
+        # `max_tokens`, toujours lu par llama-server, plutôt que `max_completion_tokens`.
         profil = merge_profile(
             fournisseur_openai.model_profile(config.modele),
             OpenAIModelProfile(openai_chat_supports_max_completion_tokens=False),
