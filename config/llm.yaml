@@ -2,7 +2,8 @@
 # se changent ici, sans modification de code. Le modèle doit figurer dans le registre des
 # quotas et des prix (`src/usine/adaptateurs/llm/registre.py`).
 
-# Fournisseur : anthropic (clé ANTHROPIC_API_KEY) ou mistral (clé MISTRAL_API_KEY).
+# Fournisseur : anthropic (clé ANTHROPIC_API_KEY), mistral (clé MISTRAL_API_KEY) ou local
+# (llama-server, sans clé ; voir le bloc « mode local » en bas).
 fournisseur: anthropic
 # Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
 modele: claude-sonnet-5-5
@@ -21,3 +22,11 @@ modeles_par_tache:
   # tout le stock contre 10 € sur Sonnet 5.5. Changer ce modèle change la clé de cache : le
   # stock est reclassé, dans la limite de la part du plafond.
   classification: claude-haiku-5-5
+
+# --- Mode LLM local (FR-37) : llama-server, sans clé ni appel distant. Voir docs/mode-llm-local.md.
+# Remplacer `fournisseur`, `modele` et `modeles_par_tache` ci-dessus par :
+#   fournisseur: local
+#   modele: ministral-3-8b
+#   modeles_par_tache:
+#     classification: ministral-3-8b
+# URL du serveur : variable USINE_URL_LLM_LOCAL (défaut http://127.0.0.1:8080/v1).

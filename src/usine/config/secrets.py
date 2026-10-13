@@ -21,6 +21,9 @@ class Secrets(BaseSettings):
     jira_dc_pat: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
     mistral_api_key: SecretStr | None = None
+    llama_api_key: SecretStr | None = None
+    usine_url_llm_local: str | None = None
+    """URL de `llama-server` (mode LLM local) ; absente : l'URL par défaut."""
     usine_cle_pseudo: SecretStr | None = None
     usine_mode_repli: bool = False
     usine_racine: str | None = None

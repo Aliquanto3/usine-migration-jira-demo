@@ -1,4 +1,4 @@
-"""`FournisseurLLM` sur Pydantic AI : Anthropic et Mistral derrière le même port (AD-13).
+"""`FournisseurLLM` sur Pydantic AI : Anthropic, Mistral, `llama-server` local (AD-13).
 
 `generer_structure` utilise le mode Tool Output avec le schéma demandé, sans outil ;
 `executer_agent` utilise `output_type=str` avec les seuls outils reçus. Un appel ne combine
@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from typing import Any
 
 import anthropic
+import openai
 from mistralai.client import Mistral
 from pydantic import BaseModel, JsonValue
 from pydantic_ai import Agent, ToolOutput
@@ -33,9 +34,11 @@ from pydantic_ai.messages import (
 from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.mistral import MistralModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.mistral import MistralProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import Tool
 
@@ -52,11 +55,20 @@ from usine.contrats.llm import (
 )
 from usine.contrats.versions import version_modele
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 """Valeurs admises de `fournisseur` dans `config/llm.yaml`."""
 
 VARIABLES_CLE = {"anthropic": "ANTHROPIC_API_KEY", "mistral": "MISTRAL_API_KEY"}
-"""Variable d'environnement de la clé d'API de chaque fournisseur (AD-19, H-23)."""
+"""Variable d'environnement de la clé d'API de chaque fournisseur distant (AD-19, H-23)."""
+
+VARIABLE_CLE_LOCAL = "LLAMA_API_KEY"
+"""Clé facultative de `llama-server` (option `--api-key`), envoyée si présente."""
+
+VARIABLE_URL_LOCAL = "USINE_URL_LLM_LOCAL"
+"""Variable qui remplace `URL_LLM_LOCAL_DEFAUT`."""
+
+URL_LLM_LOCAL_DEFAUT = "http://127.0.0.1:8080/v1"
+"""URL de base (API compatible OpenAI) de `llama-server` lancé en local."""
 
 ATTENTE_BASE_S = 1.0
 """Première attente après un 429 sans `Retry-After` ; chaque attente double au moins."""
@@ -75,6 +87,17 @@ def _retry_after(entetes: Mapping[str, str] | None) -> float:
         return max(0.0, float(valeur))
     except ValueError:
         return 0.0
+
+
+def _injoignable(exc: BaseException) -> bool:
+    """Vrai si `exc` est une erreur de connexion (et non une réponse HTTP du serveur)."""
+    if isinstance(exc, ModelHTTPError):
+        return False
+    if isinstance(exc, openai.APIConnectionError):
+        return True
+    return isinstance(exc, ModelAPIError) and isinstance(
+        exc.__cause__, openai.APIConnectionError | OSError
+    )
 
 
 def _vers_pydantic_ai(messages: Sequence[MessageAgent]) -> list[ModelMessage]:
@@ -216,12 +239,15 @@ class FournisseurPydanticAI:
         attendre: Callable[[float], None] = time.sleep,
         horloge: Callable[[], float] = time.monotonic,
         temperature: float | None = 0.0,
+        url_base: str | None = None,
     ) -> None:
         """`temperature` : valeur de `config/llm.yaml`, `None` si le modèle refuse ce réglage.
 
         `ParametresAppel.temperature` ne prime que s'il est fixé explicitement par l'appelant.
         """
         self._temperature = temperature
+        self._fournisseur = fournisseur
+        self._url_base = url_base
         self._version = version_modele(fournisseur, nom_modele)
         self._espacement = tarif(self._version).espacement_s
         self._modele = _ModeleRepris(modele, self._requete)
@@ -282,7 +308,20 @@ class FournisseurPydanticAI:
             return self._boucle.run_until_complete(execution)
         except UsineErreur:
             raise
-        except (ModelAPIError, AgentRunError, UserError, anthropic.APIError, RuntimeError) as exc:
+        except (
+            ModelAPIError,
+            AgentRunError,
+            UserError,
+            anthropic.APIError,
+            openai.APIError,
+            RuntimeError,
+        ) as exc:
+            if self._fournisseur == "local" and _injoignable(exc):
+                raise UsineErreur(
+                    f"{self._version} : serveur local injoignable"
+                    f" à {self._url_base or URL_LLM_LOCAL_DEFAUT} ; démarrer `llama-server`"
+                    f" (docs/mode-llm-local.md) ou fixer {VARIABLE_URL_LOCAL}"
+                ) from None
             raise UsineErreur(
                 f"{self._version} : appel au fournisseur LLM en échec ({type(exc).__name__})"
             ) from None
@@ -370,17 +409,20 @@ def construire_fournisseur_llm(
     client_http: Any = None,
     attendre: Callable[[float], None] = time.sleep,
     horloge: Callable[[], float] = time.monotonic,
+    *,
+    url_base: str | None = None,
 ) -> FournisseurPydanticAI:
     """Adaptateur du fournisseur de `config/llm.yaml`, sans modification de code (H-23).
 
     `client_http` remplace le client HTTP asynchrone des SDK (tests : faux transport).
+    `local` (llama-server) n'exige aucune clé ; `url_base` remplace `URL_LLM_LOCAL_DEFAUT`.
     """
     if config.fournisseur not in FOURNISSEURS:
         raise UsineErreur(
             f"config/llm.yaml, clé « fournisseur » : {config.fournisseur!r} inconnu ;"
             f" valeurs admises : {', '.join(FOURNISSEURS)}"
         )
-    if not cle_api.strip():
+    if config.fournisseur != "local" and not cle_api.strip():
         raise UsineErreur(
             f"variable d'environnement {VARIABLES_CLE[config.fournisseur]} absente ou vide"
         )
@@ -388,6 +430,17 @@ def construire_fournisseur_llm(
     if config.fournisseur == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=cle_api, http_client=client_http, max_retries=0)
         modele = AnthropicModel(config.modele, provider=AnthropicProvider(anthropic_client=client))
+    elif config.fournisseur == "local":
+        url_base = (url_base or "").strip() or URL_LLM_LOCAL_DEFAUT
+        client_openai = openai.AsyncOpenAI(
+            api_key=cle_api.strip() or "sans-cle",
+            base_url=url_base,
+            http_client=client_http,
+            max_retries=0,
+        )
+        modele = OpenAIChatModel(
+            config.modele, provider=OpenAIProvider(openai_client=client_openai)
+        )
     else:
         mistral = Mistral(api_key=cle_api, async_client=client_http)
         modele = MistralModel(config.modele, provider=MistralProvider(mistral_client=mistral))
@@ -403,12 +456,16 @@ def construire_fournisseur_llm(
             if tarif(version_modele(config.fournisseur, config.modele)).temperature
             else None
         ),
+        url_base=url_base,
     )
 
 
 __all__ = [
     "FOURNISSEURS",
+    "URL_LLM_LOCAL_DEFAUT",
     "VARIABLES_CLE",
+    "VARIABLE_CLE_LOCAL",
+    "VARIABLE_URL_LOCAL",
     "FournisseurPydanticAI",
     "construire_fournisseur_llm",
 ]

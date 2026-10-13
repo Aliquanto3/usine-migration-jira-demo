@@ -69,3 +69,17 @@ def test_charger_secrets_env_illisible(tmp_path: Path, monkeypatch: pytest.Monke
     with pytest.raises(UsineErreur, match=r"\.env.*accès refusé") as erreur:
         charger_secrets(tmp_path)
     assert erreur.value.__suppress_context__
+
+
+def test_mode_llm_local_sans_cle_par_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
+    for nom in ("LLAMA_API_KEY", "USINE_URL_LLM_LOCAL"):
+        monkeypatch.delenv(nom, raising=False)
+    secrets = Secrets(_env_file=None)
+    assert secrets.llama_api_key is None
+    assert secrets.usine_url_llm_local is None
+    monkeypatch.setenv("LLAMA_API_KEY", "cle-locale")
+    monkeypatch.setenv("USINE_URL_LLM_LOCAL", "http://hote:9000/v1")
+    secrets = Secrets(_env_file=None)
+    assert secrets.llama_api_key is not None
+    assert "cle-locale" not in repr(secrets)
+    assert secrets.usine_url_llm_local == "http://hote:9000/v1"

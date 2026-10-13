@@ -335,8 +335,10 @@ def construire_fournisseur(
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
-    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
-    des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
+    `MISTRAL_API_KEY`, `fournisseur: local` (llama-server) n'exige aucune clé
+    (`LLAMA_API_KEY` facultative, URL `USINE_URL_LLM_LOCAL`) ; un fichier absent, un fournisseur
+    inconnu, un modèle hors du registre des quotas et des prix ou une clé absente lèvent une
+    `UsineErreur`.
 
     `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
     production du Corpus, Story 1.9) ; sans ce fichier, la configuration minimale suffit.
@@ -362,9 +364,17 @@ def construire_fournisseur(
         chemin = racine / "config" / "llm.yaml"
         raise UsineErreur(f"{chemin} : fichier absent ; aucun fournisseur LLM configuré")
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
-    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
+    cles = {
+        "anthropic": secrets_usine.anthropic_api_key,
+        "mistral": secrets_usine.mistral_api_key,
+        "local": secrets_usine.llama_api_key,
+    }
     cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    return construire_fournisseur_llm(
+        config,
+        cle.get_secret_value() if cle is not None else "",
+        url_base=secrets_usine.usine_url_llm_local,
+    )
 
 
 def construire_fournisseurs_par_tache(
@@ -382,7 +392,11 @@ def construire_fournisseurs_par_tache(
     if config is None or not config.modeles_par_tache:
         return {}
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
-    cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
+    cles = {
+        "anthropic": secrets_usine.anthropic_api_key,
+        "mistral": secrets_usine.mistral_api_key,
+        "local": secrets_usine.llama_api_key,
+    }
     cle = cles.get(config.fournisseur)
     construits: dict[Tache, FournisseurLLM] = {}
     try:
@@ -392,6 +406,7 @@ def construire_fournisseurs_par_tache(
             construits[tache] = construire_fournisseur_llm(
                 config.model_copy(update={"modele": modele}),
                 cle.get_secret_value() if cle is not None else "",
+                url_base=secrets_usine.usine_url_llm_local,
             )
     except BaseException:
         _fermer_tous(construits.values())

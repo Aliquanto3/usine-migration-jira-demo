@@ -247,3 +247,25 @@ def test_generer_corpus_llm_bilan(tmp_path: Path) -> None:
     assert bilan.jetons_sortie > 0
     assert bilan.cout_eur == Decimal(0)
     assert charger_corpus(bilan.chemin).modele_corpus == "factice:redacteur"
+
+
+# --- Story 6.12 : mode LLM local (llama-server) ---
+
+
+def test_fournisseur_local_sans_aucune_cle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for nom in ("LLAMA_API_KEY", "USINE_URL_LLM_LOCAL", "ANTHROPIC_API_KEY", "MISTRAL_API_KEY"):
+        monkeypatch.delenv(nom, raising=False)
+    racine = _racine(tmp_path, "local", "ministral-3-8b")
+    adaptateur = construire_fournisseur(racine)
+    assert adaptateur.version_modele == "local:ministral-3-8b"
+    getattr(adaptateur, "fermer", lambda: None)()
+
+
+def test_fournisseur_local_transmet_l_url_de_l_environnement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("USINE_URL_LLM_LOCAL", "http://hote:9000/v1")
+    racine = _racine(tmp_path, "local", "ministral-3-8b")
+    adaptateur = construire_fournisseur(racine)
+    assert getattr(adaptateur, "_url_base", None) == "http://hote:9000/v1"
+    getattr(adaptateur, "fermer", lambda: None)()

@@ -17,6 +17,7 @@ from tests.doublures.transport_llm import (
 )
 from usine.adaptateurs.llm import (
     REGISTRE,
+    URL_LLM_LOCAL_DEFAUT,
     FournisseurPydanticAI,
     construire_fournisseur_llm,
     cout_estime_eur,
@@ -28,7 +29,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -77,7 +78,7 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert corps["max_tokens"] == 300
+    assert (corps.get("max_tokens") or corps.get("max_completion_tokens")) == 300
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -221,7 +222,7 @@ def test_modele_hors_registre_refuse() -> None:
 def test_registre_quotas_et_prix() -> None:
     assert "anthropic:claude-sonnet-5-5" in REGISTRE
     gratuits = [cle for cle, prix in REGISTRE.items() if prix.gratuit]
-    assert gratuits and all(cle.startswith("mistral:") for cle in gratuits)
+    assert gratuits and all(cle.startswith(("mistral:", "local:")) for cle in gratuits)
     assert all(p.requetes_par_minute > 0 and p.jetons_par_minute > 0 for p in REGISTRE.values())
     sonnet = tarif("anthropic:claude-sonnet-5-5")
     attendu = (sonnet.prix_entree_eur_mtok * 1000 + sonnet.prix_sortie_eur_mtok * 500) / 1_000_000
@@ -334,3 +335,58 @@ def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
     assert ("temperature" in corps) is accepte
     if accepte:
         assert corps["temperature"] == 0.2
+
+
+# --- Story 6.12 : mode LLM local (llama-server) ---
+
+
+def _config_locale() -> ConfigLLM:
+    return _config("local", MODELES["local"])
+
+
+def test_local_sans_cle_construit_l_adaptateur() -> None:
+    adaptateur = construire_fournisseur_llm(_config_locale(), "")
+    assert adaptateur.version_modele == "local:ministral-3-8b"
+    adaptateur.fermer()
+
+
+def test_local_url_par_defaut_et_url_configuree() -> None:
+    transport = TransportScripte([_sortie("local")])
+    construire_fournisseur_llm(_config_locale(), "", transport.client()).generer_structure(
+        "p", Sortie, STRUCTURE
+    )
+    assert transport.urls == [f"{URL_LLM_LOCAL_DEFAUT}/chat/completions"]
+    assert URL_LLM_LOCAL_DEFAUT == "http://127.0.0.1:8080/v1"
+
+    transport = TransportScripte([_sortie("local")])
+    construire_fournisseur_llm(
+        _config_locale(), "", transport.client(), url_base="http://hote:9000/v1"
+    ).generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == ["http://hote:9000/v1/chat/completions"]
+
+
+def test_local_envoie_la_cle_facultative_si_presente() -> None:
+    envois: list[str] = []
+
+    def transport(requete: httpx2.Request) -> httpx2.Response:
+        envois.append(requete.headers.get("authorization", ""))
+        return _sortie("local")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(transport))
+    construire_fournisseur_llm(_config_locale(), "cle-locale", client).generer_structure(
+        "p", Sortie, STRUCTURE
+    )
+    assert envois == ["Bearer cle-locale"]
+
+
+def test_local_serveur_injoignable_invite_a_demarrer_llama_server() -> None:
+    def transport(requete: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("connexion refusée", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(transport))
+    adaptateur = construire_fournisseur_llm(
+        _config_locale(), "", client, url_base="http://hote:9000/v1"
+    )
+    with pytest.raises(UsineErreur, match=r"local:ministral-3-8b.*hote:9000.*llama-server") as exc:
+        adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert exc.value.__cause__ is None
