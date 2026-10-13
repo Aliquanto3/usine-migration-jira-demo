@@ -130,7 +130,7 @@ development_status:
   6-6-explication-sourcée-et-brouillon-de-commentaire: done
   6-7-narration-de-la-prévision: done
   6-8-suite-d-évaluation-de-l-explication-sourcée: done
-  6-9-suite-d-évaluation-de-la-classification: backlog  # prérequis : 1.9
+  6-9-suite-d-évaluation-de-la-classification: done
   6-10-recette-palier-2: backlog
   6-11-bonus-détection-de-doublons: backlog  # BONUS — après tous les indispensables
   6-12-bonus-mode-llm-local: backlog  # BONUS — après tous les indispensables
