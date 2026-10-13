@@ -68,3 +68,12 @@ Le format des réponses de `llama-server` est celui des Chat Completions : les d
 - **Résumé** : fournisseur `local` (`llama-server`) derrière `FournisseurLLM`, sans clé ni coût, adresse par `LLM_LOCAL_URL`.
 - **Reporté** : relance réelle des suites d'évaluation (SM-3, SM-9) et publication des résultats, faute de serveur et de GGUF dans l'environnement ; commandes et protocole dans `docs/mode-llm-local.md`.
 - **Écart** : dépendance `openai` ajoutée (extra de pydantic-ai-slim) ; `ConfigLLM` inchangé, donc aucune PR contrats.
+
+## Revue
+
+- Suite complète (ruff, format, mypy, lint-imports, pytest : 2838 passés) : verte après les derniers correctifs du dev ; aucun constat.
+- Low, rejeté : `LLM_LOCAL_URL` est lue dans `os.environ` seulement ; une valeur placée dans `.env` serait ignorée (adresse par défaut). Conforme à la spec (variable d'environnement, non secrète, `ConfigLLM` gelé) et documenté.
+- Low, rejeté : le contrat import-linter AD-12 garde son nom « pydantic_ai, anthropic, mistralai » alors qu'il interdit aussi `openai` ; cosmétique, sans effet.
+- Plafond de coût nul en local : voulu (prix 0, `gratuit=True`), coût estimé et réel à 0, jetons et traces inchangés. Rejeté (pas un défaut).
+- `max_retries=0` côté `openai` : cohérent avec Anthropic, le 429 est repris par l'adaptateur (`ModelHTTPError` 429, `Retry-After`) ; erreurs de connexion couvertes par `openai.APIError` et testées. Rejeté.
+- SM-3 / SM-9 réels : bien consignés en `deferred` dans l'en-tête et dans « Reporté » (aucun serveur ni GGUF).
