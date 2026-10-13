@@ -13,11 +13,13 @@ from usine.contrats.llm import (
     AppelOutil,
     EnveloppeCache,
     MessageAgent,
+    PaireDoublon,
     ReponseAgent,
     ReponseAgentEnregistree,
     ReponseExplication,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublons,
     StatutControle,
     Tache,
     est_type_jeton,
@@ -31,7 +33,13 @@ PASSAGE = "20261012T080000Z-0a1b2c"
 
 
 def test_taches_figees() -> None:
-    assert [t.value for t in Tache] == ["classification", "explication", "narration", "agent"]
+    assert [t.value for t in Tache] == [
+        "classification",
+        "explication",
+        "narration",
+        "agent",
+        "doublons",
+    ]
 
 
 def test_reponse_structuree_generique() -> None:
@@ -67,7 +75,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.8.0"
+    assert enregistree.contrats_version == "1.9.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):
@@ -181,3 +189,13 @@ def test_enveloppe_cache_et_reponse_explication() -> None:
         EnveloppeCache(brut="x", version_modele="")
     reponse = ReponseExplication.model_validate_json(enveloppe.brut)
     assert reponse.brouillon_commentaire == ""
+
+
+def test_sortie_doublons() -> None:
+    paire = PaireDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=0.8)
+    sortie = SortieDoublons(date_arrete=date(2026, 10, 12), seuil=0.5, paires=(paire,))
+    assert SortieDoublons.model_validate_json(sortie.model_dump_json()) == sortie
+    with pytest.raises(ValueError, match="distinctes"):
+        PaireDoublon(cle_a="DEMO-1", cle_b="DEMO-1", score=0.8)
+    with pytest.raises(ValueError):
+        PaireDoublon(cle_a="DEMO-1", cle_b="DEMO-2", score=1.5)
