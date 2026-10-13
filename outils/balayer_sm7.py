@@ -1,7 +1,7 @@
 """Balayage SM-7 : aucun identifiant fictif injecté ne part vers le fournisseur LLM.
 
 Cherche chaque identifiant de `identifiants_injectes.json` (écrit par `usine donnees generer`
-à côté du Journal), tel quel et sans ses espaces (IBAN), dans :
+à côté du Journal), quels que soient ses blancs (IBAN compacté, espace insécable), dans :
 
 - les traces LLM d'un Passage (`trace/llm.jsonl` : entrées pseudonymisées, donc les requêtes
   émises vers le fournisseur, et sorties avant ré-identification) ;
@@ -66,9 +66,13 @@ def charger_identifiants(chemin: Path) -> list[tuple[str, str]]:
     return paires
 
 
-def variantes(valeur: str) -> set[str]:
-    """La valeur et, si elle en a, la même sans espaces (IBAN recopié d'un bloc)."""
-    return {valeur, valeur.replace(" ", "")} - {""}
+_BLANCS = re.compile(r"\s+")
+
+
+def compacter(texte: str) -> str:
+    """Texte sans aucun blanc (espaces, insécables, fines, tabulations, sauts de ligne) : un
+    identifiant est cherché quels que soient ses blancs (IBAN compacté ou recopié)."""
+    return _BLANCS.sub("", texte)
 
 
 def textes_traces(passage: Path) -> Iterator[tuple[str, str]]:
@@ -78,6 +82,8 @@ def textes_traces(passage: Path) -> Iterator[tuple[str, str]]:
         lignes = chemin.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as exc:
         raise FichierIllisible(f"{chemin} : traces LLM illisibles ({exc})") from None
+    if not any(ligne.strip() for ligne in lignes):
+        raise FichierIllisible(f"{chemin} : aucune trace LLM (rien à balayer)")
     for numero, ligne in enumerate(lignes, start=1):
         if ligne.strip():
             yield f"{chemin}:{numero}", ligne
@@ -97,20 +103,21 @@ def textes_cache(chemin: Path) -> Iterator[tuple[str, str]]:
 
 
 def balayer(textes: Iterable[tuple[str, str]], identifiants: Sequence[tuple[str, str]]) -> Bilan:
-    """Cherche chaque variante de chaque identifiant dans chaque texte."""
-    par_variante = {v: (type_, valeur) for type_, valeur in identifiants for v in variantes(valeur)}
-    # Une seule expression, variantes les plus longues d'abord ; `lookahead` pour les
-    # chevauchements (une variante contenue dans une autre est aussi signalée).
+    """Cherche chaque identifiant, insensible aux blancs, dans chaque texte."""
+    # Une seule alternative sur les textes compactés, valeurs les plus longues d'abord ;
+    # `lookahead` pour les chevauchements (une valeur contenue dans une autre est cherchée).
+    par_valeur = {compacter(valeur): (type_, valeur) for type_, valeur in identifiants}
+    par_valeur.pop("", None)
     motif = re.compile(
-        "(?=(" + "|".join(re.escape(v) for v in sorted(par_variante, key=len, reverse=True)) + "))"
+        "(?=(" + "|".join(re.escape(v) for v in sorted(par_valeur, key=len, reverse=True)) + "))"
     )
     fuites: list[Fuite] = []
     nb_textes = jetons = 0
     for source, texte in textes:
         nb_textes += 1
         jetons += len(CANDIDAT_JETON.findall(texte))
-        for trouve in motif.finditer(texte):
-            fuites.append(Fuite(source, *par_variante[trouve.group(1)]))
+        for trouve in motif.finditer(compacter(texte)):
+            fuites.append(Fuite(source, *par_valeur[trouve.group(1)]))
     return Bilan(nb_textes, len(identifiants), jetons, tuple(dict.fromkeys(fuites)))
 
 

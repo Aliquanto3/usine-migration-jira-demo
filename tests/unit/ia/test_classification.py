@@ -40,6 +40,7 @@ from usine.contrats.tickets import LIBELLES, SCHEMA_TICKET_TEXTE, CauseRacine
 from usine.contrats.trace import EntreeTrace, TypeTrace
 from usine.contrats.versions import version_prompt
 from usine.ia.classification import (
+    MAX_ECHECS_PASSAGE,
     PART_PLAFOND_CLASSIFICATION,
     ContexteClassification,
     EtapeClassification,
@@ -243,6 +244,11 @@ class FournisseurEchouantSur(FournisseurFactice):
         super().__init__(reponses)
         self._rangs = rangs
         self._rang = 0
+
+    @property
+    def tentatives(self) -> int:
+        """Appels reçus, échecs compris."""
+        return self._rang
 
     def generer_structure(self, prompt, schema, parametres):  # type: ignore[no-untyped-def]
         rang, self._rang = self._rang, self._rang + 1
@@ -452,3 +458,23 @@ def test_sans_tolerance_premier_echec_propage() -> None:
     passerelle = _passerelle(FournisseurEchouantSur({0}, [_reponse(), _reponse()]))
     with pytest.raises(UsineErreur, match="UnexpectedModelBehavior"):
         classer(passerelle, TEXTES, DATE_ARRETE, _contexte(), tolerer_echecs=False)
+
+
+def test_cout_d_un_echec_impute_au_plafond() -> None:
+    """Revue 6.10 (high) : un échec a pu être facturé ; son coût majoré compte au plafond."""
+    factice = FournisseurEchouantSur({0}, [_reponse(), _reponse()])
+    passerelle = _passerelle(factice, plafond=Decimal("0.5"))
+    sorties, traces = classer(passerelle, TEXTES, DATE_ARRETE, _contexte())
+    assert (sorties, traces) == ((), ())
+    assert factice.tentatives == 1
+    assert passerelle.cout_cumule_eur(PASSAGE_ID) == Decimal(1)
+
+
+def test_echecs_alternes_plafonnes_au_total() -> None:
+    """Une alternance échec/succès s'arrête à `MAX_ECHECS_PASSAGE` échecs au total."""
+    cles = {f"DEMO-{n}": ("Titre", "Description.") for n in range(1, 2 * MAX_ECHECS_PASSAGE + 2)}
+    echecs = set(range(0, 2 * MAX_ECHECS_PASSAGE, 2))
+    factice = FournisseurEchouantSur(echecs, [_reponse()] * MAX_ECHECS_PASSAGE)
+    with pytest.raises(UsineErreur, match=rf"{MAX_ECHECS_PASSAGE} au total"):
+        _classer(factice, textes(cles))
+    assert factice.tentatives == 2 * MAX_ECHECS_PASSAGE - 1

@@ -52,6 +52,10 @@ MAX_ECHECS_CONSECUTIFS = 3
 """Échecs du fournisseur d'affilée au-delà desquels la classification échoue (panne franche,
 fournisseur injoignable) ; en deçà, chaque Anomalie en échec reste sans suggestion."""
 
+MAX_ECHECS_PASSAGE = 20
+"""Échecs du fournisseur au total au-delà desquels la classification échoue, même non
+consécutifs (une alternance échec/succès ne doit pas répéter des appels facturés sans fin)."""
+
 MAX_JETONS_SORTIE = 512
 """Plafond de jetons de sortie d'une classification."""
 
@@ -160,11 +164,12 @@ def classer(
 
     Une Anomalie refusée par le plafond de coût du Passage, ou par la part `plafond_eur` qui
     revient à la classification, est absente de la sortie, comme une Anomalie dont l'appel
-    échoue (`UsineErreur`, consignée au journal). `MAX_ECHECS_CONSECUTIFS` échecs d'affilée
-    lèvent une `UsineErreur` qui nomme la tâche et le dernier échec. `tolerer_echecs=False`
-    (suite d'évaluation) : le premier échec est propagé tel quel. `arreter`, consulté avant
-    chaque Anomalie, interrompt la boucle (préchauffage du cache borné dans le temps) : les
-    Anomalies restantes sont absentes de la sortie.
+    échoue (`UsineErreur`, consignée au journal). `MAX_ECHECS_CONSECUTIFS` échecs d'affilée,
+    ou `MAX_ECHECS_PASSAGE` au total, lèvent une `UsineErreur` qui nomme la tâche et le
+    dernier échec ; le coût majoré de chaque échec est imputé au plafond par la passerelle.
+    `tolerer_echecs=False` (suite d'évaluation) : le premier échec est propagé tel quel.
+    `arreter`, consulté avant chaque Anomalie, interrompt la boucle (préchauffage du cache
+    borné dans le temps) : les Anomalies restantes sont absentes de la sortie.
     """
     sorties: list[SortieClassification] = []
     traces: list[EntreeTrace] = []
@@ -208,12 +213,12 @@ def classer(
             if not tolerer_echecs:
                 raise
             consecutifs += 1
-            if consecutifs >= MAX_ECHECS_CONSECUTIFS:
-                raise UsineErreur(
-                    f"classification : {consecutifs} échecs consécutifs du fournisseur LLM"
-                    f" (dernier sur {cle} : {exc})"
-                ) from exc
             echecs.append(cle)
+            if consecutifs >= MAX_ECHECS_CONSECUTIFS or len(echecs) >= MAX_ECHECS_PASSAGE:
+                raise UsineErreur(
+                    f"classification : {consecutifs} échecs consécutifs et {len(echecs)} au"
+                    f" total du fournisseur LLM (dernier sur {cle} : {exc})"
+                ) from exc
             journal.warning("classification de %s en échec, sans suggestion : %s", cle, exc)
             continue
         consecutifs = 0

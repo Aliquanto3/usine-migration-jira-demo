@@ -12,7 +12,6 @@ from outils.balayer_sm7 import (
     balayer,
     charger_identifiants,
     main,
-    variantes,
 )
 
 IBAN = "FR46 9999 9143 2694 4104 2320 086"
@@ -43,9 +42,14 @@ def _arguments(passage: Path, identifiants: Path, cache: Path | None = None) -> 
     return args + (["--cache", str(cache)] if cache is not None else [])
 
 
-def test_variantes_iban_sans_espaces() -> None:
-    assert variantes(IBAN) == {IBAN, IBAN.replace(" ", "")}
-    assert variantes("9986233488") == {"9986233488"}
+@pytest.mark.parametrize(
+    "texte",
+    [IBAN, IBAN.replace(" ", ""), IBAN.replace(" ", " "), IBAN.replace(" ", " 	")],
+    ids=["tel-quel", "compacte", "insecable", "fine-et-tabulation"],
+)
+def test_iban_trouve_quels_que_soient_les_blancs(texte: str) -> None:
+    bilan = balayer([("s", f"compte {texte} débité")], [("COMPTE", IBAN)])
+    assert [f.type for f in bilan.fuites] == ["COMPTE"]
 
 
 def test_traces_et_cache_pseudonymises_conformes(
@@ -91,3 +95,8 @@ def test_fichiers_illisibles(tmp_path: Path) -> None:
     mal_forme.write_text('[{"type": "CLIENT"}]', encoding="utf-8")
     with pytest.raises(FichierIllisible, match="illisible"):
         charger_identifiants(mal_forme)
+
+
+def test_trace_vide_refusee(tmp_path: Path) -> None:
+    passage, identifiants, _ = _depot(tmp_path, [""])
+    assert main(_arguments(passage, identifiants)) == 2

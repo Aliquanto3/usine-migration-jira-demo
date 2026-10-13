@@ -58,6 +58,15 @@ def tarif_nul(version_modele: str, jetons_entree: int, jetons_sortie: int) -> De
     return Decimal(0)
 
 
+ECHEC_FACTEUR_TENTATIVES = 3
+"""Requêtes supposées facturées pour un appel structuré en échec (tentative et relances de
+sortie de Pydantic AI) : majoration du coût imputé au plafond."""
+
+ECHEC_CARACTERES_PAR_JETON = 2
+"""Caractères par jeton d'entrée supposés pour un appel en échec (majorant : le français
+compte plutôt 3 à 4 caractères par jeton)."""
+
+
 class PlafondCoutAtteint(UsineErreur):
     """Plafond de coût du Passage atteint : aucun appel frais au fournisseur (NFR-9)."""
 
@@ -314,7 +323,24 @@ class Passerelle:
         depuis_cache = reponse is not None
         if reponse is None:
             cumul = self._verifier_plafond(contexte, parametres, plafond_eur)
-            appel = fournisseur.generer_structure(entree, schema, parametres)
+            try:
+                appel = fournisseur.generer_structure(entree, schema, parametres)
+            except UsineErreur:
+                # Un échec (UnexpectedModelBehavior après relances de sortie) a pu être
+                # facturé : coût majoré imputé au Passage pour que le plafond le compte.
+                majore = self._tarif(
+                    version_modele,
+                    ECHEC_FACTEUR_TENTATIVES * len(entree) // ECHEC_CARACTERES_PAR_JETON,
+                    ECHEC_FACTEUR_TENTATIVES * parametres.max_jetons_sortie,
+                )
+                self._cumul[contexte.passage_id] = cumul + majore
+                journal.warning(
+                    "appel en échec pour %s : %s € estimés imputés au Passage %s",
+                    contexte.cible,
+                    majore,
+                    contexte.passage_id,
+                )
+                raise
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)
             self._cache.ecrire(cle, enveloppe.model_dump_json())
             reponse = appel.sortie

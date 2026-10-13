@@ -1,0 +1,393 @@
+{
+  "horodatage": "2026-10-13T03:41:59.095282+00:00",
+  "mode": "reel",
+  "version_prompt": "024e941a8ac01c6af2ccc5bd225704834ed15395b74b0f6983686be2bd5216aa",
+  "version_modele": "anthropic:claude-haiku-5-5",
+  "seuil_f1_macro": 0.8,
+  "f1_macro": {
+    "manuels": 1.0,
+    "generateur": null
+  },
+  "sm9_atteint": null,
+  "sources": {
+    "manuels": {
+      "version_prompt": "024e941a8ac01c6af2ccc5bd225704834ed15395b74b0f6983686be2bd5216aa",
+      "version_modele": "anthropic:claude-haiku-5-5",
+      "nombre": 30,
+      "classes": 30,
+      "corrects": 30,
+      "exactitude": 1.0,
+      "f1_macro": 1.0,
+      "par_cause": {
+        "reprise_donnees": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 5,
+          "proposees": 5
+        },
+        "regle_transformation": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 5,
+          "proposees": 5
+        },
+        "parametrage": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 4,
+          "proposees": 4
+        },
+        "interface_flux": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 4,
+          "proposees": 4
+        },
+        "environnement": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 4,
+          "proposees": 4
+        },
+        "donnee_test": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 4,
+          "proposees": 4
+        },
+        "hors_perimetre": {
+          "precision": 1.0,
+          "rappel": 1.0,
+          "f1": 1.0,
+          "support": 4,
+          "proposees": 4
+        }
+      },
+      "matrice_confusion": {
+        "reprise_donnees": {
+          "reprise_donnees": 5,
+          "regle_transformation": 0,
+          "parametrage": 0,
+          "interface_flux": 0,
+          "environnement": 0,
+          "donnee_test": 0,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "regle_transformation": {
+          "reprise_donnees": 0,
+          "regle_transformation": 5,
+          "parametrage": 0,
+          "interface_flux": 0,
+          "environnement": 0,
+          "donnee_test": 0,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "parametrage": {
+          "reprise_donnees": 0,
+          "regle_transformation": 0,
+          "parametrage": 4,
+          "interface_flux": 0,
+          "environnement": 0,
+          "donnee_test": 0,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "interface_flux": {
+          "reprise_donnees": 0,
+          "regle_transformation": 0,
+          "parametrage": 0,
+          "interface_flux": 4,
+          "environnement": 0,
+          "donnee_test": 0,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "environnement": {
+          "reprise_donnees": 0,
+          "regle_transformation": 0,
+          "parametrage": 0,
+          "interface_flux": 0,
+          "environnement": 4,
+          "donnee_test": 0,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "donnee_test": {
+          "reprise_donnees": 0,
+          "regle_transformation": 0,
+          "parametrage": 0,
+          "interface_flux": 0,
+          "environnement": 0,
+          "donnee_test": 4,
+          "hors_perimetre": 0,
+          "non_classe": 0
+        },
+        "hors_perimetre": {
+          "reprise_donnees": 0,
+          "regle_transformation": 0,
+          "parametrage": 0,
+          "interface_flux": 0,
+          "environnement": 0,
+          "donnee_test": 0,
+          "hors_perimetre": 4,
+          "non_classe": 0
+        }
+      },
+      "non_classes": [],
+      "cout_estime_eur": 0.007451,
+      "erreurs_fournisseur": {},
+      "propositions": {
+        "EVAL-1": "reprise_donnees",
+        "EVAL-2": "reprise_donnees",
+        "EVAL-3": "reprise_donnees",
+        "EVAL-4": "reprise_donnees",
+        "EVAL-5": "reprise_donnees",
+        "EVAL-6": "regle_transformation",
+        "EVAL-7": "regle_transformation",
+        "EVAL-8": "regle_transformation",
+        "EVAL-9": "regle_transformation",
+        "EVAL-10": "regle_transformation",
+        "EVAL-11": "parametrage",
+        "EVAL-12": "parametrage",
+        "EVAL-13": "parametrage",
+        "EVAL-14": "parametrage",
+        "EVAL-15": "interface_flux",
+        "EVAL-16": "interface_flux",
+        "EVAL-17": "interface_flux",
+        "EVAL-18": "interface_flux",
+        "EVAL-19": "environnement",
+        "EVAL-20": "environnement",
+        "EVAL-21": "environnement",
+        "EVAL-22": "environnement",
+        "EVAL-23": "donnee_test",
+        "EVAL-24": "donnee_test",
+        "EVAL-25": "donnee_test",
+        "EVAL-26": "donnee_test",
+        "EVAL-27": "hors_perimetre",
+        "EVAL-28": "hors_perimetre",
+        "EVAL-29": "hors_perimetre",
+        "EVAL-30": "hors_perimetre"
+      },
+      "details": [
+        {
+          "cle": "EVAL-1",
+          "domaine": "credits",
+          "cause_attendue": "reprise_donnees",
+          "cause_proposee": "reprise_donnees",
+          "justification": "Le fichier d'extraction source contenait les montants, mais l'encours apparaît à 0 € après le chargement du lot 3 : la donnée est donc mal reprise dans le nouveau SI. La cause la plus probable relève de la reprise de données."
+        },
+        {
+          "cle": "EVAL-2",
+          "domaine": "referentiel_clients",
+          "cause_attendue": "reprise_donnees",
+          "cause_proposee": "reprise_donnees",
+          "justification": "La troncature à 32 caractères vient de l'extraction de l'ancien référentiel, faite avec un format de colonne trop court : la donnée source est mal chargée dans la reprise. Il s'agit donc d'une cause de reprise de données plutôt que d'une règle de transformation."
+        },
+        {
+          "cle": "EVAL-3",
+          "domaine": "epargne",
+          "cause_attendue": "reprise_donnees",
+          "cause_proposee": "reprise_donnees",
+          "justification": "Le champ date d'ouverture est vide dans la table source pour les livrets A ouverts avant 2004, donc la donnée n'a pas été présente à la reprise. Il s'agit d'une donnée source absente plutôt que d'une règle de transformation défaillante."
+        },
+        {
+          "cle": "EVAL-4",
+          "domaine": "depots",
+          "cause_attendue": "reprise_donnees",
+          "cause_proposee": "reprise_donnees",
+          "justification": "Le chargement de la vague 2 a inséré deux fois 87 comptes courants parce que le lot a été rejoué sans purge après un arrêt, ce qui relève d'une erreur de chargement des données reprises. La cause la plus probable est donc la reprise de données (EVAL-4)."
+        },
+        {
+          "cle": "EVAL-5",
+          "domaine": "comptabilite",
+          "cause_attendue": "reprise_donnees",
+          "cause_proposee": "reprise_donnees",
+          "justification": "Les soldes d'ouverture de 15 comptes généraux n'ont pas été extraits de l'ancien grand livre, donc la donnée source est absente de la reprise. Le problème relève de l'extraction et du chargement des données, et non d'une règle de transformation."
+        },
+        {
+          "cle": "EVAL-6",
+          "domaine": "credits",
+          "cause_attendue": "regle_transformation",
+          "cause_proposee": "regle_transformation",
+          "justification": "La règle de correspondance de EVAL-6 multiplie par 100 un taux déjà exprimé en pourcentage, ce qui affiche 350 % au lieu de 3,50 %. Il s'agit donc d'une règle de calcul erronée entre l'ancien et le nouveau système."
+        },
+        {
+          "cle": "EVAL-7",
+          "domaine": "paiements",
+          "cause_attendue": "regle_transformation",
+          "cause_proposee": "regle_transformation",
+          "justification": "La table de correspondance des motifs de rejet SEPA associe les mauvaises lignes, ce qui transpose le code AC04 en MD01. Il s'agit donc d'une règle de correspondance fausse entre l'ancien et le nouveau système (EVAL-7)."
+        },
+        {
+          "cle": "EVAL-8",
+          "domaine": "epargne",
+          "cause_attendue": "regle_transformation",
+          "cause_proposee": "regle_transformation",
+          "justification": "Le calcul des intérêts courus de reprise tronque au lieu d'arrondir, ce qui produit un écart systématique avec l'ancien système. Il s'agit donc d'une règle de calcul incorrecte entre l'ancien et le nouveau système (EVAL-8)."
+        },
+        {
+          "cle": "EVAL-9",
+          "domaine": "comptabilite",
+          "cause_attendue": "regle_transformation",
+          "cause_proposee": "regle_transformation",
+          "justification": "La description indique que la règle de mapping du sens de l'ancien format (D/C) vers le nouveau (+/-) est inversée, ce qui correspond à une règle de transformation fausse entre les deux systèmes. Les écritures de reprise sont donc passées au crédit au lieu du débit."
+        },
+        {
+          "cle": "EVAL-10",
+          "domaine": "referentiel_clients",
+          "cause_attendue": "regle_transformation",
+          "cause_proposee": "regle_transformation",
+          "justification": "La règle de conversion des civilités ne prévoit pas la valeur « Mlle » de l'ancien référentiel, ce qui produit une civilité vide à la reprise. Il s'agit donc d'une règle de correspondance incomplète entre l'ancien et le nouveau système."
+        },
+        {
+          "cle": "EVAL-11",
+          "domaine": "depots",
+          "cause_attendue": "parametrage",
+          "cause_proposee": "parametrage",
+          "justification": "Le plafond de découvert est absent du paramétrage produit du nouveau système pour « Compte Jeune », ce qui relève d'un paramètre de produit et non d'une donnée source ou d'une règle de transformation. Les rejets systématiques des opérations débitrices découlent de cette absence de paramétrage."
+        },
+        {
+          "cle": "EVAL-12",
+          "domaine": "paiements",
+          "cause_attendue": "parametrage",
+          "cause_proposee": "parametrage",
+          "justification": "Le bouton de validation des virements de plus de 10 000 € est masqué parce que le profil d'habilitation des gestionnaires n'a pas reçu ce droit. Il s'agit donc d'un défaut de paramétrage des habilitations du nouveau système."
+        },
+        {
+          "cle": "EVAL-13",
+          "domaine": "comptabilite",
+          "cause_attendue": "parametrage",
+          "cause_proposee": "parametrage",
+          "justification": "Le référentiel des jours fériés du nouveau SI ne contient pas le 8 mai, ce qui relève d'un référentiel paramétré dans le nouveau système. Le défaut touche donc la configuration cible et non une donnée source ou une règle de transformation."
+        },
+        {
+          "cle": "EVAL-14",
+          "domaine": "credits",
+          "cause_attendue": "parametrage",
+          "cause_proposee": "parametrage",
+          "justification": "Le barème des frais de dossier n'est pas renseigné dans le référentiel tarifaire du nouveau système, ce qui relève d'un paramètre ou d'un référentiel manquant côté nouveau système. Les frais calculés étant nuls, la cause est probablement ce paramétrage absent (EVAL-14)."
+        },
+        {
+          "cle": "EVAL-15",
+          "domaine": "paiements",
+          "cause_attendue": "interface_flux",
+          "cause_proposee": "interface_flux",
+          "justification": "Le fichier de remises envoyé chaque nuit par la plateforme d'échange n'arrive plus dans le répertoire d'entrée depuis la bascule, ce qui indique un problème de transfert de fichiers entre systèmes. Cela relève de l'interface ou du flux (EVAL-15)."
+        },
+        {
+          "cle": "EVAL-16",
+          "domaine": "referentiel_clients",
+          "cause_attendue": "interface_flux",
+          "cause_proposee": "interface_flux",
+          "justification": "Le message de mise à jour publié par le CRM est rejeté par le bus d'échange, car le schéma XML attendu par le consommateur ne contient pas le nouveau champ « complement ». Il s'agit donc d'un défaut d'échange de messages entre systèmes (EVAL-16)."
+        },
+        {
+          "cle": "EVAL-17",
+          "domaine": "epargne",
+          "cause_attendue": "interface_flux",
+          "cause_proposee": "interface_flux",
+          "justification": "Le flux quotidien de transmission de fichiers vers l'assureur partenaire ne part plus depuis le 3, et l'ordonnanceur produit un fichier vide, ce qui pointe vers l'échange de fichiers entre systèmes (EVAL-17). Une cause de reprise de données reste possible si la source est vide, à vérifier."
+        },
+        {
+          "cle": "EVAL-18",
+          "domaine": "comptabilite",
+          "cause_attendue": "interface_flux",
+          "cause_proposee": "interface_flux",
+          "justification": "L'interface comptable rejette le fichier des écritures monétiques à cause d'un en-tête non conforme, ce qui relève d'un échange de fichiers entre systèmes. Le problème se situe donc dans le flux, et non dans les données ou les règles de transformation."
+        },
+        {
+          "cle": "EVAL-19",
+          "domaine": "depots",
+          "cause_attendue": "environnement",
+          "cause_proposee": "environnement",
+          "justification": "L'environnement de recette 2 ne répond pas entre 8 h et 10 h, car la base de données est arrêtée par la sauvegarde planifiée. Il s'agit d'une indisponibilité technique de l'environnement de test (EVAL-19)."
+        },
+        {
+          "cle": "EVAL-20",
+          "domaine": "credits",
+          "cause_attendue": "environnement",
+          "cause_proposee": "environnement",
+          "justification": "La recette est menée sur la version 4.2 au lieu de la livraison attendue 4.3, et le correctif du calcul d'échéancier n'est pas déployé sur l'environnement. Il s'agit donc d'un problème de version et de configuration technique de l'environnement de test."
+        },
+        {
+          "cle": "EVAL-21",
+          "domaine": "paiements",
+          "cause_attendue": "environnement",
+          "cause_proposee": "environnement",
+          "justification": "Le certificat TLS du serveur de recette a expiré, ce qui fait échouer les appels au service de vérification d'IBAN. Il s'agit d'une configuration technique de l'environnement de test, et non d'une règle ou d'une donnée métier."
+        },
+        {
+          "cle": "EVAL-22",
+          "domaine": "referentiel_clients",
+          "cause_attendue": "environnement",
+          "cause_proposee": "environnement",
+          "justification": "Le volume de travail de l'environnement d'intégration est saturé à 100 %, ce qui fait échouer les traitements de dédoublonnage. Il s'agit d'un problème technique de l'environnement, et non d'une règle ou d'une donnée."
+        },
+        {
+          "cle": "EVAL-23",
+          "domaine": "epargne",
+          "cause_attendue": "donnee_test",
+          "cause_proposee": "donnee_test",
+          "justification": "Le rejet d'ouverture d'un Livret Jeune pour un client de 34 ans est le comportement attendu, et c'est le jeu de données du cas LJ-12 qui est inadapté. La cause la plus probable est donc une donnée de test, non un défaut du nouveau système (EVAL-23 concerne un client de test majeur sur Livret Jeune)."
+        },
+        {
+          "cle": "EVAL-24",
+          "domaine": "credits",
+          "cause_attendue": "donnee_test",
+          "cause_proposee": "donnee_test",
+          "justification": "Le scénario de déblocage utilise un IBAN de test dont la clé de contrôle est fausse, ce qui fait rejeter l'opération. Il s'agit donc d'un jeu de données de test inadapté, et non d'une règle ou d'un paramétrage du nouveau système."
+        },
+        {
+          "cle": "EVAL-25",
+          "domaine": "depots",
+          "cause_attendue": "donnee_test",
+          "cause_proposee": "donnee_test",
+          "justification": "Le résultat attendu du cas de test CLO-07 (15 €) est erroné, la grille tarifaire prévoyant la gratuité ; c'est donc le cas de test qui doit être corrigé. Cela relève de la catégorie « cas de test erroné » dans EVAL-25."
+        },
+        {
+          "cle": "EVAL-26",
+          "domaine": "comptabilite",
+          "cause_attendue": "donnee_test",
+          "cause_proposee": "donnee_test",
+          "justification": "Le jeu de données de recette de la clôture annuelle ne contient aucune écriture d'à-nouveau, ce qui empêche de tester le report des soldes. Il s'agit donc d'un jeu de test inadapté, et non d'une erreur de règle ou de reprise."
+        },
+        {
+          "cle": "EVAL-27",
+          "domaine": "paiements",
+          "cause_attendue": "hors_perimetre",
+          "cause_proposee": "hors_perimetre",
+          "justification": "La demande concerne l'ajout d'une fonctionnalité (paiement instantané) absente de l'ancien système et non prévue dans le lot de migration, il s'agit donc d'une demande hors périmètre et non d'une anomalie de migration."
+        },
+        {
+          "cle": "EVAL-28",
+          "domaine": "depots",
+          "cause_attendue": "hors_perimetre",
+          "cause_proposee": "hors_perimetre",
+          "justification": "EVAL-28 décrit un constat identique à une anomalie déjà ouverte sur les frais de tenue de compte, signalé deux fois par deux testeurs. Il s'agit donc d'un doublon, relevant de la catégorie hors périmètre (faux positif)."
+        },
+        {
+          "cle": "EVAL-29",
+          "domaine": "referentiel_clients",
+          "cause_attendue": "hors_perimetre",
+          "cause_proposee": "hors_perimetre",
+          "justification": "La description indique que le tri ignorant les accents est identique dans l'ancien système et conforme à la spécification, il s'agit donc d'un comportement attendu et non d'une anomalie de migration (faux positif)."
+        },
+        {
+          "cle": "EVAL-30",
+          "domaine": "epargne",
+          "cause_attendue": "hors_perimetre",
+          "cause_proposee": "hors_perimetre",
+          "justification": "L'Anomalie EVAL-30 demande un nouveau tableau de bord des encours d'épargne, absent de l'ancien système et explicitement hors du périmètre de la migration. Il s'agit donc d'une demande d'évolution, et non d'un défaut de migration."
+        }
+      ]
+    }
+  }
+}
