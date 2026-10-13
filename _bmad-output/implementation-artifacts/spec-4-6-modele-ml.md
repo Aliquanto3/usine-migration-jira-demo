@@ -59,3 +59,10 @@ deferred: []
 
 - `uv run pytest -q tests/unit/domaine/prevision/test_ml.py tests/unit/evaluation/zenodo/test_modele_ml.py`
 - `uv run python -m evaluation.zenodo.modele_ml --series ../externe/series/*.parquet --sortie evaluation/zenodo/resultats/modele_ml.json`
+
+## Revue
+
+- `[medium]` corrigé : `prevoir_entites` levait `KeyError`/`ValueError` (Entité ou Date d'arrêté absente de la série) au lieu d'une `UsineErreur` ; test ajouté.
+- `[low]` rejeté : projets tenus à l'écart testés sur des dates qui chevauchent l'entraînement des autres projets du même dépôt, c'est le protocole 4.4 imposé (même découpage).
+- `[low]` rejeté : cible d'entraînement approchée (Sorties pouvant viser des bloquantes entrées dans l'horizon), déjà en Reports.
+- Sans constat : fuite temporelle (caractéristiques rétrospectives, purge date + N < coupure), graine/un thread, agrégation binomiale (k = S − 2) et indépendance conformes, `Prevision` ml valide, Baseline et contrats intacts, lightgbm hors domaine.

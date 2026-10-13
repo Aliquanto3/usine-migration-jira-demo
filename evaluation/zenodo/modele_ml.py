@@ -193,7 +193,11 @@ def prevoir_entites(
     series = series_ml(valider(serie, SCHEMA_SERIE_STOCK))
     resultat = []
     for meteo in meteos:
-        s = series[meteo.entite]
+        s = series.get(meteo.entite)
+        if s is None or meteo.date_arrete not in s.dates:
+            raise UsineErreur(
+                f"Modèle ML {meteo.entite} : absente de la série à {meteo.date_arrete.isoformat()}"
+            )
         ligne = s.caracteristiques[s.dates.index(meteo.date_arrete)][np.newaxis, :]
         if np.isnan(ligne).any():
             raise UsineErreur(f"Modèle ML {meteo.entite} : moins de 20 Jours ouvrés d'historique")

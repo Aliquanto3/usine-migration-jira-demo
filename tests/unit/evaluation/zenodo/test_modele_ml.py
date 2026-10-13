@@ -246,6 +246,17 @@ def test_prevoir_entites_historique_court(series: pl.DataFrame) -> None:
         prevoir_entites(modele, courte, [meteo])
 
 
+def test_prevoir_entites_entite_ou_date_absente(series: pl.DataFrame) -> None:
+    prolongees = prolonger_par_depot(series)
+    modele = entrainer(prolongees, decouper(unites(prolongees)))
+    courte = _serie("d/C", 0.1, 3, jours=30)
+    jour = courte["date"][-1]
+    with pytest.raises(UsineErreur, match="absente"):
+        prevoir_entites(modele, courte, [_meteo_rouge("d/inconnue", jour, 5)])
+    with pytest.raises(UsineErreur, match="absente"):
+        prevoir_entites(modele, courte, [_meteo_rouge("d/C", jour + timedelta(days=365), 5)])
+
+
 def _meteo_rouge(entite: str, jour: date, stock: int) -> MeteoEntite:
     regle = RegleDeclenchante(
         code=CodeIndicateur.ind_1,
