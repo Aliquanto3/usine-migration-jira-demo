@@ -266,6 +266,13 @@ def afficher_detail(racine: Path, repli: bool = False) -> None:
     _bloc("Explication", explication)
 
 
+def _moteur_indisponible(exc: ImportError | OSError) -> str:
+    """Message d'une ligne qui nomme la cause : moteur Presidio ou modèle spaCy introuvable."""
+    lignes = str(exc).strip().splitlines()
+    cause = f"{type(exc).__name__} : {lignes[0]}" if lignes else type(exc).__name__
+    return f"Moteur de Pseudonymisation indisponible (Presidio ou modèle spaCy) : {cause}"
+
+
 def afficher_pseudonymisation(racine: Path, repli: bool = False) -> None:
     """Description d'un ticket et sa version pseudonymisée, côte à côte (FR-31, AD-15).
 
@@ -291,6 +298,9 @@ def afficher_pseudonymisation(racine: Path, repli: bool = False) -> None:
         version = apercu_pseudonymisation(racine)(original)
     except UsineErreur as exc:
         st.error(f"Aperçu de la Pseudonymisation impossible : {exc}")
+        return
+    except (ImportError, OSError) as exc:  # Presidio ou modèle spaCy indisponible
+        st.error(_moteur_indisponible(exc))
         return
     st.markdown(f"Ticket : {lien_ticket(cle, consultation.url_ticket(cle))}")
     st.caption(pseudonymisation.LEGENDE)
