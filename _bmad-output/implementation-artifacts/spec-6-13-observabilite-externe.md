@@ -52,3 +52,9 @@ deferred: []
 - Les appels du client `langfuse.Langfuse` (`start_observation`, `flush`) suivent la documentation 4.x sans avoir été exécutés contre un serveur ni contre le paquet installé (groupe `bonus` absent de l'environnement).
 - Les passerelles d'évaluation (`_passerelle_evaluation`) n'envoient rien à Langfuse.
 - Un `flush` par trace : simple et sans perte à la fermeture, à regrouper si la latence gêne.
+
+## Revue
+
+- Low, rejeté : `flush` synchrone par trace, avec un Langfuse injoignable, peut bloquer jusqu'au délai du client à chaque appel (l'exception est avalée, mais pas la latence) ; choix déjà consigné dans Reports, bonus désactivé par défaut, à regrouper si la latence gêne.
+- Low, rejeté : les traces servies par le cache sont envoyées (jetons et coût à 0, `depuis_cache=true` en métadonnée) ; cohérent avec le Journal et utile à l'analyse.
+- Aucun constat medium ou high : seuls `entree_pseudonymisee` et la sortie avant ré-identification partent (passerelle, outils et réponse d'Agent), l'échec de l'observateur est avalé à deux niveaux sans contenu journalisé, `langfuse` n'est importé qu'à la demande dans la couche `adaptateurs`, le balayage SM-7 est appliqué aux données envoyées avec témoin de fuite.
