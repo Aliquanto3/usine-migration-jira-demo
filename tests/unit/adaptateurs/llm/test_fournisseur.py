@@ -1,4 +1,4 @@
-"""Adaptateurs Anthropic et Mistral sur faux transport : AD-13, reprise sur 429, erreurs."""
+"""Adaptateurs Anthropic, Mistral et local sur faux transport : AD-13, reprise sur 429, erreurs."""
 
 from collections.abc import Mapping
 from decimal import Decimal
@@ -17,6 +17,7 @@ from tests.doublures.transport_llm import (
 )
 from usine.adaptateurs.llm import (
     REGISTRE,
+    URL_LOCAL_DEFAUT,
     FournisseurPydanticAI,
     construire_fournisseur_llm,
     cout_estime_eur,
@@ -28,7 +29,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -334,3 +335,53 @@ def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
     assert ("temperature" in corps) is accepte
     if accepte:
         assert corps["temperature"] == 0.2
+
+
+# --- Story 6.12 : `llama-server` local ---
+
+
+def _local(
+    url: str | None = None, transport: TransportScripte | None = None
+) -> tuple[FournisseurPydanticAI, TransportScripte]:
+    transport = transport or TransportScripte([])
+    config = ConfigLLM(
+        fournisseur="local", modele=MODELES["local"], plafond_cout_passage_eur=Decimal(1)
+    )
+    return construire_fournisseur_llm(config, "", transport.client(), url_serveur=url), transport
+
+
+def test_local_sans_cle_et_url_par_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("USINE_LLM_LOCAL_URL", raising=False)
+    adaptateur, transport = _local(transport=TransportScripte([_sortie("local")]))
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == [f"{URL_LOCAL_DEFAUT}/v1/chat/completions"]
+
+
+def test_local_url_de_l_environnement_puis_du_parametre(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("USINE_LLM_LOCAL_URL", "http://poste:9090/")
+    adaptateur, transport = _local(transport=TransportScripte([_sortie("local")]))
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == ["http://poste:9090/v1/chat/completions"]
+    adaptateur, transport = _local("http://autre:1", TransportScripte([_sortie("local")]))
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == ["http://autre:1/v1/chat/completions"]
+
+
+def test_local_ne_combine_jamais_schema_et_outils() -> None:
+    adaptateur, transport = _local(
+        transport=TransportScripte([_sortie("local"), reponse_texte("local", "fini")])
+    )
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    adaptateur.executer_agent(
+        (MessageAgent(role="utilisateur", contenu="q"),), (_outil([]),), AGENT
+    )
+    structure, agent = transport.requetes
+    assert _noms_outils(structure) == {"reponse"}
+    assert _noms_outils(agent) == {"get_meteo"}
+
+
+def test_local_tarif_nul_pour_tout_modele_local() -> None:
+    assert cout_estime_eur("local:n-importe-quel-gguf", 10_000, 5_000) == 0
+    assert tarif("local:autre").requetes_par_minute > 0
+    with pytest.raises(UsineErreur, match="registre"):
+        tarif("locale:x")

@@ -14,7 +14,11 @@ import httpx2
 from usine.adaptateurs.llm import FournisseurPydanticAI, construire_fournisseur_llm
 from usine.contrats.config import ConfigLLM
 
-MODELES = {"anthropic": "claude-sonnet-5-5", "mistral": "mistral-large-latest"}
+MODELES = {
+    "anthropic": "claude-sonnet-5-5",
+    "mistral": "mistral-large-latest",
+    "local": "qwen3-4b-q4_k_m",
+}
 """Modèle par défaut de chaque fournisseur dans les tests."""
 
 

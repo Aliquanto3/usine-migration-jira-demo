@@ -1,4 +1,4 @@
-"""Adaptateurs `FournisseurLLM` (Anthropic, Mistral) et registre des quotas et des prix.
+"""Adaptateurs `FournisseurLLM` (Anthropic, Mistral, local) et registre des quotas et prix.
 
 Seul paquet du produit autorisé à importer `pydantic_ai`, `anthropic` et `mistralai` (AD-12).
 """
@@ -10,6 +10,8 @@ os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 
 from usine.adaptateurs.llm.fournisseur import (
     FOURNISSEURS,
+    URL_LOCAL_DEFAUT,
+    VARIABLE_URL_LOCAL,
     VARIABLES_CLE,
     FournisseurPydanticAI,
     construire_fournisseur_llm,
@@ -24,7 +26,9 @@ from usine.adaptateurs.llm.registre import (
 __all__ = [
     "FOURNISSEURS",
     "REGISTRE",
+    "URL_LOCAL_DEFAUT",
     "VARIABLES_CLE",
+    "VARIABLE_URL_LOCAL",
     "FournisseurPydanticAI",
     "TarifModele",
     "construire_fournisseur_llm",
