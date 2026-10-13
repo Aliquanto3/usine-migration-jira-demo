@@ -4,7 +4,8 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Protocol
 
-from usine.contrats.llm import ReponseAgent, StatutControle
+from usine.contrats.format import formater_date
+from usine.contrats.llm import ReponseAgent, ReponseAgentEnregistree, StatutControle
 
 
 class Session(Protocol):
@@ -38,9 +39,22 @@ LEGENDE = (
 )
 
 MESSAGE_REPLI = (
-    "En Mode repli, l'Agent ne s'adresse à aucun LLM : les réponses enregistrées lors d'une"
-    " répétition sont rejouées par la Story 7.11."
+    "En Mode repli, l'Agent ne s'adresse à aucun LLM : choisir une question enregistrée lors"
+    " d'une répétition, sa réponse contrôlée est rejouée telle quelle."
 )
+
+LIBELLE_CHOIX = "Question enregistrée"
+LIBELLE_REJOUER = "Rejouer la réponse"
+REFUS_REPLI = "Mode repli : réponses enregistrées de l'Agent refusées"
+
+
+def mention_repli(enregistree: ReponseAgentEnregistree) -> str:
+    """Mention « Mode repli » d'une réponse rejouée : date d'enregistrement et Passage."""
+    return (
+        f"Mode repli : réponse enregistrée le {formater_date(enregistree.horodatage.date())}"
+        f" sur le Passage {enregistree.passage_id}, rejouée sans LLM"
+    )
+
 
 LIBELLES_STATUT: Mapping[StatutControle, str] = MappingProxyType(
     {

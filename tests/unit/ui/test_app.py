@@ -686,6 +686,37 @@ def test_pseudonymisation_sans_cle(racine_publiee: Path, monkeypatch: pytest.Mon
     assert "USINE_CLE_PSEUDO" in page.error[0].value
 
 
+@pytest.mark.parametrize(
+    "erreur",
+    [
+        ImportError("No module named 'presidio_analyzer'"),
+        OSError("[E050] Can't find model 'fr_core_news_md'.\nDétail sur une autre ligne"),
+    ],
+)
+def test_pseudonymisation_moteur_indisponible(
+    erreur: Exception, racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Erreur inattendue de l'aperçu : message d'une ligne, l'écran et la navigation tiennent."""
+    monkeypatch.chdir(racine_publiee)
+
+    def _echoue(_racine: Path) -> Any:
+        raise erreur
+
+    monkeypatch.setattr(cli, "apercu_pseudonymisation", _echoue)
+    page = _page(Ecran.pseudonymisation)
+    assert not page.exception
+    assert len(page.error) == 1
+    message = page.error[0].value
+    assert "\n" not in message
+    assert type(erreur).__name__ in message
+    assert str(erreur).splitlines()[0] in message
+    assert not page.text
+    assert page.selectbox(key="ticket_apercu").value  # le sélecteur reste utilisable
+    page.sidebar.radio[0].set_value(Ecran.carte.value).run()
+    assert not page.exception
+    assert _tableau(page)
+
+
 class _DoublureSansDescription(_Doublure):
     def textes_tickets(self) -> Any:
         return self._reelle.textes_tickets().head(0)

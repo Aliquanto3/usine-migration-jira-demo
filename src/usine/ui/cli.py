@@ -4,8 +4,8 @@ Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USIN
 Mode repli, la `Consultation` du dernier Passage publié ou du Passage enregistré du Mode repli
 (`demo/repli/passage/`), la configuration de la démo (`config/demo.yaml`), les manifestes
 mesurés par l'avant / après, l'aperçu de la Pseudonymisation (vue côte à côte) et la session
-de l'Agent (`session_agent`). La page
-n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
+de l'Agent (`session_agent`) ou ses réponses enregistrées du Mode repli (`reponses_repli`).
+La page n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
 import subprocess
@@ -19,7 +19,9 @@ from usine import composition
 from usine.config import charger_secrets, charger_yaml
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.config import ConfigDemo
+from usine.contrats.llm import ReponseAgentEnregistree
 from usine.contrats.passage import FICHIERS_PASSAGE, REPERTOIRE_PASSAGES, ManifestePassage
+from usine.ia.agent.repli import REPERTOIRE_REPONSES, charger_reponses
 from usine.ia.agent.session import SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
@@ -130,6 +132,14 @@ def session_agent(racine: Path, consultation: Consultation) -> SessionAgent:
     configuration ou une clé absente lève une `UsineErreur` qui la nomme.
     """
     return composition.construire_session_agent(racine, consultation)
+
+
+def reponses_repli(racine: Path, passage_id: str) -> tuple[ReponseAgentEnregistree, ...]:
+    """Réponses enregistrées de l'Agent (`racine/demo/repli/agent/*.json`) sur `passage_id`.
+
+    Aucune réponse, fichier illisible ou `passage_id` différent : `UsineErreur` explicite.
+    """
+    return charger_reponses(racine / REPERTOIRE_REPONSES, passage_id)
 
 
 def commande_streamlit() -> list[str]:

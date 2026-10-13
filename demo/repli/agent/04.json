@@ -1,0 +1,16 @@
+{
+  "contrats_version": "1.7.0",
+  "passage_id": "20261012T221158Z-96c621",
+  "horodatage": "2026-10-13T03:57:24.182997Z",
+  "reponse": {
+    "question": "Combien d'Anomalies sont ouvertes chez ENT-C ?",
+    "texte": "ENT-C compte 70 Anomalies ouvertes au 2026-10-09 ; parmi elles, DEMO-1922 est ouverte depuis 18 Jours ouvrés.",
+    "outils_appeles": [
+      "list_anomalies"
+    ],
+    "tickets_cites": [
+      "DEMO-1922"
+    ],
+    "statut_controle": "conforme"
+  }
+}

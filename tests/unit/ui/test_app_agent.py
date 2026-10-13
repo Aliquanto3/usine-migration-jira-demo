@@ -1,5 +1,7 @@
 """Écran Agent de la page Streamlit (`AppTest`) avec une session factice (Story 7.9)."""
 
+import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -9,13 +11,16 @@ from tests.doublures.fournisseur_factice import FournisseurFactice, ReponseAgent
 from tests.unit.ia.espions import INSTANT, CacheMemoire, pseudonymiseur
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import AppelOutil, ReponseAgent, StatutControle
+from usine.ia.agent.repli import QUESTIONS_DEMO, REPERTOIRE_REPONSES, charger_reponses
 from usine.ia.agent.session import SANS_REPONSE, SessionAgent
 from usine.ia.passerelle import Passerelle
 from usine.ports.consultation import Consultation
-from usine.ui import agent, cli, lancement
+from usine.ui import agent, cli, lancement, navigation
+from usine.ui.liens import echapper_markdown
 from usine.ui.navigation import Ecran
 
 APP = Path(lancement.__file__).parent / "app.py"
+PASSAGE_REPLI = "20261012T221158Z-96c621"
 APPEL_METEO = AppelOutil(id_appel="a1", nom_outil="get_meteo", arguments={})
 
 
@@ -125,16 +130,66 @@ def test_session_impossible(racine_publiee: Path, monkeypatch: pytest.MonkeyPatc
     assert "config/llm.yaml absent" in erreur.value
 
 
-def test_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(racine_publiee)
+def _page_repli(racine: Path, monkeypatch: pytest.MonkeyPatch) -> AppTest:
+    monkeypatch.chdir(racine)
     monkeypatch.setenv("USINE_MODE_REPLI", "1")
 
     def session_agent(racine: Path, consultation: Consultation) -> SessionAgent:
         raise AssertionError("aucune session en Mode repli")
 
     monkeypatch.setattr(cli, "session_agent", session_agent)
-    page = _page()
+    return _page()
+
+
+def test_mode_repli_questions_en_choix_fermes(
+    racine_publiee: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page = _page_repli(racine_publiee, monkeypatch)
     assert not page.exception
-    assert [i.value for i in page.info] == [agent.MESSAGE_REPLI]
-    assert "7.11" in agent.MESSAGE_REPLI
+    assert agent.MESSAGE_REPLI in [i.value for i in page.info]
+    assert not page.text_input  # pas de saisie libre
+    choix = page.radio(key=navigation.CLE_CHOIX_AGENT)
+    assert list(choix.options) == list(QUESTIONS_DEMO)
+    choix.set_value(2).run()
+    page.button[0].click().run()
+    assert not page.exception
+    assert not page.error
+    (enregistree,) = [
+        e
+        for e in charger_reponses(racine_publiee / REPERTOIRE_REPONSES, PASSAGE_REPLI)
+        if e.reponse.question == QUESTIONS_DEMO[2]
+    ]
+    assert echapper_markdown(enregistree.reponse.texte) in [str(m.value) for m in page.markdown]
+    legendes = [c.value for c in page.caption]
+    assert agent.mention_repli(enregistree) in legendes
+    assert "Mode repli" in agent.mention_repli(enregistree)
+    assert agent.texte_outils(enregistree.reponse) in legendes
+
+
+def test_mode_repli_passage_different_refuse(
+    racine_publiee: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    racine = tmp_path / "racine"
+    shutil.copytree(racine_publiee / "demo", racine / "demo")
+    chemin = racine / REPERTOIRE_REPONSES / "01.json"
+    contenu = json.loads(chemin.read_text(encoding="utf-8"))
+    contenu["passage_id"] = "20261001T000000Z-aaaaaa"
+    chemin.write_text(json.dumps(contenu), encoding="utf-8")
+    page = _page_repli(racine, monkeypatch)
+    assert not page.exception
+    (erreur,) = page.error
+    assert agent.REFUS_REPLI in erreur.value
+    assert "20261001T000000Z-aaaaaa" in erreur.value
+    assert PASSAGE_REPLI in erreur.value
     assert not page.button
+
+
+def test_mode_repli_sans_reponses(
+    racine_publiee: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    racine = tmp_path / "racine"
+    shutil.copytree(racine_publiee / "demo" / "repli" / "passage", racine / "demo/repli/passage")
+    page = _page_repli(racine, monkeypatch)
+    assert not page.exception
+    (erreur,) = page.error
+    assert "usine agent --enregistrer" in erreur.value

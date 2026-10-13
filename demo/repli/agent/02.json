@@ -1,0 +1,14 @@
+{
+  "contrats_version": "1.7.0",
+  "passage_id": "20261012T221158Z-96c621",
+  "horodatage": "2026-10-13T03:57:24.167959Z",
+  "reponse": {
+    "question": "Quelles entités sont rouges à la Date d'arrêté ?",
+    "texte": "ENT-A et ENT-B sont rouges au 2026-10-09, toutes deux sur IND-1 : il vaut 4 pour ENT-A et 9 pour ENT-B, pour un seuil de 3.",
+    "outils_appeles": [
+      "get_meteo"
+    ],
+    "tickets_cites": [],
+    "statut_controle": "conforme"
+  }
+}
