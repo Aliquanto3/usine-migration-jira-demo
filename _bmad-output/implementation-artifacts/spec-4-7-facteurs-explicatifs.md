@@ -42,3 +42,9 @@ deferred: []
 ## Verification
 
 - `uv run pytest -q tests/unit/domaine/prevision/test_ml.py tests/unit/evaluation/zenodo/test_modele_ml.py`
+
+## Revue
+
+- Low, rejeté : une contribution NaN lèverait `ValueError` (Fraction) et non `UsineErreur` ; LightGBM ne produit pas de NaN pour des variables finies, cas inatteignable.
+- Low, rejeté : SM-C4 vérifié par libellé obligatoire de chaque variable (test sur `CARACTERISTIQUES`), pas par mesure de lisibilité ; documenté comme garde-fou, suffisant.
+- Vérifié sans défaut : biais exclu (`[: len(CARACTERISTIQUES)]`), signe (positif = favorise), tri |c| puis nom, plafond 5, nulles écartées, moins de 5 variables, non projetable sans facteurs, contrat respecté, couches inchangées, 4.6 sans régression.
