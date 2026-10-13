@@ -60,3 +60,11 @@ deferred:
 - `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run lint-imports && uv run pytest -q` -- expected: tout vert.
 - Report, avec `llama-server` b11552 lancé (`llama-server -m <modele.gguf> --jinja --port 8080`), `fournisseur: local` et `modele` posés dans `config/llm.yaml` :
   `uv run python -m evals.explication executer --reel` puis `uv run python -m evals.classification executer --reel`, résultats à publier dans `evals/*/resultats` et `historique.jsonl`.
+
+## Revue
+
+- Low, rejeté : serveur injoignable lève bien une `UsineErreur` (`ModelAPIError` traduit), vérifié à la main sur un port fermé ; pas de correctif.
+- Low, rejeté : tarif nul `LOCAL` sans division ni cas particulier du plafond de coût (coût 0, `_tarif_registre` renvoie aussi 0 pour `local:*`) ; le plafond n'est pas cassé.
+- Low, rejeté : aucun secret (clé factice « sans-cle » non transmise à un tiers), couches inchangées (tout reste dans `adaptateurs/llm`).
+- Low, reporté (déjà en `deferred`) : pas de délai explicite sur le client HTTP local ; un `llama-server` bloqué n'expire pas, à traiter avec la relance réelle.
+- Contrat `FournisseurLLM` exécuté sur `local` (fabrique enregistrée) et test de non-combinaison schéma/outils présents : aucun constat.
