@@ -9,13 +9,16 @@ Incrémentalité par le cache : une Anomalie inchangée est servie sans appel, u
 nouvelle ou dont le texte a changé part au fournisseur. Le contrôle déterministe retire de la
 justification toute phrase citant une autre clé de ticket (`corrige`) ; sinon `conforme`.
 Plafond de coût du Passage atteint (`PlafondCoutAtteint`) : l'Anomalie reste sans suggestion
-(absente de la sortie), sans faire échouer le Passage. La Cause racine proposée n'est qu'une
-suggestion : elle n'est jamais écrite dans Jira.
+(absente de la sortie), sans faire échouer le Passage. Un échec isolé du fournisseur (réponse
+inexploitable, `UnexpectedModelBehavior` par exemple, déjà converti en `UsineErreur` par
+l'adaptateur) laisse de même l'Anomalie sans suggestion, consignée au journal ; seuls
+`MAX_ECHECS_CONSECUTIFS` échecs d'affilée (fournisseur injoignable) font échouer l'étape. La
+Cause racine proposée n'est qu'une suggestion : elle n'est jamais écrite dans Jira.
 """
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -44,6 +47,10 @@ PART_PLAFOND_CLASSIFICATION = Decimal("0.5")
 """Part du plafond de coût du Passage que la classification peut dépenser (NFR-9) ; le reste
 garde le budget des explications et de la narration, et le stock se complète aux Passages
 suivants."""
+
+MAX_ECHECS_CONSECUTIFS = 3
+"""Échecs du fournisseur d'affilée au-delà desquels la classification échoue (panne franche,
+fournisseur injoignable) ; en deçà, chaque Anomalie en échec reste sans suggestion."""
 
 MAX_JETONS_SORTIE = 512
 """Plafond de jetons de sortie d'une classification."""
@@ -145,16 +152,32 @@ def classer(
     date_arrete: date,
     contexte: ContexteClassification,
     plafond_eur: Decimal | None = None,
+    *,
+    tolerer_echecs: bool = True,
+    arreter: Callable[[], bool] | None = None,
 ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
     """Cause racine proposée de chaque Anomalie de `textes` et trace de chaque appel.
 
     Une Anomalie refusée par le plafond de coût du Passage, ou par la part `plafond_eur` qui
-    revient à la classification, est absente de la sortie.
+    revient à la classification, est absente de la sortie, comme une Anomalie dont l'appel
+    échoue (`UsineErreur`, consignée au journal). `MAX_ECHECS_CONSECUTIFS` échecs d'affilée
+    lèvent une `UsineErreur` qui nomme la tâche et le dernier échec. `tolerer_echecs=False`
+    (suite d'évaluation) : le premier échec est propagé tel quel. `arreter`, consulté avant
+    chaque Anomalie, interrompt la boucle (préchauffage du cache borné dans le temps) : les
+    Anomalies restantes sont absentes de la sortie.
     """
     sorties: list[SortieClassification] = []
     traces: list[EntreeTrace] = []
+    echecs: list[str] = []
+    consecutifs = 0
     parametres = ParametresAppel(tache=Tache.classification, max_jetons_sortie=MAX_JETONS_SORTIE)
-    for ligne in anomalies(textes):
+    lignes = anomalies(textes)
+    for rang, ligne in enumerate(lignes):
+        if arreter is not None and arreter():
+            journal.info(
+                "classification interrompue : %d Anomalie(s) restante(s)", len(lignes) - rang
+            )
+            break
         cle = ligne["cle_ticket"]
         prompt = rendre_prompt(
             contexte.texte_gabarit,
@@ -181,8 +204,27 @@ def classer(
         except PlafondCoutAtteint:
             journal.warning("classification de %s non demandée : plafond de coût", cle)
             continue
+        except UsineErreur as exc:
+            if not tolerer_echecs:
+                raise
+            consecutifs += 1
+            if consecutifs >= MAX_ECHECS_CONSECUTIFS:
+                raise UsineErreur(
+                    f"classification : {consecutifs} échecs consécutifs du fournisseur LLM"
+                    f" (dernier sur {cle} : {exc})"
+                ) from exc
+            echecs.append(cle)
+            journal.warning("classification de %s en échec, sans suggestion : %s", cle, exc)
+            continue
+        consecutifs = 0
         sorties.append(resultat.sortie)
         traces.append(resultat.trace)
+    if echecs:
+        journal.warning(
+            "%d Anomalie(s) sans suggestion après un échec du fournisseur : %s",
+            len(echecs),
+            ", ".join(echecs),
+        )
     return tuple(sorties), tuple(traces)
 
 
@@ -225,3 +267,26 @@ class EtapeClassification:
             self._plafond_eur,
         )
         return ResultatEtape(StatutEtape.reussie, {"classification": sorties}, traces)
+
+    def prechauffer(
+        self,
+        textes: pl.DataFrame,
+        date_arrete: date,
+        passage_id: str,
+        arreter: Callable[[], bool],
+    ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
+        """Classe les Anomalies de `textes` hors Passage, jusqu'à ce qu'`arreter` le demande.
+
+        Même passerelle, même gabarit et même part de plafond qu'`executer` : les réponses
+        remplissent le cache de production, servi ensuite aux Passages ("cache de
+        classification initialisé", Story 6.10). `passage_id` porte le cumul de coût.
+        """
+        contexte = ContexteClassification(
+            passage_id=passage_id,
+            version_donnees=self._version_donnees,
+            version_grille=self._version_grille,
+            gabarit=self._gabarit,
+        )
+        return classer(
+            self._passerelle, textes, date_arrete, contexte, self._plafond_eur, arreter=arreter
+        )

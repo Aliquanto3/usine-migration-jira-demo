@@ -60,6 +60,7 @@ moteur de Pseudonymisation, sur une table en mémoire qui refuse toute écriture
 
 import json
 import secrets
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -135,9 +136,11 @@ from usine.contrats.passage import (
     Etape,
     ManifestePassage,
 )
+from usine.contrats.tickets import TypeTicket
 from usine.contrats.trace import EntreeTrace
 from usine.contrats.versions import version_donnees, version_grille
 from usine.domaine.causes.repartition import repartition
+from usine.domaine.instantanes import tickets_textes
 from usine.domaine.meteo import verifier_grille
 from usine.domaine.prevision.baseline import ParametresBaseline
 from usine.domaine.prevision.risque import ParametresRisque
@@ -578,7 +581,9 @@ class Classificateur:
         `date_arrete` n'est que tracée (ni prompt ni clé de cache) ; défaut : aujourd'hui.
         """
         jour = date_arrete if date_arrete is not None else _maintenant().date()
-        return classer(self.passerelle, textes, jour, self.contexte)
+        # Sans tolérance : la suite gère elle-même les échecs (rejeu strict, mode réel
+        # Anomalie par Anomalie avec `erreurs_fournisseur`).
+        return classer(self.passerelle, textes, jour, self.contexte, tolerer_echecs=False)
 
     def fermer(self) -> None:
         """Ferme les fournisseurs construits depuis `config/llm.yaml` (aucun effet sinon)."""
@@ -1050,6 +1055,70 @@ def lancer_rapport(
 
 _RACINE_DEPOT = Path(__file__).resolve().parents[2]
 """Racine du dépôt quand le paquet s'exécute depuis les sources."""
+
+
+@dataclass(frozen=True)
+class BilanPrechauffage:
+    """Bilan d'un préchauffage du cache de classification."""
+
+    anomalies: int
+    """Anomalies du Journal à la Date d'arrêté."""
+    classees: int
+    """Anomalies classées par ce préchauffage (cache ou appel frais)."""
+    appels: int
+    """Appels frais au fournisseur."""
+    cout_eur: Decimal
+    """Coût estimé des appels frais."""
+
+
+def prechauffer_classification(
+    racine: Path,
+    date_arrete: date,
+    duree_max_s: float,
+    chrono: Callable[[], float] = time.monotonic,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> BilanPrechauffage:
+    """Remplit le cache de classification de production (`donnees/cache_llm.sqlite`) hors
+    Passage, pendant au plus `duree_max_s` secondes ; relançable jusqu'à couvrir le stock.
+
+    Exige le Palier 2. Mêmes passerelle, Pseudonymisation, gabarit et part de plafond qu'un
+    Passage (la Date d'arrêté n'entre pas dans la clé de cache d'une classification). Les
+    textes viennent du Journal (aux clés Jira si le manifeste d'injection existe) : en source
+    `composite`, les tickets créés dans Jira après l'injection sont classés par le Passage.
+    Verrou du Passage tenu pendant le préchauffage. `fournisseur` et `pseudonymiseur` : comme
+    `construire_rapport` (doublures des tests).
+    """
+    verifier_date_arrete(date_arrete)
+    debut = chrono()
+    with verrou_exclusif(racine / CHEMIN_VERROU):
+        rapport = construire_rapport(racine, fournisseur, pseudonymiseur)
+        try:
+            etape = rapport.registre[Etape.classification]
+            if not isinstance(etape, EtapeClassification):
+                raise UsineErreur(
+                    "config/chaine.yaml, clé « palier » : le préchauffage du cache de"
+                    " classification exige le palier 2"
+                )
+            chemin_manifeste = racine / CHEMIN_MANIFESTE_INJECTION
+            manifeste = charger_manifeste(chemin_manifeste) if chemin_manifeste.exists() else None
+            source = SourceJournal(racine / CHEMIN_JOURNAL, manifeste)
+            textes = tickets_textes(source.evenements(), date_arrete)
+            sorties, traces = etape.prechauffer(
+                textes,
+                date_arrete,
+                f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
+                lambda: chrono() - debut >= duree_max_s,
+            )
+        finally:
+            rapport.fermer()
+    fraiches = [trace for trace in traces if not trace.depuis_cache]
+    return BilanPrechauffage(
+        anomalies=textes.filter(pl.col("type_ticket") == TypeTicket.anomalie.value).height,
+        classees=len(sorties),
+        appels=len(fraiches),
+        cout_eur=sum((trace.cout_estime_eur for trace in fraiches), Decimal(0)),
+    )
 
 
 def generer_journal(
