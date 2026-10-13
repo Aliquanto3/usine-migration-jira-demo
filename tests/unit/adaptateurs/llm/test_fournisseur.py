@@ -78,7 +78,7 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert 300 in (corps.get("max_tokens"), corps.get("max_completion_tokens"))
+    assert corps["max_tokens"] == 300
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -238,18 +238,23 @@ def test_registre_quotas_et_prix() -> None:
 
 def test_llama_url_par_defaut_et_surchargee() -> None:
     defaut = TransportScripte([_sortie("llama")])
-    fournisseur_scripte("llama", defaut).generer_structure("p", Sortie, STRUCTURE)
+    premier = fournisseur_scripte("llama", defaut)
+    premier.generer_structure("p", Sortie, STRUCTURE)
+    premier.fermer()
     assert defaut.urls == [f"{URL_LLAMA_DEFAUT}/chat/completions"]
     perso = TransportScripte([_sortie("llama")])
     adaptateur = fournisseur_scripte("llama", perso, url_llama="http://poste:9000/v1")
     adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    adaptateur.fermer()
     assert perso.urls == ["http://poste:9000/v1/chat/completions"]
 
 
 def test_llama_sans_cle_et_cout_nul() -> None:
     adaptateur = construire_fournisseur_llm(_config("llama", MODELES["llama"]), "")
     assert adaptateur.version_modele == "llama:qwen3-8b-q4_k_m"
+    adaptateur.fermer()
     assert tarif("llama:qwen3-8b-q4_k_m").gratuit
+    assert cout_estime_eur("llama:qwen3-8b-q4_k_m", 1000, 500) == 0
 
 
 def test_llama_modele_hors_registre_refuse() -> None:
@@ -270,6 +275,7 @@ def test_llama_serveur_injoignable_sans_reprise() -> None:
     )
     with pytest.raises(UsineErreur, match=r"llama:qwen3-8b-q4_k_m"):
         adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    adaptateur.fermer()
     assert len(appels) == 1
 
 

@@ -82,6 +82,38 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-10-13 — Review pass
+- verdicts: 28 findings — high 0, medium 8, low 16, false 3, maybe-false 1
+- findings:
+  - `[low]` `[reject]` (blind) Aucune clé possible pour un llama-server lancé avec `--api-key` — poste local de démo, cas rare ; le correctif ajoute une variable et un câblage (surface nouvelle).
+  - `[medium]` `[patch]` (blind) Mode réflexion de Qwen3 actif, budget de sortie de 300 jetons consommé avant l'outil `reponse` — `--reasoning-budget 0` ajouté à la commande documentée.
+  - `[low]` `[patch]` (blind) 503 « Loading model » non repris, message peu explicite, 429 de la doublure au format Mistral — doublure au format d'erreur OpenAI, attente de `/health` documentée ; reprise du 503 non ajoutée (branche de plus pour un cas évité par la procédure).
+  - `[low]` `[patch]` (blind) `USINE_LLAMA_URL` absente de `.env.example`, adresse non validée — ligne ajoutée à `.env.example` ; validation rejetée (garde de plus, erreur déjà levée au premier appel).
+  - `[low]` `[reject]` (blind) Bascule vers `llama` avec `modeles_par_tache` Anthropic conservé — l'erreur du registre nomme `llama:claude-haiku-5-5` et liste les modèles connus ; `config/llm.yaml` et la doc disent de retirer le bloc ; le correctif ajouterait une branche.
+  - `[medium]` `[patch]` (blind) Le test de composition ne prouve pas la transmission de l'URL — test ajouté sur `construire_fournisseur` et `construire_fournisseurs_par_tache` (enregistreur de `url_llama`).
+  - `[medium]` `[patch]` (blind) Assertion `max_tokens` assouplie pour tous, `max_completion_tokens` peut-être ignoré par llama-server — profil OpenAI de l'adaptateur `llama` : `max_tokens` envoyé ; assertion stricte rétablie.
+  - `[low]` `[patch]` (blind) Coût nul non testé, sémantique de `gratuit` — assertion `cout_estime_eur(...) == 0`, docstring de `gratuit` complétée.
+  - `[low]` `[patch]` (blind) Adaptateurs non fermés dans les nouveaux tests — `fermer()` appelé.
+  - `[low]` `[patch]` (blind) Documentation incomplète ou contradictoire (README Explication exigeant une clé, source du GGUF, contrôle de disponibilité, `USINE_CLE_PSEUDO`) — README et `docs/mode-llm-local.md` complétés.
+  - `[false]` `[reject]` (blind) `tiktoken` téléchargerait ses encodages hors réseau — `pydantic_ai.models.openai` n'importe pas `tiktoken` ; aucun chemin de l'usine ne l'appelle. Fraîcheur d'`openai` 3.29.0 : version verrouillée par `uv.lock`, sans défaut nommé.
+  - `[medium]` `[reject]` (blind) Rien ne s'exécute contre un vrai serveur — exclu par l'intent (consigne : aucun llama-server réel, aucun appel LLM) ; déjà consigné dans `deferred`.
+  - `[low]` `[patch]` (edge) 503 au chargement — même entrée que la ligne 503 ci-dessus.
+  - `[medium]` `[patch]` (edge) Réflexion de Qwen3 — même entrée que la ligne réflexion ci-dessus.
+  - `[maybe-false]` `[patch]` (edge) `max_completion_tokens` peut-être ignoré par llama-server b11552 (à vérifier sur la source b11552) — regroupé avec l'entrée `max_tokens` ; `max_tokens`, toujours lu par llama-server, est désormais envoyé.
+  - `[low]` `[reject]` (edge) Clé llama-server impossible — même motif que la ligne clé ci-dessus.
+  - `[low]` `[reject]` (edge) Adresse sans schéma acceptée — garde supplémentaire ; l'erreur survient au premier appel en nommant `llama:<modele>`.
+  - `[low]` `[patch]` (edge) `USINE_LLAMA_URL` absente de `.env.example` — ligne ajoutée.
+  - `[low]` `[patch]` (edge) Assertion `max_tokens` assouplie — regroupé avec l'entrée `max_tokens`, égalité stricte rétablie.
+  - `[medium]` `[patch]` (verification-gap) URL de l'environnement jamais vérifiée jusqu'à l'adaptateur — même correctif que la ligne composition ci-dessus.
+  - `[low]` `[patch]` (verification-gap) Test « coût nul » vérifiant un drapeau non lu — assertion sur `cout_estime_eur`.
+  - `[low]` `[reject]` (verification-gap) La spec attribue le coût nul à `gratuit` plutôt qu'aux prix nuls — correctif = modifier la spec.
+  - `[medium]` `[reject]` (intent) CA1 exercé sur faux transport, pas sur un llama-server b11552 réel — exclu par l'intent (aucun llama-server réel).
+  - `[low]` `[reject]` (intent) `config/llm.yaml` jamais basculé, bloc `modeles_par_tache` à retirer à la main — Anthropic reste actif par choix ; bascule documentée.
+  - `[low]` `[reject]` (intent) « Sans combiner schéma et outils » vérifié en unitaire paramétré (`llama` compris) plutôt que dans la suite de contrat — propriété vérifiée sur le même adaptateur ; l'ajouter au contrat demanderait l'introspection des requêtes pour chaque fabrique.
+  - `[medium]` `[reject]` (intent) CA2, suites d'évaluation non relancées — exclu par l'intent (aucun appel LLM réel) ; reporté dans `deferred`.
+  - `[false]` `[reject]` (intent) Revue absente — la revue est en cours (cette passe).
+  - `[false]` `[reject]` (intent) Écriture hors périmètre de l'epic (`pyproject.toml`, `composition.py`, `secrets.py`, `docs/`) — la dépendance se déclare dans `pyproject.toml` et le fournisseur ne se choisit que dans la composition ; aucun préjudice nommé.
+
 ## Design Notes
 
 llama-server expose `/v1/chat/completions` au format OpenAI, outils compris avec `--jinja` ; le modèle OpenAI Chat de Pydantic AI y parle sans code spécifique, et `tool_choice` « required » du mode Tool Output est accepté. Le mode Mistral pointé vers llama-server a été écarté (`tool_choice: any` non standard). L'URL passe par l'environnement plutôt que par `config/llm.yaml` : `ConfigLLM` est un contrat gelé et l'URL dépend du poste, comme `USINE_RACINE`. Qwen3-8B Q4_K_M : bon appel d'outils, français correct, ~5 Go de poids plus le contexte dans 8 Go de VRAM ; un autre GGUF se branche par une ligne de registre et `--alias`.

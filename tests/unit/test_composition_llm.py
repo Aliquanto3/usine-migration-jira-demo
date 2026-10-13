@@ -67,6 +67,24 @@ def test_llama_sans_cle_et_url_de_l_environnement(
     assert charger_secrets(racine).usine_llama_url == "http://poste:9001/v1"
 
 
+def test_url_llama_transmise_aux_deux_constructions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    racine = _racine(tmp_path, "llama", "qwen3-8b-q4_k_m")
+    _avec_modeles_par_tache(racine, "  classification: autre-modele\n")
+    recus: list[str | None] = []
+
+    def enregistreur(config: object, cle: str, **options: str | None) -> FournisseurFactice:
+        recus.append(options.get("url_llama"))
+        return FournisseurFactice()
+
+    monkeypatch.setattr("usine.adaptateurs.llm.construire_fournisseur_llm", enregistreur)
+    secrets = Secrets(usine_llama_url="http://poste:9000/v1")
+    construire_fournisseur(racine, secrets)
+    assert construire_fournisseurs_par_tache(racine, secrets)
+    assert recus == ["http://poste:9000/v1", "http://poste:9000/v1"]
+
+
 def test_sans_llm_yaml(tmp_path: Path) -> None:
     with pytest.raises(UsineErreur, match=r"llm\.yaml"):
         construire_fournisseur(tmp_path)

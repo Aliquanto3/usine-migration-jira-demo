@@ -160,11 +160,23 @@ def llama_texte(texte: str) -> httpx2.Response:
 def trop_de_requetes(fournisseur: str, retry_after: str | None) -> httpx2.Response:
     """Réponse 429, avec `Retry-After` si fourni."""
     entetes = {"retry-after": retry_after} if retry_after is not None else {}
-    corps: dict[str, Any] = (
-        {"type": "error", "error": {"type": "rate_limit_error", "message": "trop de requêtes"}}
-        if fournisseur == "anthropic"
-        else {"object": "error", "message": "Requests rate limit exceeded", "type": "rate_limited"}
-    )
+    corps: dict[str, Any]
+    if fournisseur == "anthropic":
+        corps = {"type": "error", "error": {"type": "rate_limit_error", "message": "trop"}}
+    elif fournisseur == "llama":
+        corps = {
+            "error": {
+                "message": "Rate limit exceeded",
+                "type": "rate_limit_error",
+                "code": "rate_limit_exceeded",
+            }
+        }
+    else:
+        corps = {
+            "object": "error",
+            "message": "Requests rate limit exceeded",
+            "type": "rate_limited",
+        }
     return httpx2.Response(429, headers=entetes, json=corps)
 
 

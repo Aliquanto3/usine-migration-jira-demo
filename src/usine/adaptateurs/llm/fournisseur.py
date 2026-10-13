@@ -36,6 +36,8 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.wrapper import WrapperModel
+from pydantic_ai.profiles import merge_profile
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.mistral import MistralProvider
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -414,7 +416,13 @@ def construire_fournisseur_llm(
             http_client=client_http,
             max_retries=0,
         )
-        modele = OpenAIChatModel(config.modele, provider=OpenAIProvider(openai_client=client_llama))
+        fournisseur_openai = OpenAIProvider(openai_client=client_llama)
+        # llama-server ignore `max_completion_tokens` : on envoie `max_tokens` (sortie bornée).
+        profil = merge_profile(
+            fournisseur_openai.model_profile(config.modele),
+            OpenAIModelProfile(openai_chat_supports_max_completion_tokens=False),
+        )
+        modele = OpenAIChatModel(config.modele, provider=fournisseur_openai, profile=profil)
     else:
         mistral = Mistral(api_key=cle_api, async_client=client_http)
         modele = MistralModel(config.modele, provider=MistralProvider(mistral_client=mistral))
