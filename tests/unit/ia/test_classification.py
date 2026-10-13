@@ -514,3 +514,13 @@ def test_anomalies_ignorees_et_echouees_signalees() -> None:
     assert factice.tentatives == 2
     assert echouees == ["DEMO-1"]
     assert [s.cle_ticket for s in sorties] == ["DEMO-10"]
+
+
+def test_echec_propage_sans_laisser_de_trace_au_tampon() -> None:
+    """6.10-b (revue) : `tolerer_echecs=False` vide quand même le tampon d'échec, qui ne fuit
+    pas vers un `classer` suivant de la même passerelle."""
+    factice = FournisseurEchouantSur({0}, [_reponse(), _reponse(), _reponse()])
+    passerelle = _passerelle(factice)
+    with pytest.raises(UsineErreur):
+        classer(passerelle, TEXTES, DATE_ARRETE, _contexte(), tolerer_echecs=False)
+    assert passerelle.vider_traces_echec() == ()

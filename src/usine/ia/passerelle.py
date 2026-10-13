@@ -245,14 +245,16 @@ class Passerelle:
         """Coût estimé cumulé des appels frais du Passage `passage_id`."""
         return self._cumul.get(passage_id, Decimal(0))
 
-    def vider_traces_echec(self) -> tuple[EntreeTrace, ...]:
-        """Traces (`en_echec`) des appels structurés échoués depuis le dernier appel ici.
+    def vider_traces_echec(self, tache: Tache | None = None) -> tuple[EntreeTrace, ...]:
+        """Traces (`en_echec`) des appels structurés échoués, de la `tache` demandée si donnée
+        (les autres restent au tampon : un appelant ne reprend pas l'échec d'une autre tâche).
 
         L'appelant qui tolère un échec les ajoute à ses traces : le coût majoré, déjà imputé au
         plafond, entre ainsi dans `cout_llm_eur` et dans le balayage SM-7.
         """
-        traces, self._traces_echec = tuple(self._traces_echec), []
-        return traces
+        prises = tuple(t for t in self._traces_echec if tache is None or t.tache is tache)
+        self._traces_echec = [t for t in self._traces_echec if all(t is not p for p in prises)]
+        return prises
 
     def _tracer_echec(
         self,

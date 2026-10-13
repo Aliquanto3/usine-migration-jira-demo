@@ -216,9 +216,10 @@ def classer(
             journal.warning("classification de %s non demandée : plafond de coût", cle)
             continue
         except UsineErreur as exc:
+            echec = passerelle.vider_traces_echec(Tache.classification)
             if not tolerer_echecs:
                 raise
-            traces.extend(passerelle.vider_traces_echec())
+            traces.extend(echec)
             consecutifs += 1
             echecs.append(cle)
             if echouees is not None:

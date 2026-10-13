@@ -2,7 +2,7 @@
 title: "Story 6.10-b : Correctifs reportés de la 6.10"
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'done'
 baseline_revision: 'ea5a169'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -54,3 +54,11 @@ Relances bornées par un petit fichier JSON de compteurs plutôt que par le cach
 ## Reports
 
 Aucun. Les échecs d'`executer_structure` d'explication et de narration font échouer le Passage : leur trace n'est pas publiée (hors périmètre).
+
+## Revue
+
+- Medium, corrigé : `classer` avec `tolerer_echecs=False` levait avant `vider_traces_echec()` ; la trace d'échec restait au tampon et fuyait vers un `classer` suivant de la même passerelle. Le tampon est désormais vidé avant la levée (test ajouté).
+- Medium, corrigé : `vider_traces_echec()` reprenait aussi les échecs d'autres tâches (narration, explication, qui ne vident pas le tampon). Il filtre maintenant par `tache` ; `classer` passe `Tache.classification`.
+- Medium, corrigé : préchauffage, le compteur d'échecs n'était pas écrit quand `classer` levait (échecs consécutifs), ce qui annulait la borne des relances ; écriture dans un `finally`, et atomique (fichier temporaire puis remplacement).
+- Rejeté (low) : traces d'échec perdues quand `classer` lève pour trop d'échecs ; le Passage échoue alors, le coût reste au plafond.
+- Vérifié, sans défaut : pas de double imputation (coût imputé une fois dans `_tracer_echec`, le succès n'est pas imputé), entrée pseudonymisée (SM-7), Agent via `sur_trace` sans tampon, anciennes traces relues (`en_echec` défaut `false`), compteur illisible ou `version_prompt` changé : remis à zéro, code de sortie.

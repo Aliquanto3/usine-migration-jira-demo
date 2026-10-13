@@ -1102,6 +1102,16 @@ def _lire_echecs(chemin: Path, version_prompt: str) -> dict[str, int]:
         return {}
 
 
+def _ecrire_echecs(chemin: Path, version_prompt: str, echecs: dict[str, int]) -> None:
+    """Écrit le compteur d'échecs de façon atomique (fichier temporaire puis remplacement)."""
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    temporaire = chemin.with_name(chemin.name + ".tmp")
+    temporaire.write_text(
+        json.dumps({"version_prompt": version_prompt, "echecs": echecs}), encoding="utf-8"
+    )
+    temporaire.replace(chemin)
+
+
 def prechauffer_classification(
     racine: Path,
     date_arrete: date,
@@ -1146,23 +1156,24 @@ def prechauffer_classification(
             abandonnees = {cle for cle, n in echecs.items() if n >= max_echecs}
             abandonnees &= set(anomalies["cle_ticket"].to_list())
             echouees: list[str] = []
-            sorties, traces = etape.prechauffer(
-                textes,
-                date_arrete,
-                f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
-                lambda: chrono() - debut >= duree_max_s,
-                abandonnees,
-                echouees,
-            )
-            for sortie in sorties:
-                echecs.pop(sortie.cle_ticket, None)
-            for cle in echouees:
-                echecs[cle] = echecs.get(cle, 0) + 1
-            chemin_echecs.parent.mkdir(parents=True, exist_ok=True)
-            chemin_echecs.write_text(
-                json.dumps({"version_prompt": etape.version_prompt, "echecs": echecs}),
-                encoding="utf-8",
-            )
+            sorties: tuple[SortieClassification, ...] = ()
+            try:
+                sorties, traces = etape.prechauffer(
+                    textes,
+                    date_arrete,
+                    f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
+                    lambda: chrono() - debut >= duree_max_s,
+                    abandonnees,
+                    echouees,
+                )
+            finally:
+                # Même si la classification abandonne (échecs consécutifs), les échecs
+                # constatés sont consignés : sinon la borne des relances ne jouerait jamais.
+                for sortie in sorties:
+                    echecs.pop(sortie.cle_ticket, None)
+                for cle in echouees:
+                    echecs[cle] = echecs.get(cle, 0) + 1
+                _ecrire_echecs(chemin_echecs, etape.version_prompt, echecs)
         finally:
             rapport.fermer()
     fraiches = [trace for trace in traces if not trace.depuis_cache]
