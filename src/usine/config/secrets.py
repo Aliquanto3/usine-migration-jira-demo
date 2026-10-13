@@ -23,6 +23,11 @@ class Secrets(BaseSettings):
     mistral_api_key: SecretStr | None = None
     usine_cle_pseudo: SecretStr | None = None
     usine_mode_repli: bool = False
+    usine_langfuse: bool = False
+    """Bonus (Story 6.13) : envoie les traces LLM à Langfuse ; désactivé par défaut."""
+    langfuse_host: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: SecretStr | None = None
     usine_racine: str | None = None
     """Racine de l'UI (répertoire du dépôt) ; vide ou absente : le répertoire courant."""
 

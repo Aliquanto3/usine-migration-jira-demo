@@ -224,12 +224,16 @@ class Passerelle:
         tarif: Tarif = tarif_nul,
         plafond_cout_passage_eur: Decimal | None = None,
         fournisseurs_par_tache: Mapping[Tache, FournisseurLLM] | None = None,
+        observateur: Callable[[EntreeTrace], None] | None = None,
     ) -> None:
         """`plafond_cout_passage_eur` : `None` pour aucun plafond.
 
         `fournisseurs_par_tache` : fournisseur dédié à une tâche (clé `modeles_par_tache` de
         `config/llm.yaml`) ; une tâche absente passe par `fournisseur`. Le cumul de coût et le
         plafond du Passage restent communs à tous les fournisseurs.
+
+        `observateur` (Story 6.13) : reçoit chaque `EntreeTrace` produite, en plus du Journal ;
+        il ne voit que des textes pseudonymisés (ceux de la trace). Son échec est ignoré.
         """
         self._fournisseur = fournisseur
         self._fournisseurs_par_tache = dict(fournisseurs_par_tache or {})
@@ -240,6 +244,16 @@ class Passerelle:
         self._plafond = plafond_cout_passage_eur
         self._cumul: dict[str, Decimal] = {}
         self._traces_echec: list[EntreeTrace] = []
+        self._observateur = observateur
+
+    def _observer(self, trace: EntreeTrace) -> None:
+        """Transmet la trace à l'observateur externe, sans jamais faire échouer l'appel."""
+        if self._observateur is None:
+            return
+        try:
+            self._observateur(trace)
+        except Exception as exc:
+            journal.warning("Observabilité externe en échec (%s)", type(exc).__name__)
 
     def cout_cumule_eur(self, passage_id: str) -> Decimal:
         """Coût estimé cumulé des appels frais du Passage `passage_id`."""
@@ -303,6 +317,7 @@ class Passerelle:
             cout_estime_eur=majore,
             en_echec=True,
         )
+        self._observer(trace)
         if sur_trace is not None:
             sur_trace(trace)
         else:
@@ -428,6 +443,7 @@ class Passerelle:
             jetons_sortie=jetons_sortie,
             cout_estime_eur=cout,
         )
+        self._observer(trace)
         return ResultatAppel(sortie, controle.statut, controle.phrases_retirees, trace)
 
     def executer_agent(
@@ -499,6 +515,7 @@ class Passerelle:
                         statut_controle=StatutControle.non_controle,
                     )
                 )
+                self._observer(traces_outils[-1])
                 if sur_trace is not None:
                     sur_trace(traces_outils[-1])
                 return resultat
@@ -566,6 +583,7 @@ class Passerelle:
             jetons_sortie=jetons_sortie,
             cout_estime_eur=cout,
         )
+        self._observer(trace)
         if sur_trace is not None:
             sur_trace(trace)
         return ResultatAgent(sortie, controle.statut, (*traces_outils, trace))

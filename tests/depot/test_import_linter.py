@@ -90,6 +90,7 @@ AUTORISATIONS: dict[str, tuple[set[str], set[str] | None]] = {
             "presidio_analyzer",
             "presidio_anonymizer",
             "spacy",
+            "langfuse",
             "pymongo",
         },
     ),
