@@ -53,7 +53,9 @@ classée (plafond de coût atteint) compte comme fausse et figure dans `non_clas
    Passage). Garde-fou AD-19 : le modèle de classification doit différer du `modele_corpus`
    du Journal, sinon la commande s'arrête avant tout appel. Le résultat publie le F1 macro de
    chaque source, `modele_corpus`, `modele_classification` et `sm9_atteint` ; une ligne est
-   ajoutée à `historique.jsonl`.
+   ajoutée à `historique.jsonl`. Un échec isolé du fournisseur (réponse hors schéma, par
+   exemple) laisse l'Anomalie non classée, comptée fausse et listée dans
+   `erreurs_fournisseur` ; 10 échecs d'affilée arrêtent la commande.
 4. **Rejeu d'un run réel, hors réseau.** Les `propositions` de la source générateur d'un
    résultat antérieur servent de réponses enregistrées :
 

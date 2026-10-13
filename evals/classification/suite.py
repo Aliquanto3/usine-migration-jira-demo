@@ -25,6 +25,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+import polars as pl
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from evals.classification.metriques import evaluer
@@ -174,17 +175,47 @@ def verifier_ad19(modele_classification: str, modele_corpus: str) -> None:
         )
 
 
+MAX_ECHECS_CONSECUTIFS = 10
+"""Échecs consécutifs du fournisseur au-delà desquels le mode réel s'arrête (panne franche)."""
+
+
 def _proposer(
-    classificateur: Classificateur, *args: Any
-) -> tuple[dict[str, CauseRacine], dict[str, str], float]:
+    classificateur: Classificateur, textes: pl.DataFrame, *args: Any, tolerer: bool = False
+) -> tuple[dict[str, CauseRacine], dict[str, str], float, dict[str, str]]:
+    """Propositions, justifications, coût estimé et échecs du fournisseur par clé.
+
+    `tolerer=True` (mode réel) : une Anomalie à la fois ; un échec isolé du fournisseur
+    (`UsineErreur`) laisse l'Anomalie non classée et est consigné, au lieu de perdre tout le
+    run ; `MAX_ECHECS_CONSECUTIFS` échecs d'affilée arrêtent la suite.
+    """
+    erreurs: dict[str, str] = {}
     try:
-        sorties, traces = classificateur(*args)
+        if not tolerer:
+            sorties, traces = classificateur(textes, *args)
+        else:
+            sorties, traces = (), ()
+            consecutifs = 0
+            for rang in range(textes.height):
+                ligne = textes.slice(rang, 1)
+                try:
+                    une, ses_traces = classificateur(ligne, *args)
+                except UsineErreur as exc:
+                    erreurs[str(ligne["cle_ticket"][0])] = str(exc)
+                    consecutifs += 1
+                    if consecutifs >= MAX_ECHECS_CONSECUTIFS:
+                        raise UsineErreur(
+                            f"{consecutifs} échecs consécutifs du fournisseur ; dernier : {exc}"
+                        ) from exc
+                    continue
+                consecutifs = 0
+                sorties += une
+                traces += ses_traces
     finally:
         classificateur.fermer()
     propositions = {sortie.cle_ticket: sortie.cause_racine for sortie in sorties}
     justifications = {sortie.cle_ticket: sortie.justification for sortie in sorties}
     cout = float(sum(trace.cout_estime_eur for trace in traces))
-    return propositions, justifications, cout
+    return propositions, justifications, cout, erreurs
 
 
 def _bloc(
@@ -192,12 +223,14 @@ def _bloc(
     verite: Mapping[str, CauseRacine],
     propositions: Mapping[str, CauseRacine],
     cout: float,
+    erreurs: Mapping[str, str],
 ) -> dict[str, Any]:
     return {
         "version_prompt": classificateur.version_prompt,
         "version_modele": classificateur.version_modele,
         **evaluer(verite, propositions),
         "cout_estime_eur": round(cout, 6),
+        "erreurs_fournisseur": dict(sorted(erreurs.items(), key=lambda item: rang_cle(item[0]))),
         "propositions": {
             cle: propositions[cle].value for cle in sorted(propositions, key=rang_cle)
         },
@@ -212,9 +245,11 @@ def _executer_manuels(
     else:
         reponses = {ticket.cle: ticket.reponse for ticket in tickets}
         classificateur = fabrique(FournisseurEnregistre("manuels", reponses))
-    propositions, justifications, cout = _proposer(classificateur, table_textes_manuels(tickets))
+    propositions, justifications, cout, erreurs = _proposer(
+        classificateur, table_textes_manuels(tickets), tolerer=reel
+    )
     verite = {ticket.cle: ticket.cause_attendue for ticket in tickets}
-    bloc = _bloc(classificateur, verite, propositions, cout)
+    bloc = _bloc(classificateur, verite, propositions, cout, erreurs)
     bloc["details"] = [
         {
             "cle": ticket.cle,
@@ -265,7 +300,9 @@ def _executer_generateur(
         }
         classificateur = fabrique(FournisseurEnregistre("generateur", enregistrees))
         modele_classification = reponses.modele_classification or classificateur.version_modele
-    propositions, _, cout = _proposer(classificateur, source.textes, source.entete.date_generation)
+    propositions, _, cout, erreurs = _proposer(
+        classificateur, source.textes, source.entete.date_generation, tolerer=reel
+    )
     return {
         "journal": str(source.chemin_journal),
         "verite_terrain": str(source.chemin_verite),
@@ -273,7 +310,7 @@ def _executer_generateur(
         "version_corpus": source.entete.version_corpus,
         "modele_corpus": modele_corpus,
         "modele_classification": modele_classification,
-        **_bloc(classificateur, source.verite, propositions, cout),
+        **_bloc(classificateur, source.verite, propositions, cout, erreurs),
     }
 
 

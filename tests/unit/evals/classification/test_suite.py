@@ -508,3 +508,47 @@ def test_cli_generateur_rejoue_un_resultat(
     assert set(resultat["sources"]) == {"manuels", "generateur"}
     assert resultat["sm9_atteint"] is True
     assert resultat["sources"]["generateur"]["modele_classification"] == MODELE_CLASSIFICATION
+
+
+class _ClassificateurInstable:
+    """Doublure : échoue sur les clés `en_echec`, propose `parametrage` ailleurs."""
+
+    def __init__(self, en_echec: set[str]) -> None:
+        self.en_echec = en_echec
+        self.ferme = False
+
+    def __call__(self, textes: Any, *args: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
+        from usine.contrats.llm import SortieClassification
+
+        cle = str(textes["cle_ticket"][0])
+        if cle in self.en_echec:
+            raise UsineErreur(f"{cle} : appel au fournisseur LLM en échec")
+        return (SortieClassification(cle_ticket=cle, cause_racine=CauseRacine.parametrage),), ()
+
+    def fermer(self) -> None:
+        self.ferme = True
+
+
+def _textes_cles(nombre: int) -> Any:
+    import polars as pl
+
+    return pl.DataFrame({"cle_ticket": [f"DEMO-{n}" for n in range(1, nombre + 1)]})
+
+
+def test_mode_reel_tolere_un_echec_isole_du_fournisseur() -> None:
+    double = _ClassificateurInstable({"DEMO-2"})
+    propositions, _, _, erreurs = module_suite._proposer(
+        double,  # type: ignore[arg-type]
+        _textes_cles(3),
+        tolerer=True,
+    )
+    assert set(propositions) == {"DEMO-1", "DEMO-3"}
+    assert set(erreurs) == {"DEMO-2"} and double.ferme
+
+
+def test_mode_reel_arrete_apres_trop_d_echecs_consecutifs() -> None:
+    nombre = module_suite.MAX_ECHECS_CONSECUTIFS
+    double = _ClassificateurInstable({f"DEMO-{n}" for n in range(1, nombre + 1)})
+    with pytest.raises(UsineErreur, match="échecs consécutifs"):
+        module_suite._proposer(double, _textes_cles(nombre), tolerer=True)  # type: ignore[arg-type]
+    assert double.ferme
