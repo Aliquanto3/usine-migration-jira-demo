@@ -25,6 +25,6 @@ def test_code_de_sortie_selon_le_stock(
     attendu: int,
 ) -> None:
     bilan = BilanPrechauffage(anomalies=10, classees=classees, appels=4, cout_eur=Decimal("0.001"))
-    monkeypatch.setattr(prechauffer_cache, "prechauffer_classification", lambda *_: bilan)
+    monkeypatch.setattr(prechauffer_cache, "prechauffer_classification", lambda *_, **__: bilan)
     assert prechauffer_cache.main(["--date-arrete", "2026-10-12", "--duree-max", "5"]) == attendu
     assert f"Classées : {classees}/10 Anomalies ; 4 appels frais" in capsys.readouterr().out

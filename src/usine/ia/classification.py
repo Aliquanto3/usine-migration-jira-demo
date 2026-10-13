@@ -18,7 +18,7 @@ Cause racine proposée n'est qu'une suggestion : elle n'est jamais écrite dans 
 
 import logging
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -159,6 +159,8 @@ def classer(
     *,
     tolerer_echecs: bool = True,
     arreter: Callable[[], bool] | None = None,
+    ignorer: Collection[str] = (),
+    echouees: list[str] | None = None,
 ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
     """Cause racine proposée de chaque Anomalie de `textes` et trace de chaque appel.
 
@@ -170,6 +172,8 @@ def classer(
     `tolerer_echecs=False` (suite d'évaluation) : le premier échec est propagé tel quel.
     `arreter`, consulté avant chaque Anomalie, interrompt la boucle (préchauffage du cache
     borné dans le temps) : les Anomalies restantes sont absentes de la sortie.
+    `ignorer` : clés sautées sans appel (abandonnées après trop d'échecs, préchauffage) ;
+    `echouees` reçoit les clés dont l'appel a échoué. Chaque échec ajoute sa trace (`en_echec`).
     """
     sorties: list[SortieClassification] = []
     traces: list[EntreeTrace] = []
@@ -184,6 +188,8 @@ def classer(
             )
             break
         cle = ligne["cle_ticket"]
+        if cle in ignorer:
+            continue
         prompt = rendre_prompt(
             contexte.texte_gabarit,
             {"cle_ticket": cle, "ticket": _ticket(cle, ligne["titre"], ligne["description"])},
@@ -212,8 +218,11 @@ def classer(
         except UsineErreur as exc:
             if not tolerer_echecs:
                 raise
+            traces.extend(passerelle.vider_traces_echec())
             consecutifs += 1
             echecs.append(cle)
+            if echouees is not None:
+                echouees.append(cle)
             if consecutifs >= MAX_ECHECS_CONSECUTIFS or len(echecs) >= MAX_ECHECS_PASSAGE:
                 raise UsineErreur(
                     f"classification : {consecutifs} échecs consécutifs et {len(echecs)} au"
@@ -273,18 +282,26 @@ class EtapeClassification:
         )
         return ResultatEtape(StatutEtape.reussie, {"classification": sorties}, traces)
 
+    @property
+    def version_prompt(self) -> str:
+        """`version_prompt` du gabarit envoyé."""
+        return version_prompt(self._gabarit)
+
     def prechauffer(
         self,
         textes: pl.DataFrame,
         date_arrete: date,
         passage_id: str,
         arreter: Callable[[], bool],
+        ignorer: Collection[str] = (),
+        echouees: list[str] | None = None,
     ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
         """Classe les Anomalies de `textes` hors Passage, jusqu'à ce qu'`arreter` le demande.
 
         Même passerelle, même gabarit et même part de plafond qu'`executer` : les réponses
         remplissent le cache de production, servi ensuite aux Passages ("cache de
         classification initialisé", Story 6.10). `passage_id` porte le cumul de coût.
+        `ignorer` et `echouees` : voir `classer`.
         """
         contexte = ContexteClassification(
             passage_id=passage_id,
@@ -293,5 +310,12 @@ class EtapeClassification:
             gabarit=self._gabarit,
         )
         return classer(
-            self._passerelle, textes, date_arrete, contexte, self._plafond_eur, arreter=arreter
+            self._passerelle,
+            textes,
+            date_arrete,
+            contexte,
+            self._plafond_eur,
+            arreter=arreter,
+            ignorer=ignorer,
+            echouees=echouees,
         )

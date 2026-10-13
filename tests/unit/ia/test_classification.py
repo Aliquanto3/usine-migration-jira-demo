@@ -267,7 +267,8 @@ def test_echec_isole_anomalie_sans_suggestion_passage_poursuivi(
     with caplog.at_level(logging.WARNING, logger="usine.ia.classification"):
         sorties, traces = _classer(factice)
     assert [s.cle_ticket for s in sorties] == ["DEMO-1", "DEMO-10"]
-    assert [t.cible for t in traces] == ["DEMO-1", "DEMO-10"]
+    assert [t.cible for t in traces] == ["DEMO-1", "DEMO-2", "DEMO-10"]
+    assert [t.en_echec for t in traces] == [False, True, False]
     messages = [r.getMessage() for r in caplog.records if r.name == "usine.ia.classification"]
     assert any("DEMO-2" in m and "UnexpectedModelBehavior" in m for m in messages)
     assert any(m.startswith("1 Anomalie(s) sans suggestion") and "DEMO-2" in m for m in messages)
@@ -465,7 +466,8 @@ def test_cout_d_un_echec_impute_au_plafond() -> None:
     factice = FournisseurEchouantSur({0}, [_reponse(), _reponse()])
     passerelle = _passerelle(factice, plafond=Decimal("0.5"))
     sorties, traces = classer(passerelle, TEXTES, DATE_ARRETE, _contexte())
-    assert (sorties, traces) == ((), ())
+    assert sorties == ()
+    assert [(t.cible, t.en_echec) for t in traces] == [("DEMO-1", True)]
     assert factice.tentatives == 1
     assert passerelle.cout_cumule_eur(PASSAGE_ID) == Decimal(1)
 
@@ -478,3 +480,37 @@ def test_echecs_alternes_plafonnes_au_total() -> None:
     with pytest.raises(UsineErreur, match=rf"{MAX_ECHECS_PASSAGE} au total"):
         _classer(factice, textes(cles))
     assert factice.tentatives == 2 * MAX_ECHECS_PASSAGE - 1
+
+
+def test_echec_trace_avec_cout_majore_dans_la_trace() -> None:
+    """6.10-b : un appel en échec a une trace (entrée pseudonymisée, sortie vide, coût majoré)."""
+    factice = FournisseurEchouantSur({0}, [_reponse(), _reponse(), _reponse()])
+    sorties, traces = _classer(factice)
+    echec, *succes = traces
+    assert len(sorties) == 2 and not any(t.en_echec for t in succes)
+    assert (echec.cible, echec.en_echec, echec.sortie, echec.depuis_cache) == (
+        "DEMO-1",
+        True,
+        "",
+        False,
+    )
+    assert echec.cout_estime_eur == Decimal(1)  # tarif factice : 1 € l'appel, échec compris
+    assert echec.entree_pseudonymisee and NUMERO_COMPTE not in echec.model_dump_json()
+    assert sum((t.cout_estime_eur for t in traces), Decimal(0)) == Decimal(3)
+
+
+def test_anomalies_ignorees_et_echouees_signalees() -> None:
+    """6.10-b : `ignorer` saute sans appel, `echouees` recense les clés en échec."""
+    factice = FournisseurEchouantSur({0}, [_reponse()])
+    echouees: list[str] = []
+    sorties, _ = classer(
+        _passerelle(factice),
+        TEXTES,
+        DATE_ARRETE,
+        _contexte(),
+        ignorer={"DEMO-2"},
+        echouees=echouees,
+    )
+    assert factice.tentatives == 2
+    assert echouees == ["DEMO-1"]
+    assert [s.cle_ticket for s in sorties] == ["DEMO-10"]

@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -100,3 +101,38 @@ def test_fichiers_illisibles(tmp_path: Path) -> None:
 def test_trace_vide_refusee(tmp_path: Path) -> None:
     passage, identifiants, _ = _depot(tmp_path, [""])
     assert main(_arguments(passage, identifiants)) == 2
+
+
+def _trace_echec(entree: str) -> str:
+    from datetime import date
+
+    from usine.contrats.llm import StatutControle, Tache
+    from usine.contrats.trace import EntreeTrace, TypeTrace
+
+    return EntreeTrace(
+        type_trace=TypeTrace.llm,
+        horodatage=datetime(2026, 10, 13, tzinfo=UTC),
+        passage_id="20261013T000000Z-abc123",
+        date_arrete=date(2026, 10, 13),
+        tache=Tache.classification,
+        fournisseur="factice",
+        version_prompt="p" * 64,
+        version_modele="factice:modele",
+        version_grille="grille123456",
+        version_donnees="d" * 64,
+        entree_pseudonymisee=entree,
+        sortie="",
+        statut_controle=StatutControle.non_controle,
+        en_echec=True,
+    ).model_dump_json()
+
+
+def test_trace_d_echec_balayee(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """6.10-b : une trace `en_echec` est balayée comme les autres (SM-7)."""
+    propre = _trace_echec("Client CLIENT_a1b2c3 mécontent")
+    passage, identifiants, _ = _depot(tmp_path, [propre])
+    assert main(_arguments(passage, identifiants)) == 0
+    fuite = _trace_echec("Client M. Fictivia EXEMPLON mécontent")
+    passage, identifiants, _ = _depot(tmp_path / "fuite", [propre, fuite])
+    assert main(_arguments(passage, identifiants)) == 1
+    assert "llm.jsonl:2" in capsys.readouterr().out

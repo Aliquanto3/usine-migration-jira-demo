@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -35,7 +36,13 @@ from usine.adaptateurs.pseudonymisation import MOTIFS_PAR_DEFAUT, Pseudonymiseur
 from usine.chaine.ecrivain import EcrivainPassage
 from usine.chaine.etapes import EtapeInstantanes, EtapeMeteo, EtapePrevision
 from usine.chaine.execution import executer_passage
-from usine.composition import PassageLance, Rapport, construire_rapport, lancer_rapport
+from usine.composition import (
+    BilanPrechauffage,
+    PassageLance,
+    Rapport,
+    construire_rapport,
+    lancer_rapport,
+)
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.calendrier import jours_ouvres
 from usine.contrats.config import GrilleMeteo
@@ -1321,3 +1328,83 @@ def test_prechauffage_exige_le_palier_2(tmp_path: Path) -> None:
     racine = preparer_racine(tmp_path)
     with pytest.raises(UsineErreur, match="exige le palier 2"):
         composition.prechauffer_classification(racine, DATE_ARRETE, 10)
+
+
+class FournisseurPalier2EchecClassification(FournisseurPalier2):
+    """Fournisseur dont la classification des clés données échoue à chaque appel."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.echouer_sur: int = 1
+        self.rang_classification = 0
+
+    def generer_structure[T: BaseModel](
+        self, prompt: str, schema: type[T], parametres: ParametresAppel
+    ) -> ReponseStructuree[T]:
+        if schema is ReponseClassification:
+            rang, self.rang_classification = (
+                self.rang_classification,
+                self.rang_classification + 1,
+            )
+            if rang < self.echouer_sur:
+                self.appels.append(AppelEnregistre("generer_structure", prompt, parametres))
+                raise UsineErreur("appel en échec (UnexpectedModelBehavior)")
+        return super().generer_structure(prompt, schema, parametres)
+
+
+def test_palier_2_echec_de_classification_dans_traces_et_cout_llm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """6.10-b : l'appel en échec a sa trace `en_echec` et son coût majoré dans `cout_llm_eur`."""
+    a_expliquer = _meteos_a_expliquer(preparer_racine(tmp_path / "p1"))
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path / "p2")
+    _passer_en_palier_2(racine)
+    version = "anthropic:claude-sonnet-5-5"
+    fournisseur = FournisseurPalier2EchecClassification(
+        _reponses(a_expliquer), version_modele=version
+    )
+    lance = lancer_rapport(racine, DATE_ARRETE, horloge_pas_a_pas(), fournisseur=fournisseur)
+    traces = [
+        t for t in ConsultationPassage(lance.repertoire).traces() if t.type_trace is TypeTrace.llm
+    ]
+    (echec,) = [t for t in traces if t.en_echec]
+    assert echec.tache is Tache.classification and echec.cout_estime_eur > 0
+    assert echec.sortie == "" and echec.entree_pseudonymisee
+    assert lance.manifeste.cout_llm_eur == sum((t.cout_estime_eur for t in traces), Decimal(0))
+    assert lance.manifeste.classification_initiale  # la trace d'échec ne compte pas comme cache
+
+
+def test_prechauffage_abandonne_une_anomalie_apres_n_echecs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """6.10-b : relances bornées, l'Anomalie en échec 2 fois est sautée puis comptée abandonnée."""
+    monkeypatch.setenv("USINE_CLE_PSEUDO", "cle-de-test-fictive")
+    racine = preparer_racine(tmp_path)
+    _passer_en_palier_2(racine)
+
+    def relancer(
+        echouer_sur: int,
+    ) -> tuple[BilanPrechauffage, FournisseurPalier2EchecClassification]:
+        fournisseur = FournisseurPalier2EchecClassification()
+        fournisseur.echouer_sur = echouer_sur
+        return (
+            composition.prechauffer_classification(
+                racine, DATE_ARRETE, 1e9, fournisseur=fournisseur
+            ),
+            fournisseur,
+        )
+
+    premiere, _ = relancer(1)
+    anomalies = premiere.anomalies
+    assert (premiere.classees, premiere.appels, premiere.abandonnees) == (
+        anomalies - 1,
+        anomalies,
+        0,
+    )
+    assert premiere.cout_eur >= 0
+    deuxieme, _ = relancer(1)  # la relance reprend l'Anomalie : un seul appel frais
+    assert (deuxieme.classees, deuxieme.appels) == (anomalies - 1, 1)
+    troisieme, fournisseur = relancer(1)  # deux échecs enregistrés : sautée, sans appel
+    assert (troisieme.classees, troisieme.appels, troisieme.abandonnees) == (anomalies - 1, 0, 1)
+    assert fournisseur.appels == []

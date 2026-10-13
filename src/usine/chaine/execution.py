@@ -92,7 +92,9 @@ def executer_passage(
             depuis_cache_classification.extend(
                 t.depuis_cache
                 for t in resultat.traces
-                if t.type_trace is TypeTrace.llm and t.tache is Tache.classification
+                if t.type_trace is TypeTrace.llm
+                and t.tache is Tache.classification
+                and not t.en_echec
             )
             executions.append(
                 ExecutionEtape(

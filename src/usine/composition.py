@@ -1078,7 +1078,28 @@ class BilanPrechauffage:
     appels: int
     """Appels frais au fournisseur."""
     cout_eur: Decimal
-    """Coût estimé des appels frais."""
+    """Coût estimé des appels frais (échecs compris : coût majoré)."""
+    abandonnees: int = 0
+    """Anomalies sautées sans appel : déjà en échec `max_echecs` fois aux relances précédentes."""
+
+
+CHEMIN_ECHECS_PRECHAUFFAGE = Path("donnees") / "prechauffage_echecs.json"
+"""Compteur d'échecs par Anomalie entre deux relances du préchauffage (à supprimer pour
+réessayer). Le cache ne garde pas les échecs, et chaque tranche a son `passage_id`."""
+
+MAX_ECHECS_PRECHAUFFAGE = 2
+"""Échecs, sur des relances précédentes, après lesquels une Anomalie est abandonnée."""
+
+
+def _lire_echecs(chemin: Path, version_prompt: str) -> dict[str, int]:
+    """Compteurs d'échecs enregistrés pour ce `version_prompt` ; vide si absent ou illisible."""
+    try:
+        contenu = json.loads(chemin.read_text(encoding="utf-8"))
+        if contenu["version_prompt"] != version_prompt:
+            return {}
+        return {str(cle): int(n) for cle, n in contenu["echecs"].items()}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
 
 
 def prechauffer_classification(
@@ -1088,6 +1109,7 @@ def prechauffer_classification(
     chrono: Callable[[], float] = time.monotonic,
     fournisseur: FournisseurLLM | None = None,
     pseudonymiseur: Pseudonymiseur | None = None,
+    max_echecs: int = MAX_ECHECS_PRECHAUFFAGE,
 ) -> BilanPrechauffage:
     """Remplit le cache de classification de production (`donnees/cache_llm.sqlite`) hors
     Passage, pendant au plus `duree_max_s` secondes ; relançable jusqu'à couvrir le stock.
@@ -1098,6 +1120,10 @@ def prechauffer_classification(
     `composite`, les tickets créés dans Jira après l'injection sont classés par le Passage.
     Verrou du Passage tenu pendant le préchauffage. `fournisseur` et `pseudonymiseur` : comme
     `construire_rapport` (doublures des tests).
+
+    Relances bornées : une Anomalie en échec `max_echecs` fois lors des relances précédentes
+    (compteur dans `CHEMIN_ECHECS_PRECHAUFFAGE`, remis à zéro si `version_prompt` change) est
+    sautée sans appel et comptée « abandonnée » ; un succès efface son compteur.
     """
     verifier_date_arrete(date_arrete)
     debut = chrono()
@@ -1114,20 +1140,38 @@ def prechauffer_classification(
             manifeste = charger_manifeste(chemin_manifeste) if chemin_manifeste.exists() else None
             source = SourceJournal(racine / CHEMIN_JOURNAL, manifeste)
             textes = tickets_textes(source.evenements(), date_arrete)
+            chemin_echecs = racine / CHEMIN_ECHECS_PRECHAUFFAGE
+            echecs = _lire_echecs(chemin_echecs, etape.version_prompt)
+            anomalies = textes.filter(pl.col("type_ticket") == TypeTicket.anomalie.value)
+            abandonnees = {cle for cle, n in echecs.items() if n >= max_echecs}
+            abandonnees &= set(anomalies["cle_ticket"].to_list())
+            echouees: list[str] = []
             sorties, traces = etape.prechauffer(
                 textes,
                 date_arrete,
                 f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
                 lambda: chrono() - debut >= duree_max_s,
+                abandonnees,
+                echouees,
+            )
+            for sortie in sorties:
+                echecs.pop(sortie.cle_ticket, None)
+            for cle in echouees:
+                echecs[cle] = echecs.get(cle, 0) + 1
+            chemin_echecs.parent.mkdir(parents=True, exist_ok=True)
+            chemin_echecs.write_text(
+                json.dumps({"version_prompt": etape.version_prompt, "echecs": echecs}),
+                encoding="utf-8",
             )
         finally:
             rapport.fermer()
     fraiches = [trace for trace in traces if not trace.depuis_cache]
     return BilanPrechauffage(
-        anomalies=textes.filter(pl.col("type_ticket") == TypeTicket.anomalie.value).height,
+        anomalies=anomalies.height,
         classees=len(sorties),
         appels=len(fraiches),
         cout_eur=sum((trace.cout_estime_eur for trace in fraiches), Decimal(0)),
+        abandonnees=len(abandonnees),
     )
 
 

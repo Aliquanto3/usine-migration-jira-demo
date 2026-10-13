@@ -239,10 +239,72 @@ class Passerelle:
         self._tarif = tarif
         self._plafond = plafond_cout_passage_eur
         self._cumul: dict[str, Decimal] = {}
+        self._traces_echec: list[EntreeTrace] = []
 
     def cout_cumule_eur(self, passage_id: str) -> Decimal:
         """Coût estimé cumulé des appels frais du Passage `passage_id`."""
         return self._cumul.get(passage_id, Decimal(0))
+
+    def vider_traces_echec(self) -> tuple[EntreeTrace, ...]:
+        """Traces (`en_echec`) des appels structurés échoués depuis le dernier appel ici.
+
+        L'appelant qui tolère un échec les ajoute à ses traces : le coût majoré, déjà imputé au
+        plafond, entre ainsi dans `cout_llm_eur` et dans le balayage SM-7.
+        """
+        traces, self._traces_echec = tuple(self._traces_echec), []
+        return traces
+
+    def _tracer_echec(
+        self,
+        contexte: ContexteAppel,
+        parametres: ParametresAppel,
+        version_modele: str,
+        entree: str,
+        cumul: Decimal,
+        sur_trace: Callable[[EntreeTrace], None] | None = None,
+    ) -> None:
+        """Impute le coût majoré d'un appel en échec au Passage et en garde la trace.
+
+        Un échec (par exemple `UnexpectedModelBehavior` après relances de sortie) a pu être
+        facturé : trois requêtes supposées. La trace porte la même entrée pseudonymisée qu'un
+        succès, une sortie vide et le coût majoré ; elle va à `sur_trace`, sinon au tampon
+        que vide `vider_traces_echec`.
+        """
+        jetons_entree = ECHEC_FACTEUR_TENTATIVES * len(entree) // ECHEC_CARACTERES_PAR_JETON
+        jetons_sortie = ECHEC_FACTEUR_TENTATIVES * parametres.max_jetons_sortie
+        majore = self._tarif(version_modele, jetons_entree, jetons_sortie)
+        self._cumul[contexte.passage_id] = cumul + majore
+        journal.warning(
+            "appel en échec pour %s : %s € estimés imputés au Passage %s",
+            contexte.cible,
+            majore,
+            contexte.passage_id,
+        )
+        trace = EntreeTrace(
+            type_trace=TypeTrace.llm,
+            horodatage=self._horloge(),
+            passage_id=contexte.passage_id,
+            date_arrete=contexte.date_arrete,
+            entite=contexte.entite,
+            tache=parametres.tache,
+            cible=contexte.cible,
+            fournisseur=version_modele.split(":", 1)[0],
+            version_prompt=contexte.version_prompt,
+            version_modele=version_modele,
+            version_grille=contexte.version_grille,
+            version_donnees=contexte.version_donnees,
+            entree_pseudonymisee=entree,
+            sortie="",
+            statut_controle=StatutControle.non_controle,
+            jetons_entree=jetons_entree,
+            jetons_sortie=jetons_sortie,
+            cout_estime_eur=majore,
+            en_echec=True,
+        )
+        if sur_trace is not None:
+            sur_trace(trace)
+        else:
+            self._traces_echec.append(trace)
 
     @property
     def version_modele(self) -> str:
@@ -326,20 +388,7 @@ class Passerelle:
             try:
                 appel = fournisseur.generer_structure(entree, schema, parametres)
             except UsineErreur:
-                # Un échec (UnexpectedModelBehavior après relances de sortie) a pu être
-                # facturé : coût majoré imputé au Passage pour que le plafond le compte.
-                majore = self._tarif(
-                    version_modele,
-                    ECHEC_FACTEUR_TENTATIVES * len(entree) // ECHEC_CARACTERES_PAR_JETON,
-                    ECHEC_FACTEUR_TENTATIVES * parametres.max_jetons_sortie,
-                )
-                self._cumul[contexte.passage_id] = cumul + majore
-                journal.warning(
-                    "appel en échec pour %s : %s € estimés imputés au Passage %s",
-                    contexte.cible,
-                    majore,
-                    contexte.passage_id,
-                )
+                self._tracer_echec(contexte, parametres, version_modele, entree, cumul)
                 raise
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)
             self._cache.ecrire(cle, enveloppe.model_dump_json())
@@ -470,9 +519,13 @@ class Passerelle:
         depuis_cache = reponse is not None
         if reponse is None:
             cumul = self._verifier_plafond(contexte, parametres, plafond_eur)
-            reponse = fournisseur.executer_agent(
-                pseudonymises, [envelopper(o) for o in outils], parametres
-            )
+            try:
+                reponse = fournisseur.executer_agent(
+                    pseudonymises, [envelopper(o) for o in outils], parametres
+                )
+            except UsineErreur:
+                self._tracer_echec(contexte, parametres, version_modele, entree, cumul, sur_trace)
+                raise
             enveloppe = EnveloppeCache(
                 brut=reponse.model_dump_json(), version_modele=reponse.version_modele
             )

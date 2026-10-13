@@ -19,6 +19,7 @@ from tests.unit.ia.espions import (
     pseudonymiseur,
 )
 from usine.contrats.agent import ArgumentsGetMeteo
+from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
     AppelOutil,
     MessageAgent,
@@ -29,6 +30,7 @@ from usine.contrats.llm import (
     StatutControle,
     Tache,
 )
+from usine.contrats.trace import EntreeTrace
 from usine.ia.passerelle import (
     ContexteAppel,
     Controle,
@@ -271,3 +273,33 @@ def test_sur_trace_avant_une_exception_du_fournisseur() -> None:
             sur_trace=lambda trace: recues.append(trace.cible),
         )
     assert recues == ["get_meteo"]
+
+
+class FournisseurAgentEnEchec(FournisseurFactice):
+    """Agent dont l'appel échoue (comme un `UnexpectedModelBehavior` converti)."""
+
+    def executer_agent(self, messages, outils, parametres):  # type: ignore[no-untyped-def]
+        raise UsineErreur("anthropic:claude-haiku-5-5 : appel en échec")
+
+
+def test_echec_de_l_agent_impute_au_plafond_et_trace() -> None:
+    """6.10-b : le coût majoré d'un échec de l'Agent compte au plafond et a sa trace."""
+    traces: list[EntreeTrace] = []
+    passerelle = Passerelle(
+        FournisseurAgentEnEchec(),
+        pseudonymiseur(),
+        CacheMemoire(),
+        lambda: INSTANT,
+        tarif=lambda *_: Decimal(1),
+        plafond_cout_passage_eur=Decimal("0.5"),
+    )
+    with pytest.raises(UsineErreur, match="appel en échec"):
+        passerelle.executer_agent(
+            MESSAGES, [], PARAMETRES, CONTEXTE, _controler(), sur_trace=traces.append
+        )
+    assert passerelle.cout_cumule_eur(PASSAGE_ID) == Decimal(1)
+    (trace,) = traces
+    assert (trace.en_echec, trace.sortie, trace.cout_estime_eur) == (True, "", Decimal(1))
+    assert trace.tache is Tache.agent and NUMERO_COMPTE not in trace.entree_pseudonymisee
+    with pytest.raises(PlafondCoutAtteint):
+        passerelle.executer_agent(MESSAGES, [], PARAMETRES, CONTEXTE, _controler())
