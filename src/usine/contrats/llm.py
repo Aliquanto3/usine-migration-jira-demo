@@ -30,6 +30,7 @@ class Tache(StrEnum):
     classification = "classification"
     explication = "explication"
     narration = "narration"
+    doublons = "doublons"
     agent = "agent"
 
 
@@ -192,6 +193,25 @@ class ReponseNarration(Enregistrement):
     texte: str
 
 
+class PaireDoublonBrute(Enregistrement):
+    """Paire d'Anomalies jugée probablement en doublon par le fournisseur, avec son score."""
+
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: float
+    """Probabilité de doublon, de 0 à 1 (contrôlée par la passerelle)."""
+    justification: str = ""
+
+
+class ReponseDoublons(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `doublons` (FR-36).
+
+    Publiée : `SortieDoublon`, après le contrôle déterministe des paires.
+    """
+
+    paires: tuple[PaireDoublonBrute, ...] = ()
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
@@ -238,6 +258,21 @@ class SortieNarration(Enregistrement):
     date_arrete: date
     entite: str = Field(min_length=1)
     texte: str
+    statut_controle: StatutControle = StatutControle.non_controle
+
+
+class SortieDoublon(Enregistrement):
+    """Paire d'Anomalies ouvertes probablement en doublon (FR-36), à revoir par le Pilote.
+
+    Jamais fusionnée ni écrite dans Jira. `cle_a` précède `cle_b` dans l'ordre des clés.
+    """
+
+    date_arrete: date
+    entite: str = Field(min_length=1)
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: float = Field(ge=0.0, le=1.0)
+    justification: str = ""
     statut_controle: StatutControle = StatutControle.non_controle
 
 

@@ -22,6 +22,7 @@ amendments:
   - '2026-10-12 : Story 6.4 (contrats 1.4 : `ReponseClassification`, schéma demandé au fournisseur pour la tâche `classification`, ajout additif)'
   - '2026-10-12 : Story 6.5 (contrats 1.5 : colonne `part` de `SCHEMA_REPARTITION_CAUSES`, fraction des Anomalies ouvertes classées de l''Entité, ajout additif)'
   - '2026-10-12 : Story 6.7 (contrats 1.6 : `ReponseNarration`, schéma demandé au fournisseur pour la tâche `narration`, ajout additif)'
+  - '2026-10-13 : Story 6.11 (contrats 1.9 : tâche `doublons`, `ReponseDoublons`, `PaireDoublonBrute` et `SortieDoublon`, ajouts additifs)'
 ---
 
 # Spine d'architecture : usine-migration-jira-demo

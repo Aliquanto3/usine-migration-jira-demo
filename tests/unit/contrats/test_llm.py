@@ -31,7 +31,13 @@ PASSAGE = "20261012T080000Z-0a1b2c"
 
 
 def test_taches_figees() -> None:
-    assert [t.value for t in Tache] == ["classification", "explication", "narration", "agent"]
+    assert [t.value for t in Tache] == [
+        "classification",
+        "explication",
+        "narration",
+        "doublons",
+        "agent",
+    ]
 
 
 def test_reponse_structuree_generique() -> None:
@@ -67,7 +73,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.8.0"
+    assert enregistree.contrats_version == "1.9.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):
@@ -181,3 +187,21 @@ def test_enveloppe_cache_et_reponse_explication() -> None:
         EnveloppeCache(brut="x", version_modele="")
     reponse = ReponseExplication.model_validate_json(enveloppe.brut)
     assert reponse.brouillon_commentaire == ""
+
+
+def test_sortie_doublon_score_borne_de_0_a_1() -> None:
+    from datetime import date
+
+    from pydantic import ValidationError
+
+    from usine.contrats.llm import SortieDoublon
+
+    base = {
+        "date_arrete": date(2026, 10, 1),
+        "entite": "ENT-A",
+        "cle_a": "DEMO-1",
+        "cle_b": "DEMO-2",
+    }
+    assert SortieDoublon(**base, score=0.8).score == 0.8
+    with pytest.raises(ValidationError):
+        SortieDoublon(**base, score=1.2)
