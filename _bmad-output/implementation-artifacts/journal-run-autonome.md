@@ -152,3 +152,17 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
 - Réinjection de `DEMO` : bloquée par le droit « Supprimer des tickets » (voir File humaine). La 5.6, la porte M3 (5.7) et l'Epic 6 attendent.
 - Points ouverts : la recette 4.5 utilise le Corpus provisoire, pas le Corpus versionné ; sur le Programme réduit, les contrats 1.2 ont fait perdre la couverture de « ↗ aggravation » et de « aucun Brouillon de commentaire », à reprendre en 5.6 sur le Journal complet ; la branche `bloque/4-5` peut être supprimée.
 | 6.9 | L6 (`lane-6-llm`) | done | `a4e768d` | Suite `evals/classification/` (SM-9) : 30 tickets manuels versionnés et vérité terrain du générateur passés par la vraie tâche `classer` (façade `construire_classificateur`) ; F1 par Cause racine, F1 macro et matrice de confusion par source ; garde-fou AD-19 (Journal du Corpus définitif `llm-1` exigé, Haiku 5.5 ≠ `mistral-medium-latest`) ; rejeu hors réseau en CI (manuels : F1 macro 0,873 sur réponses enregistrées), `--reel` séparé. Revue Edge Case Hunter seule : 11 constats, 2 low patchés, 9 rejetés. Exécution réelle : 1er essai arrêté après ~110 s par un `UnexpectedModelBehavior` de Haiku sur une Anomalie (~0,01 €) → correctif `8251686` : mode réel tolérant (Anomalie non classée, `erreurs_fournisseur`, arrêt après 10 échecs consécutifs) ; 2e essai tué par Claude Code après ~3 h 20 (mémoire système basse), sans résultat écrit. Coût réel non mesuré (aucune trace écrite en mode évaluation) : borne haute ~0,40 € pour les deux essais. Verdict SM-9 : non obtenu. Commande documentée dans le README (estimation ~0,35 €, plus de 65 min). Tests : 2694 passés |
+
+## Bilan du run de fin de projet (nuit du 12 au 13/10/2026, plafond 3 M tokens)
+
+- **Livré et poussé** : réinjection de `DEMO` (3 547 tickets, 9 094 transitions), 5.6, 5.7 (**porte M3 passée**, CI verte), 1.9, 6.1 à 6.9, 7.7 à 7.9. Contrats passés de 1.2 à 1.7, toujours par ajouts.
+- **Consommation des agents** : environ 2,7 M tokens, auxquels s'ajoute l'orchestration. Le run s'arrête au plafond. Incident : deux agents (7.7, 6.9) ont lancé des sous-agents en arrière-plan ; la 7.7 a été finie par un agent court.
+- **Écart de méthode** : 6.1 à 6.7 ont été avancées avant la porte M3, pendant la réinjection, sans dépendance aux sorties du Palier 1 (consigné dans `docs/journal-jalon-m3.md`).
+- **Reste indispensable** : 6.10 (recette Palier 2), 7.10 (évaluation de l'agent), 7.11 (réponses enregistrées, Mode repli complet), 7.12 (répétitions), puis 8.2 (Anaël). Estimation : environ 0,7 M tokens.
+- **Pour Anaël** :
+  - arbitrer SM-10 et AD-16 ;
+  - vérifier le registre des prix LLM (Sonnet 5.5 peut-être compté trop cher) et les quotas gratuits de Mistral ;
+  - lancer `uv run python -m evals.explication executer --reel` (0,10 à 0,25 €), puis noter les réponses ;
+  - verdict SM-9 de la 6.9 : l'essai réel n'a pas abouti (`UnexpectedModelBehavior` de Haiku, puis arrêt du second essai pour mémoire basse). La commande est dans la spec 6.9. Il faut aussi traiter ce risque dans `classer` avant la 6.10 ;
+  - décider s'il faut réinjecter `DEMO` avec le Corpus définitif : Jira et le Journal local portent encore les textes provisoires ;
+  - ménage possible : la branche `bloque/4-5` et les Passages de test dans `sorties/passages/`.
