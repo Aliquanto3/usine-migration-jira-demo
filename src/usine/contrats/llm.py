@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from usine.contrats.calendrier import Horodatage
 from usine.contrats.modele import Enregistrement, MappingFige, PassageId, VersionContrats
 from usine.contrats.schemas import SchemaTable, enum_polars
-from usine.contrats.tickets import CauseRacine
+from usine.contrats.tickets import CauseRacine, rang_cle
 from usine.contrats.versions import CONTRATS_VERSION
 
 
@@ -31,6 +31,8 @@ class Tache(StrEnum):
     explication = "explication"
     narration = "narration"
     agent = "agent"
+    doublons = "doublons"
+    """Paires d'Anomalies probablement en doublon (FR-36, bonus)."""
 
 
 class StatutControle(StrEnum):
@@ -192,6 +194,17 @@ class ReponseNarration(Enregistrement):
     texte: str
 
 
+class ReponseDoublons(Enregistrement):
+    """Schéma demandé au fournisseur pour la tâche `doublons` (FR-36, bonus).
+
+    Publiée : `SortieDoublons`, après le contrôle déterministe de la justification.
+    """
+
+    score: int = Field(ge=0, le=100)
+    """Probabilité, en pourcentage, que les deux Anomalies décrivent le même problème."""
+    justification: str = ""
+
+
 class SortieClassification(Enregistrement):
     """Cause racine proposée pour une Anomalie (FR-35) ; jamais écrite dans Jira."""
 
@@ -239,6 +252,27 @@ class SortieNarration(Enregistrement):
     entite: str = Field(min_length=1)
     texte: str
     statut_controle: StatutControle = StatutControle.non_controle
+
+
+class SortieDoublons(Enregistrement):
+    """Paire d'Anomalies probablement en doublon, avec son score (FR-36, bonus).
+
+    Une paire à revoir par le Pilote : aucune fusion, aucune écriture dans Jira. `cle_a` précède
+    `cle_b` dans l'ordre des clés de ticket (`rang_cle`).
+    """
+
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: int = Field(ge=0, le=100)
+    """Probabilité de doublon, en pourcentage."""
+    justification: str = ""
+    statut_controle: StatutControle = StatutControle.non_controle
+
+    @model_validator(mode="after")
+    def _ordre(self) -> Self:
+        if rang_cle(self.cle_a) >= rang_cle(self.cle_b):
+            raise ValueError("une paire de doublons range ses deux clés, distinctes, dans l'ordre")
+        return self
 
 
 class ReponseAgent(Enregistrement):

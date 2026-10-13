@@ -15,9 +15,11 @@ from usine.contrats.llm import (
     MessageAgent,
     ReponseAgent,
     ReponseAgentEnregistree,
+    ReponseDoublons,
     ReponseExplication,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublons,
     StatutControle,
     Tache,
     est_type_jeton,
@@ -31,7 +33,13 @@ PASSAGE = "20261012T080000Z-0a1b2c"
 
 
 def test_taches_figees() -> None:
-    assert [t.value for t in Tache] == ["classification", "explication", "narration", "agent"]
+    assert [t.value for t in Tache] == [
+        "classification",
+        "explication",
+        "narration",
+        "agent",
+        "doublons",
+    ]
 
 
 def test_reponse_structuree_generique() -> None:
@@ -67,7 +75,7 @@ def test_reponse_agent_enregistree() -> None:
     enregistree = ReponseAgentEnregistree(
         passage_id=PASSAGE, horodatage=H, reponse=ReponseAgent(question="?", texte="ENT-A.")
     )
-    assert enregistree.contrats_version == "1.8.0"
+    assert enregistree.contrats_version == "1.9.0"
     with pytest.raises(ValidationError):
         ReponseAgentEnregistree.model_validate(enregistree.model_dump() | {"passage_id": "x"})
     with pytest.raises(ValidationError, match="incompatible"):
@@ -181,3 +189,23 @@ def test_enveloppe_cache_et_reponse_explication() -> None:
         EnveloppeCache(brut="x", version_modele="")
     reponse = ReponseExplication.model_validate_json(enveloppe.brut)
     assert reponse.brouillon_commentaire == ""
+
+
+def test_sortie_doublons_paire_ordonnee_avec_score() -> None:
+    paire = SortieDoublons(cle_a="DEMO-2", cle_b="DEMO-10", score=85, justification="Même flux.")
+    assert (paire.cle_a, paire.cle_b, paire.score) == ("DEMO-2", "DEMO-10", 85)
+    assert paire.statut_controle is StatutControle.non_controle
+
+
+@pytest.mark.parametrize(("cle_a", "cle_b"), [("DEMO-10", "DEMO-2"), ("DEMO-1", "DEMO-1")])
+def test_sortie_doublons_refuse_une_paire_mal_ordonnee(cle_a: str, cle_b: str) -> None:
+    with pytest.raises(ValidationError):
+        SortieDoublons(cle_a=cle_a, cle_b=cle_b, score=50)
+
+
+@pytest.mark.parametrize("score", [-1, 101])
+def test_score_de_doublon_hors_bornes_refuse(score: int) -> None:
+    with pytest.raises(ValidationError):
+        ReponseDoublons(score=score)
+    with pytest.raises(ValidationError):
+        SortieDoublons(cle_a="DEMO-1", cle_b="DEMO-2", score=score)
