@@ -1,0 +1,202 @@
+{
+  "passage_id": "20261012T221158Z-96c621",
+  "questions": [
+    {
+      "identifiant": "q01",
+      "question": "Quelles entités risquent de passer au rouge la semaine prochaine, et pourquoi ?",
+      "repondable": true,
+      "demo": true,
+      "attendus": {
+        "entites": ["ENT-C", "IND-4"],
+        "tickets": ["DEMO-2350"],
+        "chiffres": ["27", "150", "2026-10-14"]
+      },
+      "tour": {
+        "appels": [
+          {"nom_outil": "get_risques", "arguments": {}},
+          {"nom_outil": "get_meteo", "arguments": {"entite": "ENT-C"}}
+        ],
+        "texte": "ENT-C risque de passer au rouge : son indicateur IND-4 vaut 27 sur 150, et le franchissement du seuil rouge est estimé au 2026-10-14. ENT-C est déjà orange sur IND-4 au 2026-10-09 ; tickets en cause : DEMO-2350, DEMO-2414, DEMO-2612, DEMO-2654 et DEMO-2658."
+      }
+    },
+    {
+      "identifiant": "q02",
+      "question": "Quelles entités sont rouges à la Date d'arrêté ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-A", "ENT-B", "IND-1"],
+        "chiffres": ["4", "9"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {}}],
+        "texte": "ENT-A et ENT-B sont rouges au 2026-10-09, toutes deux sur IND-1 : il vaut 4 pour ENT-A et 9 pour ENT-B, pour un seuil de 3."
+      }
+    },
+    {
+      "identifiant": "q03",
+      "question": "Pourquoi ENT-B est-elle rouge ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-B", "IND-1"],
+        "tickets": ["DEMO-2842", "DEMO-3450"],
+        "chiffres": ["9"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {"entite": "ENT-B"}}],
+        "texte": "ENT-B est rouge sur IND-1, qui vaut 9 pour un seuil de 3. Tickets en cause : DEMO-2842, DEMO-2928, DEMO-3079, DEMO-3128, DEMO-3160, DEMO-3232, DEMO-3307, DEMO-3430 et DEMO-3450."
+      }
+    },
+    {
+      "identifiant": "q04",
+      "question": "Quand ENT-A devrait-elle sortir du rouge ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-A"],
+        "chiffres": ["2026-10-13", "8", "16"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_prevision", "arguments": {"entite": "ENT-A"}}],
+        "texte": "La Baseline projette la sortie du rouge d'ENT-A au 2026-10-13, avec une probabilité de 8 sur 16. Son stock est de 4 Anomalies bloquantes ouvertes, avec 6 entrées et 15 sorties sur les 10 derniers Jours ouvrés."
+      }
+    },
+    {
+      "identifiant": "q05",
+      "question": "ENT-B va-t-elle sortir du rouge prochainement ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-B"],
+        "chiffres": ["10", "11"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_prevision", "arguments": {"entite": "ENT-B"}}],
+        "texte": "Non : aucune sortie du rouge n'est projetée pour ENT-B sur l'horizon de 10 Jours ouvrés (probabilité de 0 sur 16). Son stock est de 9 Anomalies bloquantes ouvertes, avec 11 entrées pour 9 sorties sur les 10 derniers Jours ouvrés."
+      }
+    },
+    {
+      "identifiant": "q06",
+      "question": "Quelle est la météo d'ENT-D ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-D"],
+        "chiffres": ["2026-10-09"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {"entite": "ENT-D"}}],
+        "texte": "ENT-D est verte au 2026-10-09, sans Règle déclenchante ; elle était déjà verte le 2026-10-08 et le 2026-10-02."
+      }
+    },
+    {
+      "identifiant": "q07",
+      "question": "Pourquoi ENT-E est-elle jaune ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-E", "IND-6"],
+        "tickets": ["DEMO-3088"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {"entite": "ENT-E"}}],
+        "texte": "ENT-E est jaune sur IND-6, déclenché par un seul ticket en cause : DEMO-3088."
+      }
+    },
+    {
+      "identifiant": "q08",
+      "question": "Combien d'Anomalies sont ouvertes chez ENT-C ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-C"],
+        "tickets": ["DEMO-1922"],
+        "chiffres": ["70"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "list_anomalies", "arguments": {"entite": "ENT-C", "limite": 5}}],
+        "texte": "ENT-C compte 70 Anomalies ouvertes au 2026-10-09 ; parmi elles, DEMO-1922 est ouverte depuis 18 Jours ouvrés."
+      }
+    },
+    {
+      "identifiant": "q09",
+      "question": "Combien d'Anomalies sont ouvertes sur l'ensemble des Entités ?",
+      "repondable": true,
+      "attendus": {
+        "chiffres": ["1 100"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "list_anomalies", "arguments": {"limite": 1}}],
+        "texte": "1 100 Anomalies sont ouvertes au 2026-10-09, toutes Entités confondues."
+      }
+    },
+    {
+      "identifiant": "q10",
+      "question": "Quelles entités sont en jaune ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-E", "ENT-F", "ENT-G", "ENT-H", "ENT-I", "ENT-J", "IND-6"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {}}],
+        "texte": "ENT-E, ENT-F, ENT-G, ENT-H, ENT-I et ENT-J sont jaunes au 2026-10-09, chacune sur IND-6."
+      }
+    },
+    {
+      "identifiant": "q11",
+      "question": "La météo d'ENT-C a-t-elle changé depuis la veille ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-C"],
+        "chiffres": ["2026-10-08"]
+      },
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {"entite": "ENT-C"}}],
+        "texte": "Non : ENT-C est orange au 2026-10-09 et l'était déjà le 2026-10-08, comme le 2026-10-02."
+      }
+    },
+    {
+      "identifiant": "q12",
+      "question": "Combien d'Anomalies sont entrées et sorties chez ENT-C la semaine dernière ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-C"],
+        "chiffres": ["36", "38"]
+      },
+      "tour": {
+        "appels": [
+          {"nom_outil": "get_tendance", "arguments": {"entite": "ENT-C", "code_kpi": "entrees_semaine"}},
+          {"nom_outil": "get_tendance", "arguments": {"entite": "ENT-C", "code_kpi": "sorties_semaine"}}
+        ],
+        "texte": "Sur la semaine arrêtée au 2026-10-09, ENT-C compte 36 entrées et 38 sorties d'Anomalies."
+      }
+    },
+    {
+      "identifiant": "q13",
+      "question": "Quelles Anomalies bloquantes d'ENT-A sont encore en analyse ?",
+      "repondable": true,
+      "attendus": {
+        "entites": ["ENT-A"],
+        "tickets": ["DEMO-3389"]
+      },
+      "tour": {
+        "appels": [
+          {"nom_outil": "list_anomalies", "arguments": {"entite": "ENT-A", "gravite": "bloquante", "statut": "en_analyse"}}
+        ],
+        "texte": "DEMO-3389 est la seule Anomalie bloquante d'ENT-A en analyse, ouverte depuis 1 Jour ouvré, en phase TNR."
+      }
+    },
+    {
+      "identifiant": "q14",
+      "question": "Quel est le budget restant du programme de migration ?",
+      "repondable": false,
+      "tour": {
+        "appels": [],
+        "texte": "Les données ne permettent pas de répondre."
+      }
+    },
+    {
+      "identifiant": "q15",
+      "question": "Quelle sera la météo d'ENT-C le 2026-11-30 ?",
+      "repondable": false,
+      "tour": {
+        "appels": [{"nom_outil": "get_meteo", "arguments": {"entite": "ENT-C", "date_arrete": "2026-11-30"}}],
+        "texte": "Les données ne permettent pas de répondre."
+      }
+    }
+  ]
+}

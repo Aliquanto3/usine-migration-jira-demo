@@ -9,15 +9,17 @@ Contrôle (AD-12, AD-14) : les valeurs autorisées sont celles des messages `out
 conversation (nombres JSON, `float` lu via `Decimal(repr)`, nombres écrits dans les chaînes et
 dates ISO) ; un nombre du texte absent de ces valeurs (`controler_nombres`) ou un ticket cité
 absent des clés retournées rejette la réponse, remplacée par `MESSAGE_REJET`. Un ticket cité est
-une clé `MOTIF_CLE_TICKET` dont le projet n'est ni `IND`, ni `ENT`, ni `J`.
+une clé `MOTIF_CLE_TICKET` dont le projet n'est ni `IND`, ni `ENT`, ni `J`. Les refus de la
+dernière réponse restent lisibles dans `SessionAgent.derniers_refus` (suite d'évaluation).
 
-Traces : une ligne `EntreeTrace` par outil exécuté et par réponse, ajoutée à
+Traces : une ligne `EntreeTrace` par outil exécuté et par réponse, ajoutée dès sa production à
 `sorties/agent/<AAAA-MM-JJ>/<session>.jsonl` ; aucun répertoire de Passage n'est écrit.
 """
 
 import json
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from importlib import resources
@@ -140,6 +142,24 @@ def tickets_cites(texte: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(c for c in cles if projet(c) not in PROJETS_IGNORES))
 
 
+@dataclass(frozen=True)
+class RefusControle:
+    """Ce que le contrôle refuse dans le texte brut d'une réponse (encore pseudonymisé)."""
+
+    nombres: tuple[str, ...] = ()
+    """Nombres et dates absents des résultats des outils, sans doublon, dans l'ordre."""
+    tickets: tuple[str, ...] = ()
+    """Tickets cités mais non retournés par les outils, dans l'ordre."""
+
+
+def refus_reponse(reponse: ReponseAgentBrute) -> RefusControle:
+    """Nombres et tickets du texte brut de `reponse` que le contrôle refuse."""
+    valeurs, retournes = valeurs_outils(reponse.messages)
+    nombres = controler_nombres(reponse.texte, valeurs)
+    hors = tuple(c for c in tickets_cites(reponse.texte) if c not in retournes)
+    return RefusControle(tuple(dict.fromkeys(nombres.refuses)), hors)
+
+
 def controler_reponse(reponse: ReponseAgentBrute) -> Controle[ReponseAgent]:
     """Contrôle déterministe d'une réponse de l'Agent, encore pseudonymisée.
 
@@ -148,12 +168,11 @@ def controler_reponse(reponse: ReponseAgentBrute) -> Controle[ReponseAgent]:
     """
     question = next((m.contenu for m in reversed(reponse.messages) if m.role == "utilisateur"), "")
     outils = tuple(a.nom_outil for m in reponse.messages for a in m.appels_outils)
-    valeurs, retournes = valeurs_outils(reponse.messages)
-    nombres = controler_nombres(reponse.texte, valeurs)
+    refus = refus_reponse(reponse)
     cites = tickets_cites(reponse.texte)
-    hors = tuple(c for c in cites if c not in retournes)
+    hors = refus.tickets
     vide = not reponse.texte.strip()
-    if nombres.conforme and not hors and not vide:
+    if not refus.nombres and not hors and not vide:
         sortie = ReponseAgent(
             question=question,
             texte=reponse.texte,
@@ -163,8 +182,8 @@ def controler_reponse(reponse: ReponseAgentBrute) -> Controle[ReponseAgent]:
         )
         return Controle(sortie, StatutControle.conforme)
     motifs: list[str] = ["réponse vide"] if vide else []
-    if not nombres.conforme:
-        refuses = ", ".join(f"« {n} »" for n in dict.fromkeys(nombres.refuses))
+    if refus.nombres:
+        refuses = ", ".join(f"« {n} »" for n in refus.nombres)
         motifs.append(f"chiffres absents des résultats des outils : {refuses}")
     if hors:
         motifs.append(f"tickets non retournés par les outils : {', '.join(hors)}")
@@ -217,6 +236,8 @@ class SessionAgent:
             racine / REPERTOIRE_AGENT / horloge().date().isoformat() / f"{identifiant}.jsonl"
         )
         self.dernier_resultat: ResultatAgent | None = None
+        self.derniers_refus = RefusControle()
+        """Nombres et tickets refusés dans le texte brut de la dernière réponse contrôlée."""
 
     @property
     def passage_id(self) -> str:
@@ -224,23 +245,37 @@ class SessionAgent:
         return self._contexte.passage_id
 
     def repondre(self, question: str) -> ReponseAgent:
-        """Réponse contrôlée et ré-identifiée à `question` ; ses traces sont écrites."""
+        """Réponse contrôlée et ré-identifiée à `question`.
+
+        Chaque trace est écrite dès sa production : une exception en cours de conversation
+        laisse dans le fichier celles des outils déjà exécutés.
+        """
         messages = (
             MessageAgent(role="systeme", contenu=self._consignes),
             MessageAgent(role="utilisateur", contenu=question),
         )
+        self.derniers_refus = RefusControle()
+
+        def controler(reponse: ReponseAgentBrute) -> Controle[ReponseAgent]:
+            self.derniers_refus = refus_reponse(reponse)
+            return controler_reponse(reponse)
+
         resultat = self._passerelle.executer_agent(
-            messages, self._sources, self._parametres, self._contexte, controler_reponse
+            messages,
+            self._sources,
+            self._parametres,
+            self._contexte,
+            controler,
+            sur_trace=self._ecrire,
         )
-        self._ecrire(resultat.traces)
         self.dernier_resultat = resultat
         return resultat.sortie
 
-    def _ecrire(self, traces: tuple[EntreeTrace, ...]) -> None:
+    def _ecrire(self, trace: EntreeTrace) -> None:
+        """Ajoute `trace` au fichier de traces de la session."""
         self.chemin_traces.parent.mkdir(parents=True, exist_ok=True)
         with self.chemin_traces.open("a", encoding="utf-8", newline="\n") as fichier:
-            for trace in traces:
-                fichier.write(trace.model_dump_json() + "\n")
+            fichier.write(trace.model_dump_json() + "\n")
 
     def fermer(self) -> None:
         """Ferme les fournisseurs construits depuis `config/llm.yaml` (aucun effet sinon)."""

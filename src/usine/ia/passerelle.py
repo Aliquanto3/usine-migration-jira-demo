@@ -361,6 +361,7 @@ class Passerelle:
         contexte: ContexteAppel,
         controler: Callable[[ReponseAgentBrute], Controle[ReponseAgent]],
         plafond_eur: Decimal | None = None,
+        sur_trace: Callable[[EntreeTrace], None] | None = None,
     ) -> ResultatAgent:
         """Conversation d'Agent dans l'ordre d'AD-12, en texte libre (`output_type=str`).
 
@@ -370,6 +371,9 @@ class Passerelle:
         cache garde la `ReponseAgentBrute` (conversation pseudonymisée) : une réponse en cache
         n'exécute aucun outil. `controler` reçoit la réponse pseudonymisée ; la
         ré-identification n'admet que les jetons de la conversation pseudonymisée.
+
+        `sur_trace` reçoit chaque trace dès sa production (chaque outil, puis la réponse) : une
+        exception en cours de conversation ne fait pas perdre les traces déjà produites.
         """
         fournisseur = self._fournisseurs_par_tache.get(parametres.tache, self._fournisseur)
         version_modele = fournisseur.version_modele
@@ -418,6 +422,8 @@ class Passerelle:
                         statut_controle=StatutControle.non_controle,
                     )
                 )
+                if sur_trace is not None:
+                    sur_trace(traces_outils[-1])
                 return resultat
 
             return OutilAgent(source.nom, source.description, source.arguments, executer)
@@ -479,4 +485,6 @@ class Passerelle:
             jetons_sortie=jetons_sortie,
             cout_estime_eur=cout,
         )
+        if sur_trace is not None:
+            sur_trace(trace)
         return ResultatAgent(sortie, controle.statut, (*traces_outils, trace))

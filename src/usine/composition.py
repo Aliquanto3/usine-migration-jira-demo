@@ -52,7 +52,9 @@ Les services de l'UI vivent dans `ui/cli.py`, l'écriture du Journal dans
 `expliquer`, passerelle comprise, avec un cache en mémoire (jamais le cache de production) ;
 `controler_citations` est ré-exporté pour qu'`evals` n'importe pas `usine.ia`.
 `construire_classificateur` expose de même à `evals/classification` la vraie tâche `classer`,
-sur la même passerelle d'évaluation (`_passerelle_evaluation`).
+sur la même passerelle d'évaluation (`_passerelle_evaluation`). `evals/agent` passe par
+`construire_session_agent` (même session que l'UI, `SessionAgent` ré-exporté) sur le lecteur
+de `consultation_repertoire`.
 
 `apercu_pseudonymisation` expose à l'UI (vue côte à côte, Story 7.7) le seul `apercu` du
 moteur de Pseudonymisation, sur une table en mémoire qui refuse toute écriture.
@@ -157,7 +159,7 @@ from usine.generateur.corpus import (
 )
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
-from usine.ia.agent.session import SessionAgent
+from usine.ia.agent.session import SessionAgent as SessionAgent
 from usine.ia.classification import (
     PART_PLAFOND_CLASSIFICATION,
     ContexteClassification,
@@ -611,6 +613,14 @@ def construire_classificateur(
     )
     version = evaluation.version_modele(Tache.classification)
     return Classificateur(evaluation.passerelle, contexte, version, evaluation.fermeture)
+
+
+def consultation_repertoire(repertoire: Path) -> Consultation:
+    """`Consultation` du Passage de `repertoire`, sans URL Jira (suite `evals/agent`).
+
+    `evals` ne peut pas importer `usine.consultation` : la composition construit le lecteur.
+    """
+    return ConsultationPassage(repertoire, racine_passages=repertoire, url_jira=None)
 
 
 def construire_session_agent(
