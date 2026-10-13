@@ -54,3 +54,10 @@ Similarité lexicale locale plutôt qu'appel LLM ou plongements : zéro coût et
 
 - Affichage des paires dans l'UI (onglet Anomalies) et publication en fichier de Passage (`doublons.json`) : hors périmètre, nécessitent un contrat de Passage.
 - Similarité sémantique (plongements ou LLM) pour les doublons reformulés : à évaluer si le Jaccard lexical manque trop de paires.
+
+## Revue
+
+- Low, rejeté : comparaison en O(n²) sur le stock ; acceptable pour quelques milliers d'Anomalies, sans appel externe.
+- Low, rejeté : le score arrondi à 4 décimales peut passer sous un seuil à plus de 4 décimales ; effet négligeable.
+- Low, rejeté : stock vide ou une seule Anomalie rendent `paires=()` (aucune combinaison) ; textes vides donnent un score 0 écarté par `score > 0`.
+- Aucun constat medium ou high : critères d'acceptation couverts (aperçu pseudonymisé, aucune écriture, contrats 1.9 dans un commit dédié avant le code), tri déterministe (score, puis rang des clés), plafond et paramètres validés.
