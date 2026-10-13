@@ -10,6 +10,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import httpx
+
 from evals.agent.questions import CHEMIN_QUESTIONS, charger_questions
 from evals.agent.suite import (
     CHEMIN_HISTORIQUE,
@@ -68,6 +70,15 @@ def main(arguments: Sequence[str] | None = None) -> int:
         ajouter_historique(resultat, chemin, options.historique)
     except UsineErreur as exc:
         print(f"Erreur : {exc}", file=sys.stderr)
+        return 1
+    except (httpx.HTTPError, OSError) as exc:
+        if not options.reel:
+            raise
+        print(
+            f"Erreur : appel réseau ou fournisseur impossible en mode réel"
+            f" ({type(exc).__name__} : {exc}) ; aucun résultat écrit.",
+            file=sys.stderr,
+        )
         return 1
     print(
         f"Résultat écrit : {chemin}\n"

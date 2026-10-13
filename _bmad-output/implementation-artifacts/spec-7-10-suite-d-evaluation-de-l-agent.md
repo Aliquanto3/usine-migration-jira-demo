@@ -69,7 +69,7 @@ deferred: []
 ## Review Triage Log
 
 Revue Edge Case Hunter (une passe, run autonome) : aucun constat medium ou high. Constats rejetés (low) :
-- rejeté : en `--reel`, une erreur réseau non `UsineErreur` remonte en trace Python au lieu du code 1 ; exécution manuelle, l'erreur reste lisible.
+- rejeté : en `--reel`, une erreur réseau non `UsineErreur` remonte en trace Python au lieu du code 1 ; exécution manuelle, l'erreur reste lisible. Corrigé (7.10-a).
 - rejeté : en `--reel`, une réponse servie du cache n'exécute aucun outil ; la notation reste juste (contrôle sur la conversation en cache) et `depuis_cache` figure dans la trace.
 - rejeté : un `sur_trace` qui lève (disque plein) interrompt la conversation ; comportement voulu, les traces déjà écrites restent.
 - rejeté : la détection du refus est sensible à la casse (« ne permettent pas de répondre ») ; c'est la phrase imposée par les consignes de l'Agent.
