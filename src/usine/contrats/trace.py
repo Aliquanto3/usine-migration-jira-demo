@@ -47,6 +47,8 @@ class EntreeTrace(Enregistrement):
     jetons_entree: int = Field(default=0, ge=0)
     jetons_sortie: int = Field(default=0, ge=0)
     cout_estime_eur: Decimal = Field(default=Decimal(0), ge=0)
+    en_echec: bool = False
+    """Appel LLM en échec : `sortie` vide, jetons et coût majorés (imputés au plafond)."""
 
     @model_validator(mode="after")
     def _type(self) -> Self:
