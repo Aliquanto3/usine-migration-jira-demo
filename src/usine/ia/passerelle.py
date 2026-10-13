@@ -22,18 +22,22 @@ import hashlib
 import json
 import logging
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import (
     CANDIDAT_JETON,
     EnveloppeCache,
+    MessageAgent,
+    OutilAgent,
     ParametresAppel,
+    ReponseAgent,
+    ReponseAgentBrute,
     StatutControle,
     Tache,
     variantes_jeton,
@@ -89,6 +93,41 @@ class ResultatAppel[S: BaseModel]:
     statut: StatutControle
     phrases_retirees: int
     trace: EntreeTrace
+
+
+@dataclass(frozen=True)
+class OutilSource:
+    """Outil de l'Agent avant enveloppe : `executer` rend son résultat brut, en clair.
+
+    Des arguments invalides lèvent une `ValidationError`, rendue au modèle en texte.
+    """
+
+    nom: str
+    description: str
+    arguments: type[BaseModel]
+    executer: Callable[[Mapping[str, JsonValue]], str]
+
+
+@dataclass(frozen=True)
+class ResultatAgent:
+    """Résultat d'une conversation d'Agent : réponse contrôlée et ré-identifiée, et traces.
+
+    `traces` : une trace par outil exécuté, dans l'ordre d'exécution, puis celle de la réponse.
+    """
+
+    sortie: ReponseAgent
+    statut: StatutControle
+    traces: tuple[EntreeTrace, ...]
+
+    @property
+    def depuis_cache(self) -> bool:
+        """Vrai si la réponse a été servie du cache, sans appel au fournisseur."""
+        return self.traces[-1].depuis_cache
+
+
+def message_erreur_arguments(nom_outil: str) -> str:
+    """Texte rendu au modèle quand il appelle `nom_outil` avec des arguments invalides."""
+    return f"erreur : arguments invalides pour {nom_outil}"
 
 
 def empreinte(texte: str) -> str:
@@ -201,6 +240,37 @@ class Passerelle:
         """Version de modèle du fournisseur (`fournisseur:modele`)."""
         return self._fournisseur.version_modele
 
+    def _verifier_plafond(
+        self, contexte: ContexteAppel, parametres: ParametresAppel, plafond_eur: Decimal | None
+    ) -> Decimal:
+        """Cumul du Passage ; lève `PlafondCoutAtteint` si un plafond est atteint (NFR-9)."""
+        cumul = self.cout_cumule_eur(contexte.passage_id)
+        if self._plafond is not None and cumul >= self._plafond:
+            journal.warning(
+                "plafond de coût du Passage %s atteint (%s € ≥ %s €) : %s sans appel",
+                contexte.passage_id,
+                cumul,
+                self._plafond,
+                contexte.cible,
+            )
+            raise PlafondCoutAtteint(
+                f"plafond de coût du Passage atteint ({cumul} € pour un plafond de"
+                f" {self._plafond} €, config/llm.yaml, clé « plafond_cout_passage_eur »)"
+            )
+        if plafond_eur is not None and cumul >= plafond_eur:
+            journal.warning(
+                "part du plafond de coût atteinte, Passage %s (%s € ≥ %s €) : %s sans appel",
+                contexte.passage_id,
+                cumul,
+                plafond_eur,
+                contexte.cible,
+            )
+            raise PlafondCoutAtteint(
+                f"part du plafond de coût du Passage atteinte ({cumul} € pour une part de"
+                f" {plafond_eur} € réservée à la tâche « {parametres.tache.value} »)"
+            )
+        return cumul
+
     def executer_structure[T: BaseModel, S: BaseModel](
         self,
         prompt: str,
@@ -243,31 +313,7 @@ class Passerelle:
                 )
         depuis_cache = reponse is not None
         if reponse is None:
-            cumul = self.cout_cumule_eur(contexte.passage_id)
-            if self._plafond is not None and cumul >= self._plafond:
-                journal.warning(
-                    "plafond de coût du Passage %s atteint (%s € ≥ %s €) : %s sans appel",
-                    contexte.passage_id,
-                    cumul,
-                    self._plafond,
-                    contexte.cible,
-                )
-                raise PlafondCoutAtteint(
-                    f"plafond de coût du Passage atteint ({cumul} € pour un plafond de"
-                    f" {self._plafond} €, config/llm.yaml, clé « plafond_cout_passage_eur »)"
-                )
-            if plafond_eur is not None and cumul >= plafond_eur:
-                journal.warning(
-                    "part du plafond de coût atteinte, Passage %s (%s € ≥ %s €) : %s sans appel",
-                    contexte.passage_id,
-                    cumul,
-                    plafond_eur,
-                    contexte.cible,
-                )
-                raise PlafondCoutAtteint(
-                    f"part du plafond de coût du Passage atteinte ({cumul} € pour une part de"
-                    f" {plafond_eur} € réservée à la tâche « {parametres.tache.value} »)"
-                )
+            cumul = self._verifier_plafond(contexte, parametres, plafond_eur)
             appel = fournisseur.generer_structure(entree, schema, parametres)
             enveloppe = EnveloppeCache(brut=appel.brut, version_modele=appel.version_modele)
             self._cache.ecrire(cle, enveloppe.model_dump_json())
@@ -306,3 +352,131 @@ class Passerelle:
             cout_estime_eur=cout,
         )
         return ResultatAppel(sortie, controle.statut, controle.phrases_retirees, trace)
+
+    def executer_agent(
+        self,
+        messages: Sequence[MessageAgent],
+        outils: Sequence[OutilSource],
+        parametres: ParametresAppel,
+        contexte: ContexteAppel,
+        controler: Callable[[ReponseAgentBrute], Controle[ReponseAgent]],
+        plafond_eur: Decimal | None = None,
+    ) -> ResultatAgent:
+        """Conversation d'Agent dans l'ordre d'AD-12, en texte libre (`output_type=str`).
+
+        Chaque message est pseudonymisé avant le cache et le fournisseur ; chaque outil est
+        enveloppé en `OutilAgent` : exécution, erreur d'arguments rendue en texte,
+        Pseudonymisation du résultat et trace `tache=agent`, `cible=<nom de l'outil>`. Le
+        cache garde la `ReponseAgentBrute` (conversation pseudonymisée) : une réponse en cache
+        n'exécute aucun outil. `controler` reçoit la réponse pseudonymisée ; la
+        ré-identification n'admet que les jetons de la conversation pseudonymisée.
+        """
+        fournisseur = self._fournisseurs_par_tache.get(parametres.tache, self._fournisseur)
+        version_modele = fournisseur.version_modele
+        pseudonymises = tuple(
+            m.model_copy(update={"contenu": self._pseudonymiseur.pseudonymiser(m.contenu)})
+            for m in messages
+        )
+        entree = json.dumps(
+            {
+                "messages": [m.model_dump(mode="json") for m in pseudonymises],
+                "outils": [outil.nom for outil in outils],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        cle = cle_cache(parametres, contexte, version_modele, entree)
+        traces_outils: list[EntreeTrace] = []
+
+        def envelopper(source: OutilSource) -> OutilAgent:
+            def executer(arguments: Mapping[str, JsonValue]) -> str:
+                try:
+                    brut = source.executer(arguments)
+                except ValidationError as exc:
+                    journal.info(
+                        "arguments invalides pour %s (%s erreurs)", source.nom, exc.error_count()
+                    )
+                    brut = message_erreur_arguments(source.nom)
+                resultat = self._pseudonymiseur.pseudonymiser(brut)
+                arguments_json = json.dumps(dict(arguments), ensure_ascii=False, sort_keys=True)
+                traces_outils.append(
+                    EntreeTrace(
+                        type_trace=TypeTrace.llm,
+                        horodatage=self._horloge(),
+                        passage_id=contexte.passage_id,
+                        date_arrete=contexte.date_arrete,
+                        entite=contexte.entite,
+                        tache=parametres.tache,
+                        cible=source.nom,
+                        fournisseur=version_modele.split(":", 1)[0],
+                        version_prompt=contexte.version_prompt,
+                        version_modele=version_modele,
+                        version_grille=contexte.version_grille,
+                        version_donnees=contexte.version_donnees,
+                        entree_pseudonymisee=self._pseudonymiseur.pseudonymiser(arguments_json),
+                        sortie=resultat,
+                        statut_controle=StatutControle.non_controle,
+                    )
+                )
+                return resultat
+
+            return OutilAgent(source.nom, source.description, source.arguments, executer)
+
+        reponse: ReponseAgentBrute | None = None
+        jetons_entree = jetons_sortie = 0
+        cout = Decimal(0)
+        stocke = self._cache.lire(cle)
+        if stocke is not None:
+            try:
+                enveloppe = EnveloppeCache.model_validate_json(stocke)
+                reponse = ReponseAgentBrute.model_validate_json(enveloppe.brut)
+            except ValidationError as exc:
+                journal.warning(
+                    "réponse d'Agent en cache illisible (%s), nouvel appel au fournisseur",
+                    exc.error_count(),
+                )
+        depuis_cache = reponse is not None
+        if reponse is None:
+            cumul = self._verifier_plafond(contexte, parametres, plafond_eur)
+            reponse = fournisseur.executer_agent(
+                pseudonymises, [envelopper(o) for o in outils], parametres
+            )
+            enveloppe = EnveloppeCache(
+                brut=reponse.model_dump_json(), version_modele=reponse.version_modele
+            )
+            self._cache.ecrire(cle, enveloppe.model_dump_json())
+            jetons_entree, jetons_sortie = reponse.jetons_entree, reponse.jetons_sortie
+            cout = self._tarif(reponse.version_modele, jetons_entree, jetons_sortie)
+            self._cumul[contexte.passage_id] = cumul + cout
+
+        controle = controler(reponse)
+        # Jetons de l'entrée et des résultats d'outils ; ceux qu'écrit le modèle n'en font pas
+        # partie : un jeton inventé ou recopié d'un autre appel reste un jeton.
+        autorises = jetons_de(entree).union(
+            *(jetons_de(m.contenu) for m in reponse.messages if m.role == "outil")
+        )
+        donnees = _reidentifier(controle.sortie.model_dump(), self._pseudonymiseur, autorises)
+        sortie = ReponseAgent.model_validate(donnees)
+        trace = EntreeTrace(
+            type_trace=TypeTrace.llm,
+            horodatage=self._horloge(),
+            passage_id=contexte.passage_id,
+            date_arrete=contexte.date_arrete,
+            entite=contexte.entite,
+            tache=parametres.tache,
+            cible=contexte.cible,
+            fournisseur=reponse.version_modele.split(":", 1)[0],
+            version_prompt=contexte.version_prompt,
+            version_modele=reponse.version_modele,
+            version_grille=contexte.version_grille,
+            version_donnees=contexte.version_donnees,
+            entree_pseudonymisee=entree,
+            sortie=controle.sortie.model_dump_json(),
+            statut_controle=controle.statut,
+            phrases_retirees=controle.phrases_retirees,
+            depuis_cache=depuis_cache,
+            jetons_entree=jetons_entree,
+            jetons_sortie=jetons_sortie,
+            cout_estime_eur=cout,
+        )
+        return ResultatAgent(sortie, controle.statut, (*traces_outils, trace))

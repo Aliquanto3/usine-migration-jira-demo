@@ -3,7 +3,8 @@
 Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
 Mode repli, la `Consultation` du dernier Passage publié ou du Passage enregistré du Mode repli
 (`demo/repli/passage/`), la configuration de la démo (`config/demo.yaml`), les manifestes
-mesurés par l'avant / après et l'aperçu de la Pseudonymisation (vue côte à côte). La page
+mesurés par l'avant / après, l'aperçu de la Pseudonymisation (vue côte à côte) et la session
+de l'Agent (`session_agent`). La page
 n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
@@ -19,6 +20,7 @@ from usine.config import charger_secrets, charger_yaml
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.config import ConfigDemo
 from usine.contrats.passage import FICHIERS_PASSAGE, REPERTOIRE_PASSAGES, ManifestePassage
+from usine.ia.agent.session import SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
 
@@ -119,6 +121,15 @@ def apercu_pseudonymisation(racine: Path) -> Callable[[str], str]:
     `USINE_CLE_PSEUDO` absente ou invalide lève une `UsineErreur` qui nomme la variable.
     """
     return composition.apercu_pseudonymisation(racine)
+
+
+def session_agent(racine: Path, consultation: Consultation) -> SessionAgent:
+    """`SessionAgent` de la composition sur le Passage de `consultation` (FR-39, FR-40).
+
+    Fournisseur, plafond et Pseudonymisation de `config/llm.yaml` et des secrets ; une
+    configuration ou une clé absente lève une `UsineErreur` qui la nomme.
+    """
+    return composition.construire_session_agent(racine, consultation)
 
 
 def commande_streamlit() -> list[str]:

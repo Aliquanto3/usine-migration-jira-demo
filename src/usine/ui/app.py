@@ -31,8 +31,10 @@ from typing import IO, Literal, Protocol
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.llm import StatutControle
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
 from usine.ui import (
+    agent,
     avant_apres,
     carte,
     detail,
@@ -51,6 +53,7 @@ from usine.ui.cli import (
     manifestes_avant_apres,
     mode_repli,
     racine_ui,
+    session_agent,
 )
 from usine.ui.liens import echapper_markdown, lien_ticket
 from usine.ui.navigation import Ecran
@@ -379,6 +382,63 @@ def afficher_outillage(racine: Path) -> None:
     st.markdown(fiche)
 
 
+def afficher_agent(racine: Path, repli: bool = False) -> None:
+    """Écran Agent, en lecture seule : question, réponse contrôlée, statut, outils appelés.
+
+    La session vient de `ui/cli.session_agent`, gardée dans `session_state` tant que le dernier
+    Passage publié ne change pas ; en Mode repli, aucun LLM n'est appelé (réponses
+    enregistrées : Story 7.11).
+    """
+    st.subheader(Ecran.agent.value)
+    if repli:
+        st.info(agent.MESSAGE_REPLI)
+        return
+    if _racine_introuvable(racine):
+        return
+    try:
+        consultation = consultation_dernier_passage(racine)
+        passage_id = None if consultation is None else consultation.manifeste().passage_id
+    except UsineErreur as exc:
+        _echec_lecture(exc, repli)
+        return
+    if consultation is None:
+        st.info(agent.AUCUN_PASSAGE)
+        return
+    st.caption(agent.LEGENDE)
+    with st.form("formulaire_agent"):
+        question = st.text_input(
+            agent.LIBELLE_QUESTION,
+            value=agent.QUESTION_DEMO,
+            key=navigation.CLE_QUESTION_AGENT,
+        )
+        envoyee = st.form_submit_button(agent.LIBELLE_ENVOYER)
+    if not envoyee or not question.strip():
+        return
+    session: agent.Session | None = st.session_state.get(navigation.CLE_SESSION_AGENT)
+    if session is not None and session.passage_id != passage_id:
+        session.fermer()  # nouveau Passage publié : nouvelle session
+        session = None
+    if session is None:
+        st.session_state.pop(navigation.CLE_SESSION_AGENT, None)
+        try:
+            session = session_agent(racine, consultation)
+        except UsineErreur as exc:
+            st.error(f"Agent indisponible : la session ne peut être construite ({exc})")
+            return
+        st.session_state[navigation.CLE_SESSION_AGENT] = session
+    try:
+        reponse = session.repondre(question.strip())
+    except Exception as exc:  # fournisseur, trace ou validation : message explicite
+        st.error(f"Réponse de l'Agent impossible : {exc}")
+        return
+    if reponse.statut_controle is StatutControle.rejete:
+        st.warning(reponse.texte)
+    else:
+        st.markdown(echapper_markdown(reponse.texte))
+    st.caption(agent.texte_statut(reponse))
+    st.caption(agent.texte_outils(reponse))
+
+
 def afficher_a_venir(ecran: Ecran) -> None:
     """Emplacement nommé d'un écran livré par une story suivante."""
     st.subheader(ecran.value)
@@ -579,6 +639,8 @@ def principal() -> None:
         afficher_pseudonymisation(racine, repli)
     elif ecran is Ecran.outillage:
         afficher_outillage(racine)
+    elif ecran is Ecran.agent:
+        afficher_agent(racine, repli)
     else:
         afficher_a_venir(ecran)
 

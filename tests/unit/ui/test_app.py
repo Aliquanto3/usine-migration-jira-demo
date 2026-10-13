@@ -42,7 +42,7 @@ from usine.contrats.prevision import (
     RisqueEntreeRouge,
     StatutPrevision,
 )
-from usine.ui import avant_apres, cli, detail, lancement, outillage, pseudonymisation
+from usine.ui import agent, avant_apres, cli, detail, lancement, outillage, pseudonymisation
 from usine.ui.carte import formater_regle, tendance
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 from usine.ui.liens import echapper_markdown
@@ -185,6 +185,9 @@ def test_navigation(ecran: Ecran, racine_publiee: Path, monkeypatch: pytest.Monk
         original, version = (t.value for t in page.text)
         assert version == original.upper()
         assert not page.info  # plus un emplacement
+    elif ecran is Ecran.agent:
+        assert page.subheader[0].value == ecran.value
+        assert [i.value for i in page.info] == [agent.MESSAGE_REPLI]  # Mode repli : Story 7.11
     elif ecran is not Ecran.carte:
         assert page.subheader[0].value == ecran.value
         assert f"Story {STORY_A_VENIR[ecran]}" in page.info[-1].value

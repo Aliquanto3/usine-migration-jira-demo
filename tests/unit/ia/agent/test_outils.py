@@ -260,7 +260,14 @@ def test_risques() -> None:
 # --- Lecture seule ----------------------------------------------------------------------------
 
 _VERBES_ECRITURE = ("ecrire", "creer", "modifier", "supprimer", "envoyer", "publier", "set_", "put")
-_IMPORTS_PERMIS = ("usine.contrats", "usine.ports.consultation", "usine.consultation")
+_IMPORTS_PERMIS = (
+    "usine.contrats",
+    "usine.ports.consultation",
+    "usine.consultation",
+    "usine.ia.agent",
+    "usine.ia.controles",
+    "usine.ia.passerelle",  # seul chemin vers le fournisseur (AD-12), Story 7.9
+)
 _PORTS_INTERDITS = (
     "usine.ports.source_tickets",
     "usine.ports.entrepot",
@@ -277,7 +284,8 @@ def test_aucun_outil_ne_porte_un_verbe_d_ecriture() -> None:
 
 
 def test_modules_de_l_agent_lecture_seule() -> None:
-    """Hors `cli` (Typer), `ia.agent` n'importe que contrats, `Consultation` et la stdlib."""
+    """Hors `cli` (Typer), `ia.agent` n'importe que contrats, `Consultation`, la passerelle,
+    les contrôles et la stdlib."""
     paquet = Path(module_outils.__file__).parent
     for fichier in sorted(paquet.rglob("*.py")):
         if fichier.name == "cli.py":
