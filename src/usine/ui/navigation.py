@@ -20,12 +20,9 @@ class Ecran(StrEnum):
 ECRAN_PAR_DEFAUT = Ecran.carte
 """Écran affiché à l'ouverture de la page."""
 
-STORY_A_VENIR: Mapping[Ecran, str] = MappingProxyType(
-    {
-        Ecran.agent: "7.9",
-    }
-)
-"""Story qui livre le contenu complet de chaque écran encore à l'état d'emplacement."""
+STORY_A_VENIR: Mapping[Ecran, str] = MappingProxyType({})
+"""Story qui livre le contenu complet de chaque écran encore à l'état d'emplacement (aucun :
+l'écran Agent est livré par la Story 7.9)."""
 
 CLE_ECRAN = "ecran"
 """Clé de `session_state` du sélecteur d'écran."""
@@ -37,6 +34,10 @@ CLE_PALIER = "palier"
 """Clé de `session_state` du sélecteur de Palier du détail (Passage Palier 2 seulement)."""
 CLE_TICKET_APERCU = "ticket_apercu"
 """Clé de `session_state` du ticket choisi sur l'écran Pseudonymisation."""
+CLE_QUESTION_AGENT = "question_agent"
+"""Clé de `session_state` de la question saisie sur l'écran Agent."""
+CLE_SESSION_AGENT = "session_agent"
+"""Clé de `session_state` de la session de l'Agent, gardée d'une question à l'autre."""
 
 
 def libelles_ecrans() -> list[str]:

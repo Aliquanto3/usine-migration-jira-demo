@@ -154,6 +154,7 @@ from usine.generateur.corpus import (
 )
 from usine.generateur.journal import ecrire_journal, generer
 from usine.generateur.textes import corpus_provisoire
+from usine.ia.agent.session import SessionAgent
 from usine.ia.classification import (
     PART_PLAFOND_CLASSIFICATION,
     ContexteClassification,
@@ -605,6 +606,34 @@ def construire_classificateur(
     )
     version = evaluation.version_modele(Tache.classification)
     return Classificateur(evaluation.passerelle, contexte, version, evaluation.fermeture)
+
+
+def construire_session_agent(
+    racine: Path,
+    consultation: Consultation,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> SessionAgent:
+    """`SessionAgent` sur le Passage de `consultation` (FR-39, FR-40).
+
+    Passerelle de `_passerelle_evaluation` : mode réel sans `fournisseur` (configuration,
+    secrets, plafond de coût), doublures injectées sinon ; cache en mémoire. Les traces vont
+    dans `racine/sorties/agent/<AAAA-MM-JJ>/<session>.jsonl`.
+    """
+    evaluation = _passerelle_evaluation(racine, fournisseur, pseudonymiseur)
+    try:
+        return SessionAgent(
+            evaluation.passerelle,
+            consultation,
+            racine,
+            _maintenant,
+            f"{_maintenant():%Y%m%dT%H%M%SZ}-{_suffixe()}",
+            evaluation.fermeture,
+        )
+    except BaseException:
+        if evaluation.fermeture is not None:
+            evaluation.fermeture()
+        raise
 
 
 def _config_llm(racine: Path, *, controler_corpus: bool = True) -> ConfigLLM | None:
