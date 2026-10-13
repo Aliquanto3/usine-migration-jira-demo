@@ -49,6 +49,22 @@ Même protocole, avec deux différences : le coût est calculé à partir des tr
 4. **Gravité en revue** : Opus classe mieux que Sonnet (2 « high » contre 0), mais Haiku a aussi classé « high » 3 défauts réels. La réunion Sonnet plus Haiku reste le meilleur rapport qualité-prix.
 5. **Le parallélisme accélère la dépense sans la grossir** : jusqu'à 11 agents simultanés n'ont pas augmenté le coût par tâche. La baisse de 40 % du mode économique vient surtout de la passe de revue unique.
 
+### Premier lot en conditions réelles : agents `dev-story` puis `reviewer` (story 6.10-b, 2026-10-13)
+
+Le lot corrigeait les trois constats reportés de la 6.10 : 19 fichiers, +459 lignes, avec un changement additif des contrats. L'orchestrateur, Opus 5.5 en effort medium, a appelé directement les deux agents, sans skill BMAD. Coût mesuré avec `outils/cout_sous_agents.py --ttl 1h` :
+
+| Agent | Modèle | Appels | Écriture cache | Lecture cache | Durée | Coût |
+|---|---|---|---|---|---|---|
+| `dev-story` | Sonnet 5.5 | 97 | 157 k | 11,2 M | 18 min | 2,90 $ |
+| `reviewer` | Sonnet 5.5 | 11 | 46 k | 0,56 M | 6 min | 0,30 $ |
+| **Total** | | | | | | **3,20 $** |
+
+- **La lecture du cache fait 77 % du coût de `dev-story`** (2,24 $ sur 2,90 $). Le coût suit le nombre de tours : 97 appels pour une story de taille moyenne.
+- **La revue unique en Sonnet a payé** pour 0,30 $ : 3 constats medium réels corrigés (une trace d'échec qui fuyait d'une classification à la suivante, un filtrage par tâche manquant, la borne des relances annulée quand le préchauffage échouait). Elle a aussi relancé la suite complète, que `dev-story` n'avait pas refaite après son dernier correctif.
+- **Le hook de contrôle rapide s'est bien déclenché** à la fin de `dev-story`.
+- **`dev-story` a encore attendu en arrière-plan** (une commande en arrière-plan, suivie par `Monitor`) malgré la consigne. Il a renvoyé trois fois le même rapport à la fin de chaque attente, et l'orchestrateur a dû l'arrêter (`TaskStop`). Le coût est faible, mais le risque est réel : l'agent pouvait reprendre dans le worktree pendant la revue. Il faut l'interdire explicitement dans l'agent (`disallowedTools: Monitor`) ou dans sa consigne.
+- Les tokens de sortie relevés dans les transcriptions paraissent sous-estimés (moins de 3 k pour 97 appels). Leur poids dans le coût reste faible.
+
 ## 3. Routage recommandé
 
 | Rôle | Modèle | Effort | Pourquoi |
