@@ -123,6 +123,7 @@ from usine.contrats.llm import (
     ReponseAgentBrute,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublon,
     SortieExplication,
     Tache,
 )
@@ -168,6 +169,7 @@ from usine.ia.classification import (
 )
 from usine.ia.classification import lire_prompt as lire_prompt_classification
 from usine.ia.controles import controler_citations as controler_citations
+from usine.ia.doublons import DetecteurDoublons
 from usine.ia.etape import EtapeExplications, EtapeNarration
 from usine.ia.explication import ContexteExplication, expliquer, lire_prompt
 from usine.ia.passerelle import Passerelle
@@ -613,6 +615,41 @@ def construire_classificateur(
     )
     version = evaluation.version_modele(Tache.classification)
     return Classificateur(evaluation.passerelle, contexte, version, evaluation.fermeture)
+
+
+@dataclass(frozen=True)
+class Doublons:
+    """Détection de doublons (Story 6.11) câblée sur une passerelle, pour `usine ia doublons`.
+
+    Appelable `(consultation) -> (sorties, traces)` : paires d'Anomalies ouvertes probablement
+    en doublon, à revoir par le Pilote, et une trace par appel au fournisseur.
+    """
+
+    detecteur: DetecteurDoublons
+    fermeture: Callable[[], None] | None = None
+
+    def __call__(
+        self, consultation: Consultation
+    ) -> tuple[tuple[SortieDoublon, ...], tuple[EntreeTrace, ...]]:
+        """Doublons probables du Passage lu par `consultation`."""
+        return self.detecteur.detecter(consultation)
+
+    def fermer(self) -> None:
+        """Ferme les fournisseurs construits depuis `config/llm.yaml` (aucun effet sinon)."""
+        if self.fermeture is not None:
+            self.fermeture()
+
+
+def construire_doublons(
+    racine: Path,
+    fournisseur: FournisseurLLM | None = None,
+    pseudonymiseur: Pseudonymiseur | None = None,
+) -> Doublons:
+    """`Doublons` sur la passerelle de `_passerelle_evaluation` : mode réel sans `fournisseur`
+    (configuration, secrets, plafond de coût), doublures injectées sinon ; cache en mémoire.
+    """
+    evaluation = _passerelle_evaluation(racine, fournisseur, pseudonymiseur)
+    return Doublons(DetecteurDoublons(evaluation.passerelle), evaluation.fermeture)
 
 
 def consultation_repertoire(repertoire: Path) -> Consultation:
