@@ -397,3 +397,12 @@ def test_local_serveur_injoignable_traduit_en_usine_erreur() -> None:
     with pytest.raises(UsineErreur, match="local:"):
         adaptateur.generer_structure("Classe.", Sortie, STRUCTURE)
     adaptateur.fermer()
+
+
+@pytest.mark.parametrize(
+    "url", ["poste:9000", "ftp://poste/v1", "http://", "http://[::1", "file:///x"]
+)
+def test_local_refuse_une_adresse_invalide(url: str) -> None:
+    with pytest.raises(UsineErreur, match="USINE_LLAMA_URL") as exc:
+        construire_fournisseur_llm(_config("local", MODELES["local"]), "", url_serveur=url)
+    assert "secret" not in str(exc.value)

@@ -61,3 +61,13 @@ deferred: ['Relance réelle des suites d''évaluation (Explication, classificati
 ## Résultats des contrôles
 
 Voir le rapport de fin de run (ruff check, ruff format --check, mypy, lint-imports, pytest).
+
+## Revue
+
+Passe unique (2026-10-13), diff `962ff54..e3c6fe0`.
+
+- Medium, corrigé : `USINE_LLAMA_URL` n'était pas validée (schéma `ftp:`, hôte absent, valeur mal formée donnaient une erreur obscure du SDK au premier appel). `_verifier_url_serveur` exige une URL http(s) avec hôte, sans citer la valeur (identifiants possibles) ; test paramétré ajouté.
+- Low, rejeté : une URL non locale (poste du réseau interne) reste admise, c'est un usage voulu ; la pseudonymisation s'applique avant tout appel quel que soit le fournisseur.
+- Low, rejeté : `gratuit=True` pour `local` est cohérent (coût estimé déjà nul).
+- Vérifié sans écart : aucune clé exigée ni lue pour `local` (clé factice `sans-cle`, jamais journalisée), contrats import-linter et test de classement à jour pour `openai`, cas `local` dans la suite de contrat `FournisseurLLM`, `contrats/` et `ports/` intacts, séparation schéma/outils testée.
+- Report vérifié : la relance réelle des suites d'évaluation est consignée (Reports, `deferred` du front matter, procédure dans les notes de dev) ; critère d'acceptation laissé ouvert, donc statut `review`.

@@ -11,6 +11,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 import anthropic
 import openai
@@ -379,6 +380,23 @@ class FournisseurPydanticAI:
         )
 
 
+def _verifier_url_serveur(url: str) -> None:
+    """Refuse une adresse de `llama-server` qui n'est pas une URL http(s) avec un hôte.
+
+    L'adresse n'est pas citée dans le message : elle peut porter des identifiants.
+    """
+    try:
+        analyse = urlsplit(url.strip())
+        valide = analyse.scheme in ("http", "https") and bool(analyse.hostname)
+    except ValueError:
+        valide = False
+    if not valide:
+        raise UsineErreur(
+            "USINE_LLAMA_URL : adresse invalide ; attendu une URL http(s) avec un hôte,"
+            f" par exemple {URL_SERVEUR_LOCAL}"
+        )
+
+
 def construire_fournisseur_llm(
     config: ConfigLLM,
     cle_api: str,
@@ -407,6 +425,7 @@ def construire_fournisseur_llm(
         client = anthropic.AsyncAnthropic(api_key=cle_api, http_client=client_http, max_retries=0)
         modele = AnthropicModel(config.modele, provider=AnthropicProvider(anthropic_client=client))
     elif config.fournisseur == FOURNISSEUR_LOCAL:
+        _verifier_url_serveur(url_serveur)
         local = openai.AsyncOpenAI(
             base_url=url_serveur, api_key="sans-cle", http_client=client_http, max_retries=0
         )
