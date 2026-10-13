@@ -1,4 +1,4 @@
-"""Faux transport HTTP des API Anthropic et Mistral : réponses enregistrées, jamais de réseau.
+"""Faux transport HTTP des API Anthropic, Mistral et `local` : réponses enregistrées, sans réseau.
 
 `TransportScripte` rejoue une liste de réponses dans l'ordre et garde le corps JSON de chaque
 requête. Les fonctions `anthropic_*` et `mistral_*` produisent les réponses au format des API
@@ -14,7 +14,11 @@ import httpx2
 from usine.adaptateurs.llm import FournisseurPydanticAI, construire_fournisseur_llm
 from usine.contrats.config import ConfigLLM
 
-MODELES = {"anthropic": "claude-sonnet-5-5", "mistral": "mistral-large-latest"}
+MODELES = {
+    "anthropic": "claude-sonnet-5-5",
+    "mistral": "mistral-large-latest",
+    "local": "qwen3-8b",
+}
 """Modèle par défaut de chaque fournisseur dans les tests."""
 
 
@@ -99,14 +103,16 @@ def anthropic_texte(texte: str) -> httpx2.Response:
     )
 
 
-def _mistral(message: dict[str, Any], fin: str) -> httpx2.Response:
+def _mistral(
+    message: dict[str, Any], fin: str, modele: str = MODELES["mistral"]
+) -> httpx2.Response:
     return httpx2.Response(
         200,
         json={
             "id": "cmpl-1",
             "object": "chat.completion",
             "created": 1760000000,
-            "model": MODELES["mistral"],
+            "model": modele,
             "choices": [{"index": 0, "message": message, "finish_reason": fin}],
             "usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19},
         },
@@ -114,7 +120,10 @@ def _mistral(message: dict[str, Any], fin: str) -> httpx2.Response:
 
 
 def mistral_outil(
-    nom: str, arguments: Mapping[str, Any], id_appel: str = "abc123def"
+    nom: str,
+    arguments: Mapping[str, Any],
+    id_appel: str = "abc123def",
+    modele: str = MODELES["mistral"],
 ) -> httpx2.Response:
     """Réponse Chat Completions qui demande l'outil `nom`."""
     appel = {
@@ -122,12 +131,14 @@ def mistral_outil(
         "type": "function",
         "function": {"name": nom, "arguments": json.dumps(dict(arguments))},
     }
-    return _mistral({"role": "assistant", "content": "", "tool_calls": [appel]}, "tool_calls")
+    return _mistral(
+        {"role": "assistant", "content": "", "tool_calls": [appel]}, "tool_calls", modele
+    )
 
 
-def mistral_texte(texte: str) -> httpx2.Response:
+def mistral_texte(texte: str, modele: str = MODELES["mistral"]) -> httpx2.Response:
     """Réponse Chat Completions en texte libre."""
-    return _mistral({"role": "assistant", "content": texte, "tool_calls": None}, "stop")
+    return _mistral({"role": "assistant", "content": texte, "tool_calls": None}, "stop", modele)
 
 
 def trop_de_requetes(fournisseur: str, retry_after: str | None) -> httpx2.Response:
@@ -147,12 +158,14 @@ def reponse_outil(
     """`anthropic_outil` ou `mistral_outil` selon `fournisseur`."""
     if fournisseur == "anthropic":
         return anthropic_outil(nom, arguments, id_appel)
-    return mistral_outil(nom, arguments, id_appel)
+    return mistral_outil(nom, arguments, id_appel, MODELES[fournisseur])
 
 
 def reponse_texte(fournisseur: str, texte: str) -> httpx2.Response:
     """`anthropic_texte` ou `mistral_texte` selon `fournisseur`."""
-    return anthropic_texte(texte) if fournisseur == "anthropic" else mistral_texte(texte)
+    if fournisseur == "anthropic":
+        return anthropic_texte(texte)
+    return mistral_texte(texte, MODELES[fournisseur])
 
 
 def fournisseur_scripte(

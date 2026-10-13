@@ -335,7 +335,8 @@ def construire_fournisseur(
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
-    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
+    `MISTRAL_API_KEY`, `fournisseur: local` n'en exige aucune (`llama-server`, URL de
+    `USINE_LLM_LOCAL_URL`) ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
     des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
 
     `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
@@ -364,7 +365,11 @@ def construire_fournisseur(
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
     cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
     cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    return construire_fournisseur_llm(
+        config,
+        cle.get_secret_value() if cle is not None else "",
+        url_local=secrets_usine.usine_llm_local_url,
+    )
 
 
 def construire_fournisseurs_par_tache(
@@ -389,10 +394,16 @@ def construire_fournisseurs_par_tache(
         for tache, modele in config.modeles_par_tache.items():
             if modele == config.modele:
                 continue
-            construits[tache] = construire_fournisseur_llm(
-                config.model_copy(update={"modele": modele}),
-                cle.get_secret_value() if cle is not None else "",
-            )
+            try:
+                construits[tache] = construire_fournisseur_llm(
+                    config.model_copy(update={"modele": modele}),
+                    cle.get_secret_value() if cle is not None else "",
+                    url_local=secrets_usine.usine_llm_local_url,
+                )
+            except UsineErreur as erreur:
+                raise UsineErreur(
+                    f"config/llm.yaml, modeles_par_tache.{tache.value} : {erreur}"
+                ) from None
     except BaseException:
         _fermer_tous(construits.values())
         raise

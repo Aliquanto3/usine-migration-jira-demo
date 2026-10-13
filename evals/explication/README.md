@@ -56,7 +56,7 @@ uv run python -m evals.explication executer --reel
 
 Lit `config/llm.yaml` (fournisseur, modèle de la tâche `explication`, plafond de coût), la clé
 du fournisseur (`ANTHROPIC_API_KEY` ou `MISTRAL_API_KEY`) et `USINE_CLE_PSEUDO`, comme un
-Passage Palier 2. Le cache est en mémoire : le cache de production n'est ni lu ni écrit. Les
+Passage Palier 2 (sans clé avec `fournisseur: local`, voir `docs/mode-llm-local.md`). Le cache est en mémoire : le cache de production n'est ni lu ni écrit. Les
 réponses enregistrées des cas sont ignorées.
 
 Coût estimé (Sonnet 5.5, 3 $ / 15 $ par million de jetons) : 10 à 20 appels (une régénération

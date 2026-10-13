@@ -61,6 +61,8 @@ REGISTRE: dict[str, TarifModele] = {
     "mistral:mistral-large-latest": TarifModele(*_usd("2", "6"), 60, 500_000, gratuit=True),
     "mistral:mistral-medium-latest": TarifModele(*_usd("0.4", "2"), 60, 500_000, gratuit=True),
     "mistral:mistral-small-latest": TarifModele(*_usd("0.1", "0.3"), 60, 500_000, gratuit=True),
+    # Mode local (Story 6.12) : `llama-server` sur le poste, ni coût ni quota réels.
+    "local:qwen3-8b": TarifModele(Decimal(0), Decimal(0), 600, 10_000_000, gratuit=True),
 }
 """Tarifs par `version_modele` (`fournisseur:modele`)."""
 

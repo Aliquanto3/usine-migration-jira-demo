@@ -23,6 +23,8 @@ class Secrets(BaseSettings):
     mistral_api_key: SecretStr | None = None
     usine_cle_pseudo: SecretStr | None = None
     usine_mode_repli: bool = False
+    usine_llm_local_url: str | None = None
+    """URL de base de `llama-server` (mode LLM local) ; absente : `http://127.0.0.1:8080/v1`."""
     usine_racine: str | None = None
     """Racine de l'UI (répertoire du dépôt) ; vide ou absente : le répertoire courant."""
 

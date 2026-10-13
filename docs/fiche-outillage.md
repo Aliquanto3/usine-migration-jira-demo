@@ -47,7 +47,7 @@ La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déj�
 ### Poste seul
 
 - Le palier 1 tourne sans LLM : les étapes LLM sont marquées `sautee` (FR-28, NFR-8, CI Windows et Linux).
-- Aucun mode LLM local n'est livré aujourd'hui (bonus FR-37) ; l'Agent en dépend aussi.
+- Mode LLM local (bonus FR-37) : `docs/mode-llm-local.md` ; l'Agent n'y est pas essayé.
 - La planification exige un poste allumé ; un `.env` par poste porte les secrets (AD-19, gitleaks).
 
 ## Références

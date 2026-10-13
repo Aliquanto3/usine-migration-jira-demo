@@ -1,4 +1,4 @@
-"""Adaptateurs Anthropic et Mistral sur faux transport : AD-13, reprise sur 429, erreurs."""
+"""Adaptateurs Anthropic, Mistral et local sur faux transport : AD-13, reprise sur 429, erreurs."""
 
 from collections.abc import Mapping
 from decimal import Decimal
@@ -28,7 +28,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -77,7 +77,8 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert corps["max_tokens"] == 300
+    cle_plafond = "max_completion_tokens" if fournisseur == "local" else "max_tokens"
+    assert corps[cle_plafond] == 300
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -195,6 +196,64 @@ def test_espacement_par_modele_entre_deux_appels() -> None:
     assert attentes == [pytest.approx(tarif("anthropic:claude-sonnet-5-5").espacement_s)]
 
 
+def test_local_sans_cle_prix_nul_et_modele_du_registre() -> None:
+    adaptateur = construire_fournisseur_llm(_config("local", "qwen3-8b"), "")
+    assert adaptateur.version_modele == "local:qwen3-8b"
+    assert cout_estime_eur("local:qwen3-8b", 1000, 500) == 0
+    assert tarif("local:qwen3-8b").gratuit
+    assert tarif("local:qwen3-8b").temperature
+    adaptateur.fermer()
+
+
+@pytest.mark.parametrize(
+    ("url", "attendue"),
+    [
+        (None, "http://127.0.0.1:8080/v1/chat/completions"),
+        ("", "http://127.0.0.1:8080/v1/chat/completions"),
+        ("http://h:9000/v1", "http://h:9000/v1/chat/completions"),
+    ],
+)
+def test_local_url_de_base(url: str | None, attendue: str) -> None:
+    transport = TransportScripte([_sortie("local")])
+    adaptateur = construire_fournisseur_llm(
+        _config("local", "qwen3-8b"), "", transport.client(), url_local=url
+    )
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == [attendue]
+    adaptateur.fermer()
+
+
+def test_local_serveur_injoignable_nomme_le_modele() -> None:
+    def injoignable(requete: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("refusé", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(injoignable))
+    adaptateur = construire_fournisseur_llm(_config("local", "qwen3-8b"), "", client)
+    with pytest.raises(UsineErreur, match=r"local:qwen3-8b : appel au fournisseur LLM en échec"):
+        adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    adaptateur.fermer()
+
+
+def test_local_reponse_hors_schema_leve_une_usine_erreur() -> None:
+    transport = TransportScripte(
+        [reponse_outil("local", "reponse", {"autre": 1}, f"id000000{i}") for i in range(3)]
+    )
+    with pytest.raises(UsineErreur, match="local:qwen3-8b") as exc:
+        fournisseur_scripte("local", transport).generer_structure("p", Sortie, STRUCTURE)
+    assert "UnexpectedModelBehavior" in str(exc.value)
+    assert len(transport.requetes) == 2
+
+
+def test_local_url_invalide_nomme_la_variable() -> None:
+    with pytest.raises(UsineErreur, match="USINE_LLM_LOCAL_URL"):
+        construire_fournisseur_llm(_config("local", "qwen3-8b"), "", url_local="http://h:abc/v1")
+
+
+def test_local_modele_hors_registre_refuse() -> None:
+    with pytest.raises(UsineErreur, match="registre"):
+        construire_fournisseur_llm(_config("local", "autre"), "")
+
+
 def _config(fournisseur: str, modele: str = "claude-sonnet-5-5") -> ConfigLLM:
     return ConfigLLM(fournisseur=fournisseur, modele=modele, plafond_cout_passage_eur=Decimal(1))
 
@@ -221,7 +280,7 @@ def test_modele_hors_registre_refuse() -> None:
 def test_registre_quotas_et_prix() -> None:
     assert "anthropic:claude-sonnet-5-5" in REGISTRE
     gratuits = [cle for cle, prix in REGISTRE.items() if prix.gratuit]
-    assert gratuits and all(cle.startswith("mistral:") for cle in gratuits)
+    assert gratuits and all(cle.startswith(("mistral:", "local:")) for cle in gratuits)
     assert all(p.requetes_par_minute > 0 and p.jetons_par_minute > 0 for p in REGISTRE.values())
     sonnet = tarif("anthropic:claude-sonnet-5-5")
     attendu = (sonnet.prix_entree_eur_mtok * 1000 + sonnet.prix_sortie_eur_mtok * 500) / 1_000_000

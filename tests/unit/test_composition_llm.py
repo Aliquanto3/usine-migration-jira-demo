@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -13,6 +14,7 @@ from usine.composition import (
     generer_corpus_llm,
     verifier_modele_corpus_candidat,
 )
+from usine.config.secrets import charger_secrets
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import Tache
 from usine.generateur.corpus import ReponseCorpus, TexteTicket, charger_corpus
@@ -47,6 +49,50 @@ def test_fournisseur_choisi_par_la_configuration(
     adaptateur = construire_fournisseur(racine)
     assert isinstance(adaptateur, FournisseurLLM)
     assert adaptateur.version_modele == f"{fournisseur}:{modele}"
+
+
+def test_fournisseur_local_sans_cle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in ("ANTHROPIC_API_KEY", "MISTRAL_API_KEY", "USINE_LLM_LOCAL_URL"):
+        monkeypatch.delenv(variable, raising=False)
+    racine = _racine(tmp_path, "local", "qwen3-8b")
+    adaptateur = construire_fournisseur(racine)
+    assert isinstance(adaptateur, FournisseurLLM)
+    assert adaptateur.version_modele == "local:qwen3-8b"
+    getattr(adaptateur, "fermer", lambda: None)()
+    monkeypatch.setenv("USINE_LLM_LOCAL_URL", "http://h:9000/v1")
+    assert charger_secrets(racine).usine_llm_local_url == "http://h:9000/v1"
+    assert construire_fournisseurs_par_tache(racine) == {}
+
+
+def test_url_locale_transmise_aux_adaptateurs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import usine.adaptateurs.llm as llm
+
+    monkeypatch.setenv("USINE_LLM_LOCAL_URL", "http://h:9000/v1")
+    monkeypatch.setitem(llm.REGISTRE, "local:autre", llm.REGISTRE["local:qwen3-8b"])
+    racine = _avec_modeles_par_tache(_racine(tmp_path, "local", "qwen3-8b"), "  agent: autre\n")
+    urls: list[str | None] = []
+    reel = llm.construire_fournisseur_llm
+
+    def enregistre(*args: Any, **kwargs: Any) -> Any:
+        urls.append(kwargs.get("url_local"))
+        return reel(*args, **kwargs)
+
+    monkeypatch.setattr(llm, "construire_fournisseur_llm", enregistre)
+    principal = construire_fournisseur(racine)
+    par_tache = construire_fournisseurs_par_tache(racine)
+    assert urls == ["http://h:9000/v1", "http://h:9000/v1"]
+    for adaptateur in (principal, *par_tache.values()):
+        getattr(adaptateur, "fermer", lambda: None)()
+
+
+def test_modeles_par_tache_distants_en_mode_local_nomment_le_bloc(tmp_path: Path) -> None:
+    racine = _avec_modeles_par_tache(
+        _racine(tmp_path, "local", "qwen3-8b"), "  classification: claude-haiku-5-5\n"
+    )
+    with pytest.raises(UsineErreur, match=r"modeles_par_tache\.classification"):
+        construire_fournisseurs_par_tache(racine)
 
 
 def test_sans_llm_yaml(tmp_path: Path) -> None:
