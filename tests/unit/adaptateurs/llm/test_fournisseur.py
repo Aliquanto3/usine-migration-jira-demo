@@ -1,4 +1,4 @@
-"""Adaptateurs Anthropic et Mistral sur faux transport : AD-13, reprise sur 429, erreurs."""
+"""Adaptateurs Anthropic, Mistral et llama.cpp sur faux transport : AD-13, 429, erreurs."""
 
 from collections.abc import Mapping
 from decimal import Decimal
@@ -17,6 +17,7 @@ from tests.doublures.transport_llm import (
 )
 from usine.adaptateurs.llm import (
     REGISTRE,
+    URL_LLAMA_DEFAUT,
     FournisseurPydanticAI,
     construire_fournisseur_llm,
     cout_estime_eur,
@@ -28,7 +29,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "llama")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -77,7 +78,7 @@ def test_structure_en_mode_tool_output_sans_autre_outil(fournisseur: str) -> Non
     assert (reponse.jetons_entree, reponse.jetons_sortie) == (12, 7)
     (corps,) = transport.requetes
     assert _noms_outils(corps) == {"reponse"}
-    assert corps["max_tokens"] == 300
+    assert 300 in (corps.get("max_tokens"), corps.get("max_completion_tokens"))
 
 
 @pytest.mark.parametrize("fournisseur", FOURNISSEURS)
@@ -221,7 +222,7 @@ def test_modele_hors_registre_refuse() -> None:
 def test_registre_quotas_et_prix() -> None:
     assert "anthropic:claude-sonnet-5-5" in REGISTRE
     gratuits = [cle for cle, prix in REGISTRE.items() if prix.gratuit]
-    assert gratuits and all(cle.startswith("mistral:") for cle in gratuits)
+    assert gratuits and all(cle.startswith(("mistral:", "llama:")) for cle in gratuits)
     assert all(p.requetes_par_minute > 0 and p.jetons_par_minute > 0 for p in REGISTRE.values())
     sonnet = tarif("anthropic:claude-sonnet-5-5")
     attendu = (sonnet.prix_entree_eur_mtok * 1000 + sonnet.prix_sortie_eur_mtok * 500) / 1_000_000
@@ -233,6 +234,43 @@ def test_registre_quotas_et_prix() -> None:
         Decimal("0.5") * TAUX_USD_EUR,
     )
     assert haiku.requetes_par_minute == 50
+
+
+def test_llama_url_par_defaut_et_surchargee() -> None:
+    defaut = TransportScripte([_sortie("llama")])
+    fournisseur_scripte("llama", defaut).generer_structure("p", Sortie, STRUCTURE)
+    assert defaut.urls == [f"{URL_LLAMA_DEFAUT}/chat/completions"]
+    perso = TransportScripte([_sortie("llama")])
+    adaptateur = fournisseur_scripte("llama", perso, url_llama="http://poste:9000/v1")
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert perso.urls == ["http://poste:9000/v1/chat/completions"]
+
+
+def test_llama_sans_cle_et_cout_nul() -> None:
+    adaptateur = construire_fournisseur_llm(_config("llama", MODELES["llama"]), "")
+    assert adaptateur.version_modele == "llama:qwen3-8b-q4_k_m"
+    assert tarif("llama:qwen3-8b-q4_k_m").gratuit
+
+
+def test_llama_modele_hors_registre_refuse() -> None:
+    with pytest.raises(UsineErreur, match="registre"):
+        construire_fournisseur_llm(_config("llama", "inconnu"), "")
+
+
+def test_llama_serveur_injoignable_sans_reprise() -> None:
+    appels: list[str] = []
+
+    def refuse(requete: httpx2.Request) -> httpx2.Response:
+        appels.append(str(requete.url))
+        raise httpx2.ConnectError("connexion refusée", request=requete)
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(refuse))
+    adaptateur = construire_fournisseur_llm(
+        _config("llama", MODELES["llama"]), "", client, lambda _s: None
+    )
+    with pytest.raises(UsineErreur, match=r"llama:qwen3-8b-q4_k_m"):
+        adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert len(appels) == 1
 
 
 def test_adaptateur_ferme_sa_boucle() -> None:

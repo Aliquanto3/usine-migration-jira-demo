@@ -2,7 +2,10 @@
 # se changent ici, sans modification de code. Le modèle doit figurer dans le registre des
 # quotas et des prix (`src/usine/adaptateurs/llm/registre.py`).
 
-# Fournisseur : anthropic (clé ANTHROPIC_API_KEY) ou mistral (clé MISTRAL_API_KEY).
+# Fournisseur : anthropic (clé ANTHROPIC_API_KEY), mistral (clé MISTRAL_API_KEY) ou llama
+# (mode local, llama-server de llama.cpp, sans clé ni coût : modele: qwen3-8b-q4_k_m, adresse
+# dans USINE_LLAMA_URL, http://127.0.0.1:8080/v1 par défaut ; voir docs/mode-llm-local.md).
+# En mode llama, retirer aussi le bloc modeles_par_tache (ses modèles sont ceux d'Anthropic).
 fournisseur: anthropic
 # Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
 modele: claude-sonnet-5-5

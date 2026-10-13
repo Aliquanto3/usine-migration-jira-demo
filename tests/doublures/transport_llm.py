@@ -1,8 +1,8 @@
-"""Faux transport HTTP des API Anthropic et Mistral : réponses enregistrées, jamais de réseau.
+"""Faux transport HTTP des API Anthropic, Mistral et llama-server : réponses enregistrées.
 
 `TransportScripte` rejoue une liste de réponses dans l'ordre et garde le corps JSON de chaque
 requête. Les fonctions `anthropic_*` et `mistral_*` produisent les réponses au format des API
-publiques (Messages d'Anthropic, Chat Completions de Mistral).
+publiques (Messages d'Anthropic, Chat Completions de Mistral et d'OpenAI, servi par llama-server).
 """
 
 import json
@@ -14,12 +14,16 @@ import httpx2
 from usine.adaptateurs.llm import FournisseurPydanticAI, construire_fournisseur_llm
 from usine.contrats.config import ConfigLLM
 
-MODELES = {"anthropic": "claude-sonnet-5-5", "mistral": "mistral-large-latest"}
+MODELES = {
+    "anthropic": "claude-sonnet-5-5",
+    "mistral": "mistral-large-latest",
+    "llama": "qwen3-8b-q4_k_m",
+}
 """Modèle par défaut de chaque fournisseur dans les tests."""
 
 
 def _noms_outils(corps: Mapping[str, Any]) -> set[str]:
-    """Noms des outils déclarés dans une requête Anthropic ou Mistral."""
+    """Noms des outils d'une requête Anthropic, Mistral ou OpenAI (`function.name`)."""
     noms = set()
     for outil in corps.get("tools") or ():
         noms.add(outil.get("name") or outil.get("function", {}).get("name"))
@@ -99,18 +103,22 @@ def anthropic_texte(texte: str) -> httpx2.Response:
     )
 
 
-def _mistral(message: dict[str, Any], fin: str) -> httpx2.Response:
+def _chat_completions(message: dict[str, Any], fin: str, modele: str) -> httpx2.Response:
     return httpx2.Response(
         200,
         json={
             "id": "cmpl-1",
             "object": "chat.completion",
             "created": 1760000000,
-            "model": MODELES["mistral"],
+            "model": modele,
             "choices": [{"index": 0, "message": message, "finish_reason": fin}],
             "usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19},
         },
     )
+
+
+def _mistral(message: dict[str, Any], fin: str) -> httpx2.Response:
+    return _chat_completions(message, fin, MODELES["mistral"])
 
 
 def mistral_outil(
@@ -130,6 +138,25 @@ def mistral_texte(texte: str) -> httpx2.Response:
     return _mistral({"role": "assistant", "content": texte, "tool_calls": None}, "stop")
 
 
+def llama_outil(
+    nom: str, arguments: Mapping[str, Any], id_appel: str = "abc123def"
+) -> httpx2.Response:
+    """Réponse Chat Completions d'OpenAI (llama-server) qui demande l'outil `nom`."""
+    appel = {
+        "id": id_appel,
+        "type": "function",
+        "function": {"name": nom, "arguments": json.dumps(dict(arguments))},
+    }
+    message = {"role": "assistant", "content": None, "tool_calls": [appel]}
+    return _chat_completions(message, "tool_calls", MODELES["llama"])
+
+
+def llama_texte(texte: str) -> httpx2.Response:
+    """Réponse Chat Completions d'OpenAI (llama-server) en texte libre."""
+    message = {"role": "assistant", "content": texte}
+    return _chat_completions(message, "stop", MODELES["llama"])
+
+
 def trop_de_requetes(fournisseur: str, retry_after: str | None) -> httpx2.Response:
     """Réponse 429, avec `Retry-After` si fourni."""
     entetes = {"retry-after": retry_after} if retry_after is not None else {}
@@ -147,12 +174,16 @@ def reponse_outil(
     """`anthropic_outil` ou `mistral_outil` selon `fournisseur`."""
     if fournisseur == "anthropic":
         return anthropic_outil(nom, arguments, id_appel)
+    if fournisseur == "llama":
+        return llama_outil(nom, arguments, id_appel)
     return mistral_outil(nom, arguments, id_appel)
 
 
 def reponse_texte(fournisseur: str, texte: str) -> httpx2.Response:
     """`anthropic_texte` ou `mistral_texte` selon `fournisseur`."""
-    return anthropic_texte(texte) if fournisseur == "anthropic" else mistral_texte(texte)
+    if fournisseur == "anthropic":
+        return anthropic_texte(texte)
+    return llama_texte(texte) if fournisseur == "llama" else mistral_texte(texte)
 
 
 def fournisseur_scripte(
@@ -160,6 +191,7 @@ def fournisseur_scripte(
     transport: TransportScripte,
     tentatives_max: int = 5,
     attentes: list[float] | None = None,
+    url_llama: str | None = None,
 ) -> FournisseurPydanticAI:
     """Adaptateur réel de `fournisseur`, branché sur `transport` ; attentes notées, sans dormir."""
     horloge = [0.0]
@@ -176,5 +208,10 @@ def fournisseur_scripte(
         tentatives_max=tentatives_max,
     )
     return construire_fournisseur_llm(
-        config, "cle-de-test", transport.client(), attendre, lambda: horloge[0]
+        config,
+        "" if fournisseur == "llama" else "cle-de-test",
+        transport.client(),
+        attendre,
+        lambda: horloge[0],
+        url_llama=url_llama,
     )

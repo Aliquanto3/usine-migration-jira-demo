@@ -13,6 +13,7 @@ from usine.composition import (
     generer_corpus_llm,
     verifier_modele_corpus_candidat,
 )
+from usine.config.secrets import Secrets, charger_secrets
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import Tache
 from usine.generateur.corpus import ReponseCorpus, TexteTicket, charger_corpus
@@ -47,6 +48,23 @@ def test_fournisseur_choisi_par_la_configuration(
     adaptateur = construire_fournisseur(racine)
     assert isinstance(adaptateur, FournisseurLLM)
     assert adaptateur.version_modele == f"{fournisseur}:{modele}"
+
+
+def test_llama_sans_cle_et_url_de_l_environnement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for variable in ("ANTHROPIC_API_KEY", "MISTRAL_API_KEY", "USINE_LLAMA_URL"):
+        monkeypatch.delenv(variable, raising=False)
+    racine = _racine(tmp_path, "llama", "qwen3-8b-q4_k_m")
+    adaptateur = construire_fournisseur(racine)
+    assert adaptateur.version_modele == "llama:qwen3-8b-q4_k_m"
+    getattr(adaptateur, "fermer", lambda: None)()
+    secrets = Secrets(usine_llama_url="http://poste:9000/v1")
+    autre = construire_fournisseur(racine, secrets)
+    assert autre.version_modele == "llama:qwen3-8b-q4_k_m"
+    getattr(autre, "fermer", lambda: None)()
+    monkeypatch.setenv("USINE_LLAMA_URL", "http://poste:9001/v1")
+    assert charger_secrets(racine).usine_llama_url == "http://poste:9001/v1"
 
 
 def test_sans_llm_yaml(tmp_path: Path) -> None:

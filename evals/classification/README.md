@@ -56,6 +56,9 @@ classée (plafond de coût atteint) compte comme fausse et figure dans `non_clas
    ajoutée à `historique.jsonl`. Un échec isolé du fournisseur (réponse hors schéma, par
    exemple) laisse l'Anomalie non classée, comptée fausse et listée dans
    `erreurs_fournisseur` ; 10 échecs d'affilée arrêtent la commande.
+   **Mode LLM local.** Avec `fournisseur: llama` dans `config/llm.yaml` et un `llama-server`
+   lancé (procédure dans `docs/mode-llm-local.md`), la même commande tourne sans clé ni coût ;
+   publier ensuite `historique.jsonl` et `resultats/`.
 4. **Rejeu d'un run réel, hors réseau.** Les `propositions` de la source générateur d'un
    résultat antérieur servent de réponses enregistrées :
 

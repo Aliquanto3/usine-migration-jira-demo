@@ -94,4 +94,5 @@ FABRIQUES: list[tuple[str, Callable[[], CasFournisseurLLM]]] = [
     ("factice", fabrique_factice),
     ("anthropic", _fabrique_enregistree("anthropic")),
     ("mistral", _fabrique_enregistree("mistral")),
+    ("llama", _fabrique_enregistree("llama")),
 ]

@@ -335,7 +335,8 @@ def construire_fournisseur(
     """`FournisseurLLM` choisi par `config/llm.yaml`, avec la clé de son fournisseur (H-23).
 
     `fournisseur: anthropic` lit `ANTHROPIC_API_KEY`, `fournisseur: mistral` lit
-    `MISTRAL_API_KEY` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
+    `MISTRAL_API_KEY`, `fournisseur: llama` (llama-server local) n'a pas de clé et lit l'adresse
+    dans `USINE_LLAMA_URL` ; un fichier absent, un fournisseur inconnu, un modèle hors du registre
     des quotas et des prix ou une clé absente lèvent une `UsineErreur`.
 
     `fournisseur` et `modele`, donnés ensemble, remplacent ceux de `config/llm.yaml` (outil de
@@ -364,7 +365,11 @@ def construire_fournisseur(
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
     cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
     cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    return construire_fournisseur_llm(
+        config,
+        cle.get_secret_value() if cle is not None else "",
+        url_llama=secrets_usine.usine_llama_url,
+    )
 
 
 def construire_fournisseurs_par_tache(
@@ -392,6 +397,7 @@ def construire_fournisseurs_par_tache(
             construits[tache] = construire_fournisseur_llm(
                 config.model_copy(update={"modele": modele}),
                 cle.get_secret_value() if cle is not None else "",
+                url_llama=secrets_usine.usine_llama_url,
             )
     except BaseException:
         _fermer_tous(construits.values())

@@ -25,6 +25,8 @@ class Secrets(BaseSettings):
     usine_mode_repli: bool = False
     usine_racine: str | None = None
     """Racine de l'UI (répertoire du dépôt) ; vide ou absente : le répertoire courant."""
+    usine_llama_url: str | None = None
+    """Adresse de llama-server (`fournisseur: llama`), non secrète ; défaut local si absente."""
 
 
 def charger_secrets(racine: Path) -> Secrets:

@@ -59,6 +59,10 @@ du fournisseur (`ANTHROPIC_API_KEY` ou `MISTRAL_API_KEY`) et `USINE_CLE_PSEUDO`,
 Passage Palier 2. Le cache est en mémoire : le cache de production n'est ni lu ni écrit. Les
 réponses enregistrées des cas sont ignorées.
 
+Mode LLM local : avec `fournisseur: llama` dans `config/llm.yaml` et un `llama-server` lancé
+(procédure dans `docs/mode-llm-local.md`), la même commande tourne sans clé ni coût ; publier
+ensuite `historique.jsonl` et `resultats/`.
+
 Coût estimé (Sonnet 5.5, 3 $ / 15 $ par million de jetons) : 10 à 20 appels (une régénération
 au plus par cas) × environ 1 500 jetons d'entrée et 400 de sortie, soit **0,10 à 0,25 €**,
 bien en deçà du plafond de 2 € par Passage. Jamais lancé en CI.
