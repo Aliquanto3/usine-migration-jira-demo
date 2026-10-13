@@ -367,3 +367,14 @@ def test_local_agent_sans_melanger_schema_et_outils() -> None:
     )
     assert reponse.texte == "ENT-A est rouge."
     assert all(_noms_outils(c) == {"get_meteo"} for c in transport.requetes)
+
+
+def test_local_delai_de_requete_adapte_a_un_modele_lent() -> None:
+    from usine.adaptateurs.llm.fournisseur import DELAI_LOCAL_MS
+
+    adaptateur = construire_fournisseur_llm(_config("local", "gguf"), "")
+    try:
+        client = adaptateur._modele.client.sdk_configuration  # type: ignore[attr-defined]
+        assert client.timeout_ms == DELAI_LOCAL_MS
+    finally:
+        adaptateur.fermer()

@@ -49,3 +49,9 @@ deferred: []
 ## Résultats des contrôles
 
 ruff check, ruff format --check, mypy, lint-imports (15 contrats) verts ; pytest : 2836 passés, 1 ignoré, 39 désélectionnés.
+
+## Revue
+
+- Medium, corrigé : le client Mistral pointé sur `llama-server` gardait le délai par défaut du SDK (5 s), qui coupe la plupart des appels d'un modèle quantifié local ; `timeout_ms=DELAI_LOCAL_MS` (300 s), test ajouté.
+- Faible, rejeté : aucun départ vers Mistral distant en mode local (clé `sans-cle`, URL explicite, `modeles_par_tache` repris en `local:<modele>`, coût 0) ; serveur éteint, erreur propre en `UsineErreur`.
+- Faible, rejeté : URL par variable d'environnement plutôt que `llm.yaml` (documenté dans le fichier, test présent) ; `tool_choice` non vérifié et évaluations locales : reports déjà consignés, critère 3 explicitement différé.

@@ -63,6 +63,10 @@ Le fournisseur `local` (`llama-server`) n'a pas de clé."""
 URL_LLAMA_SERVER = "http://127.0.0.1:8080"
 """Adresse par défaut de `llama-server` (tag b11552) ; `USINE_LLAMA_SERVER_URL` la remplace."""
 
+DELAI_LOCAL_MS = 300_000
+"""Délai d'une requête à `llama-server` : un modèle quantifié sur 8 Go génère lentement, et le
+délai par défaut du SDK (5 s) coupe la plupart des appels."""
+
 ATTENTE_BASE_S = 1.0
 """Première attente après un 429 sans `Retry-After` ; chaque attente double au moins."""
 
@@ -400,7 +404,10 @@ def construire_fournisseur_llm(
         # `llama-server` sert `/v1/chat/completions` ; le client Mistral, déjà en dépendance,
         # parle ce format (aucun SDK de plus). Aucune donnée ne quitte le poste.
         local = Mistral(
-            api_key="sans-cle", server_url=url_serveur_local.rstrip("/"), async_client=client_http
+            api_key="sans-cle",
+            server_url=url_serveur_local.rstrip("/"),
+            async_client=client_http,
+            timeout_ms=DELAI_LOCAL_MS,
         )
         modele = MistralModel(config.modele, provider=MistralProvider(mistral_client=local))
     else:
