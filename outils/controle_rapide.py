@@ -39,8 +39,12 @@ def _git(racine: Path, *args: str) -> str:
     return resultat.stdout
 
 
-def _cibles_du_hook(racine: Path) -> list[Path]:
-    """Worktrees de lane en cours de travail (fichiers modifiés ou commits absents de main)."""
+def _cibles_du_hook(racine: Path, message: str = "") -> list[Path]:
+    """Worktrees de lane en cours de travail (fichiers modifiés ou commits absents de main).
+
+    Si le dernier message de l'agent nomme un ou plusieurs de ces worktrees, seuls ceux-là sont
+    contrôlés : des agents parallèles ne se bloquent pas sur le travail des autres.
+    """
     worktrees = [
         Path(ligne.removeprefix("worktree ").strip())
         for ligne in _git(racine, "worktree", "list", "--porcelain").splitlines()
@@ -53,7 +57,8 @@ def _cibles_du_hook(racine: Path) -> list[Path]:
         if _git(wt, "status", "--porcelain", "--untracked-files=no").strip()
         or _git(wt, "rev-list", "main..HEAD").strip()
     ]
-    return cibles or [principal]
+    nommees = [wt for wt in cibles if wt.name in message]
+    return nommees or cibles or [principal]
 
 
 def _hook(racine: Path) -> int:
@@ -68,7 +73,7 @@ def _hook(racine: Path) -> int:
         print("Contrôle rapide : deux blocages déjà faits, arrêt laissé à l'agent.")
         return 0
     code = 0
-    for cible in _cibles_du_hook(racine):
+    for cible in _cibles_du_hook(racine, str(entree.get("last_assistant_message", ""))):
         code = max(code, _controler(cible))
     if code:
         compteur.write_text(str(blocages + 1))

@@ -20,7 +20,7 @@ def hook(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[Path]:
         return 2
 
     monkeypatch.setattr(controle_rapide, "_controler", controler)
-    monkeypatch.setattr(controle_rapide, "_cibles_du_hook", lambda racine: [racine])
+    monkeypatch.setattr(controle_rapide, "_cibles_du_hook", lambda racine, message="": [racine])
     monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
     return controles
 
