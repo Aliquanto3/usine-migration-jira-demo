@@ -25,6 +25,7 @@ from usine.contrats.meteo import (
 from usine.contrats.prevision import MethodePrevision, StatutPrevision
 from usine.domaine.prevision.commun import avancer
 from usine.domaine.prevision.ml import (
+    facteurs_depuis_contributions,
     prevoir_sortie_ml,
     probabilite_sortie,
     resolutions_requises,
@@ -136,3 +137,47 @@ def test_prevision_ml_refus() -> None:
         prevoir_sortie_ml(_meteo(couleur=Couleur.vert), MOITIE, 10)
     with pytest.raises(UsineErreur, match="horizon"):
         prevoir_sortie_ml(_meteo(_regle(4)), MOITIE, 0)
+
+
+def test_facteurs_au_plus_cinq_tries_et_libelles_en_francais() -> None:
+    contributions = {
+        "stock": Fraction(-3, 2),
+        "entrees_5": Fraction(1, 4),
+        "entrees_10": Fraction(-1, 4),
+        "sorties_5": Fraction(2),
+        "sorties_10": Fraction(1, 10),
+        "sorties_20": Fraction(1, 2),
+        "variation_stock_10": Fraction(0),
+        "stock_max_20": Fraction(1, 5),
+    }
+    facteurs = facteurs_depuis_contributions(contributions)
+    assert [f.nom for f in facteurs] == [
+        "sorties_5",
+        "stock",
+        "sorties_20",
+        "entrees_10",
+        "entrees_5",
+    ]
+    assert (
+        facteurs[0].libelle
+        == "Sorties sur les 5 derniers Jours ouvrés : favorise la sortie du rouge"
+    )
+    assert facteurs[1].libelle.endswith("freine la sortie du rouge")
+    assert (facteurs[1].numerateur, facteurs[1].denominateur) == (-3, 2)
+
+
+def test_facteurs_nuls_ou_vides_et_variable_inconnue() -> None:
+    assert facteurs_depuis_contributions({"stock": Fraction(1, 10_000)}) == ()
+    with pytest.raises(UsineErreur, match="sans libellé"):
+        facteurs_depuis_contributions({"inconnue": Fraction(1)})
+
+
+def test_prevision_ml_porte_les_facteurs_sauf_non_projetable() -> None:
+    contributions = {"stock": Fraction(1, 2)}
+    sortie = prevoir_sortie_ml(_meteo(_regle(3)), Fraction(9, 10), 10, contributions)
+    assert [f.nom for f in sortie.facteurs] == ["stock"]
+    assert prevoir_sortie_ml(_meteo(_regle(3)), Fraction(9, 10), 10).facteurs == ()
+    autre = _regle(5, code=CodeIndicateur.ind_2)
+    non_projetable = prevoir_sortie_ml(_meteo(_regle(3), autre), MOITIE, 10, contributions)
+    assert non_projetable.statut is StatutPrevision.regle_non_projetable
+    assert non_projetable.facteurs == ()

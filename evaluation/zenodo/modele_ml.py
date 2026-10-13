@@ -11,7 +11,8 @@ Jours ouvrés suivants, min(Σ Sorties, S) / S, apprise avec la perte `cross_ent
 par S. Entraînement : jours des projets non tenus à l'écart dont la date + N précède la coupure
 du dépôt. Caractéristiques : stock, Entrées et Sorties cumulées sur 5, 10 et 20 Jours ouvrés,
 variation du stock sur 10 jours, stock maximal sur 20 jours. La `Prevision` `methode=ml` vient
-de `domaine.prevision.ml.prevoir_sortie_ml` (agrégation binomiale de l'addendum).
+de `domaine.prevision.ml.prevoir_sortie_ml` (agrégation binomiale de l'addendum) ; ses facteurs
+explicatifs viennent de `pred_contrib` (Story 4.7).
 
     uv run python -m evaluation.zenodo.modele_ml --series A.parquet B.parquet \\
         --sortie evaluation/zenodo/resultats/modele_ml.json
@@ -179,6 +180,15 @@ def probabilites_bloquante(
     return [Fraction(float(p)).limit_denominator(DENOMINATEUR_MAX) for p in brutes]
 
 
+def contributions_variables(modele: lgb.Booster, ligne: Matrice) -> dict[str, Fraction]:
+    """Contributions de chaque variable (`pred_contrib`, log-cotes) pour une ligne ; sans biais."""
+    brutes = modele.predict(ligne, pred_contrib=True)[0][: len(CARACTERISTIQUES)]
+    return {
+        nom: Fraction(float(c)).limit_denominator(DENOMINATEUR_MAX)
+        for nom, c in zip(CARACTERISTIQUES, brutes, strict=True)
+    }
+
+
 def prevoir_entites(
     modele: lgb.Booster,
     serie: pl.DataFrame,
@@ -203,7 +213,12 @@ def prevoir_entites(
             raise UsineErreur(f"Modèle ML {meteo.entite} : moins de 20 Jours ouvrés d'historique")
         p = float(np.clip(modele.predict(ligne)[0], 0.0, 1.0))
         resultat.append(
-            prevoir_sortie_ml(meteo, Fraction(p).limit_denominator(DENOMINATEUR_MAX), horizon)
+            prevoir_sortie_ml(
+                meteo,
+                Fraction(p).limit_denominator(DENOMINATEUR_MAX),
+                horizon,
+                contributions_variables(modele, ligne),
+            )
         )
     return resultat
 

@@ -26,6 +26,7 @@ from evaluation.zenodo.evaluation import (
 from evaluation.zenodo.modele_ml import (
     CARACTERISTIQUES,
     caracteristiques,
+    contributions_variables,
     entrainer,
     evaluer_ml,
     main,
@@ -286,3 +287,22 @@ def test_scenarios_de_demo_modele_reel(tmp_path: Path) -> None:
     a, b = prevoir_entites(modele, demo, rouges)
     assert a.statut is StatutPrevision.sortie_projetee
     assert b.statut is StatutPrevision.pas_de_sortie_projetee
+
+
+def test_facteurs_explicatifs_par_pred_contrib(series: pl.DataFrame) -> None:
+    from usine.domaine.prevision.ml import libelle_variable
+
+    assert all(libelle_variable(nom) for nom in CARACTERISTIQUES)  # SM-C4 : tout est lisible
+    prolongees = prolonger_par_depot(series)
+    modele = entrainer(prolongees, decouper(unites(prolongees)))
+    serie = _serie("d/C", 0.1, 3, jours=40).with_columns(pl.lit(5, dtype=pl.Int64).alias("stock"))
+    jour = serie["date"][-1]
+    ligne = series_ml(prolonger_par_depot(serie))["d/C"].caracteristiques[-1][np.newaxis, :]
+    contributions = contributions_variables(modele, ligne)
+    assert set(contributions) == set(CARACTERISTIQUES)
+    brut = modele.predict(ligne, raw_score=True)[0]
+    biais = modele.predict(ligne, pred_contrib=True)[0][-1]
+    assert abs(float(sum(contributions.values())) + biais - brut) < 1e-3
+    prevision = prevoir_entites(modele, serie, [_meteo_rouge("d/C", jour, 5)])[0]
+    assert 1 <= len(prevision.facteurs) <= 5
+    assert all(f.libelle.endswith("la sortie du rouge") for f in prevision.facteurs)
