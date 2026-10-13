@@ -25,10 +25,29 @@ Prix par Mtok, entrée / sortie : Haiku 5.5 à 0,10 $ / 0,50 $, Sonnet 5.5 à 2 
 | **Rédaction de spec** (story bonus, conteneur et note de portage) | 112 k tok, 3 min ; juste, une bonne remarque technique | 92 k tok, 3 min ; la plus concrète (Dockerfile détaillé, job CI) | 112 k tok, 4 min ; la plus fidèle aux contraintes du projet et la mieux justifiée |
 
 **Ce qu'on en retient :**
-- **À tâche égale, les trois modèles consomment à peu près autant de tokens** (Haiku parfois deux fois plus, car il tâtonne). L'écart de coût réel vient donc surtout du prix du token : un ordre de grandeur sépare Haiku de Sonnet, et Sonnet coûte la moitié d'Opus.
+- **À tâche égale, les trois modèles consomment à peu près autant de tokens** (Haiku parfois deux fois plus, car il tâtonne). L'écart de coût réel vient donc surtout du prix du token : un ordre de grandeur sépare Haiku de Sonnet. Sonnet coûte la moitié d'Opus au token, mais pas toujours à la tâche : voir la nuance du projet slm ci-dessous.
 - **En revue, les trois trouvent le défaut principal, mais seul Opus en mesure bien la gravité.** La réunion des trois listes vaut mieux que chacune seule. Cette revue a trouvé un vrai bug de coût, qui a été corrigé.
 - **Haiku** est très bon en lecture (revue, recherche) pour presque rien, mais il respecte moins bien les consignes de processus.
 - Une mesure faite le même jour sur un autre projet (« slm ») va dans le même sens : en développement, Sonnet produit la même conception qu'Opus pour 55 % de moins, et en revue, les mêmes constats pour 25 % de moins. Environ 85 % du coût d'un sous-agent vient de la relecture du contexte : réduire le nombre de tours et la taille du contexte compte autant que le choix du modèle.
+
+### Compléments du projet slm (2026-10-13)
+
+Même protocole, avec deux différences : le coût est calculé à partir des transcriptions par catégorie de tokens (`outils/cout_sous_agents.py`), et la spec, l'architecture et la recherche web sont notées par un juge Opus en aveugle (sur 10).
+
+| Tâche | Haiku 5.5 | Sonnet 5.5 | Opus 5.5 | Écart de coût de Sonnet par rapport à Opus |
+|---|---|---|---|---|
+| Revue d'un commit (lecture seule) | 0,03 $ ; 14 constats, les plus précis (preuves tirées des runs) | 0,50 $ ; 15 constats | 0,67 $ ; 15 constats | −25 % |
+| Implémentation multi-fichiers | 0,06 $ ; version minimale, oublie des cas | 1,01 $ ; même conception qu'Opus | 2,25 $ | −55 % |
+| Spec d'une story transverse | 6,2 ; 0,07 $ ; couches violées, signature cassée | 8,0 ; 1,86 $ ; la plus exacte sur le code | **8,4** ; 2,77 $ | −33 % |
+| Note d'architecture | 7,0 ; 0,05 $ | 7,5 ; 0,62 $ | **8,5** ; 1,12 $ ; seul à voir un conflit entre documents | −45 % |
+| Recherche web pour une décision | 6,4 ; 0,02 $ ; cause manquée, erreurs factuelles | 7,8 ; 0,57 $ | **8,4** ; 0,69 $ ; aucune erreur | −17 % |
+
+**Nuances apportées au banc ci-dessus :**
+1. **Sonnet ne coûte pas la moitié d'Opus à la tâche**, mais de 17 % à 55 % de moins. Le premier poste, la lecture du cache, coûte le même prix chez les deux (0,20 $/Mtok). L'économie de Sonnet vient surtout du nombre de tours (33 appels contre 57 en implémentation), pas du prix du token.
+2. **La recherche n'est pas une seule catégorie.** Haiku est exact pour un lookup dans le dépôt (banc ci-dessus). Pour une synthèse de sources web qui fonde une décision, il se trompe, et Opus vaut son surcoût.
+3. **Architecture et spec transverse** : Opus garde une avance nette en architecture. En spec, l'avance est plus faible, mais il est le plus fidèle aux contraintes ; Sonnet est le plus exact sur le code existant.
+4. **Gravité en revue** : Opus classe mieux que Sonnet (2 « high » contre 0), mais Haiku a aussi classé « high » 3 défauts réels. La réunion Sonnet plus Haiku reste le meilleur rapport qualité-prix.
+5. **Le parallélisme accélère la dépense sans la grossir** : jusqu'à 11 agents simultanés n'ont pas augmenté le coût par tâche. La baisse de 40 % du mode économique vient surtout de la passe de revue unique.
 
 ## 3. Routage recommandé
 
@@ -40,7 +59,8 @@ Prix par Mtok, entrée / sortie : Haiku 5.5 à 0,10 $ / 0,50 $, Sonnet 5.5 à 2 
 | Implémentation d'une story bien cadrée | Sonnet 5.5 (agent `dev-story`) | medium | qualité équivalente, moitié prix ; si Sonnet échoue deux fois, reprendre avec Opus |
 | Revue courante | Sonnet 5.5 (agent `reviewer`), plus Haiku 5.5 en second avis en lecture seule | medium | la réunion des constats coûte peu |
 | Revue d'un commit à risque (argent, sécurité, données personnelles) | Opus 5.5 | medium | il juge mieux la gravité |
-| Recherche, lookup, lecture de logs | Haiku 5.5 (agent `lookup`) ou Sonnet | low | réponse exacte pour presque rien |
+| Lookup dans le dépôt, lecture de logs | Haiku 5.5 (agent `lookup`) ou Sonnet | low | réponse exacte pour presque rien |
+| Recherche web qui fonde une décision | Opus 5.5 | medium | Haiku y fait des erreurs factuelles ; Opus coûte à peine plus que Sonnet |
 
 ## 4. Ce qui a été mis en place dans ce dépôt (à copier dans les autres projets)
 
@@ -53,6 +73,7 @@ Prix par Mtok, entrée / sortie : Haiku 5.5 à 0,10 $ / 0,50 $, Sonnet 5.5 à 2 
   - En mode hook, il contrôle les worktrees en cours de travail, de préférence celui que l'agent nomme dans son dernier message, pour que des agents en parallèle ne se bloquent pas entre eux.
   - Il bloque au plus deux fois par agent, pour éviter une boucle.
   - La suite pytest complète tourne une seule fois, avant l'intégration.
+- **Coût réel** : `outils/cout_sous_agents.py` (repris du projet slm). Il calcule le coût d'un sous-agent en équivalent API, par catégorie de tokens (entrée, écriture du cache, lecture du cache, sortie), à partir de sa transcription.
 - **Réglages du projet** (`.claude/settings.json`) :
   - `"subagentPromptCacheTtl": "1h"`, pour que le cache tienne pendant la durée des tests ;
   - `env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH = "2"`, pour limiter l'imbrication des sous-agents.
@@ -96,5 +117,5 @@ Prix par Mtok, entrée / sortie : Haiku 5.5 à 0,10 $ / 0,50 $, Sonnet 5.5 à 2 
 ## 7. Mesurer dans un nouveau projet
 
 1. Noter `/usage` avant et après chaque run.
-2. Compter les tokens de chaque sous-agent, affichés à la fin de chaque agent, story par story.
+2. Compter les tokens de chaque sous-agent, affichés à la fin de chaque agent, story par story. Pour le coût réel, lancer `uv run python outils/cout_sous_agents.py --session <dossier de session> --ids <id>`. Ce total mélange en effet des tokens dont le prix varie de 1 à 100.
 3. Comparer le coût par story fusionnée et le taux de réussite au premier passage, avant et après chaque changement de méthode.
