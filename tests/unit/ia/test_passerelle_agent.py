@@ -1,7 +1,7 @@
 """Passerelle de l'Agent : ordre d'AD-12, outils enveloppés, cache, plafond (Story 7.9)."""
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 
 import pytest
@@ -22,6 +22,7 @@ from usine.contrats.agent import ArgumentsGetMeteo
 from usine.contrats.llm import (
     AppelOutil,
     MessageAgent,
+    OutilAgent,
     ParametresAppel,
     ReponseAgent,
     ReponseAgentBrute,
@@ -226,3 +227,47 @@ def test_plafond_atteint() -> None:
     with pytest.raises(PlafondCoutAtteint):
         passerelle.executer_agent(autre, [], PARAMETRES, CONTEXTE, _controler())
     assert len(factice.appels) == 1
+
+
+class FournisseurInterrompu(FournisseurFactice):
+    """Exécute ses outils, puis lève : une exception en cours de conversation."""
+
+    def executer_agent(
+        self,
+        messages: Sequence[MessageAgent],
+        outils: Sequence[OutilAgent],
+        parametres: ParametresAppel,
+    ) -> ReponseAgentBrute:
+        for outil in outils:
+            outil.executer({})
+        raise RuntimeError("coupure du fournisseur")
+
+
+def test_sur_trace_recoit_chaque_trace_des_sa_production() -> None:
+    recues: list[str | None] = []
+    factice = FournisseurFactice(reponses_agent=[ReponseAgentScriptee("Réponse.", (_appel(),))])
+    passerelle = Passerelle(factice, Marqueur([]), CacheMemoire(), lambda: INSTANT)
+    resultat = passerelle.executer_agent(
+        MESSAGES,
+        [_source('{"x": 1}')],
+        PARAMETRES,
+        CONTEXTE,
+        _controler(),
+        sur_trace=lambda trace: recues.append(trace.cible),
+    )
+    assert recues == [t.cible for t in resultat.traces] == ["get_meteo", PASSAGE_ID]
+
+
+def test_sur_trace_avant_une_exception_du_fournisseur() -> None:
+    recues: list[str | None] = []
+    passerelle = Passerelle(FournisseurInterrompu(), Marqueur([]), CacheMemoire(), lambda: INSTANT)
+    with pytest.raises(RuntimeError, match="coupure"):
+        passerelle.executer_agent(
+            MESSAGES,
+            [_source('{"x": 1}')],
+            PARAMETRES,
+            CONTEXTE,
+            _controler(),
+            sur_trace=lambda trace: recues.append(trace.cible),
+        )
+    assert recues == ["get_meteo"]

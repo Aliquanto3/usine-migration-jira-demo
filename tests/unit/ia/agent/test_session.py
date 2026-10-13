@@ -2,6 +2,7 @@
 (Story 7.9, FR-39, FR-40)."""
 
 import json
+from collections.abc import Sequence
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from usine.contrats.agent import PointTendance, ResultatGetTendance, ResultatLis
 from usine.contrats.llm import (
     AppelOutil,
     MessageAgent,
+    OutilAgent,
+    ParametresAppel,
     ReponseAgentBrute,
     StatutControle,
     Tache,
@@ -25,6 +28,7 @@ from usine.ia.agent.session import (
     LIMITE_POINTS_TENDANCE,
     REPERTOIRE_AGENT,
     SANS_REPONSE,
+    RefusControle,
     SessionAgent,
     controler_reponse,
     serialiser_resultat,
@@ -271,3 +275,46 @@ def test_construire_session_agent(cas_palier_2: Consultation, tmp_path: Path) ->
     assert session.passage_id == cas_palier_2.manifeste().passage_id
     assert session.chemin_traces.is_relative_to(tmp_path / REPERTOIRE_AGENT)
     assert session.chemin_traces.exists()
+
+
+def test_derniers_refus_de_la_reponse_brute(cas_palier_2: Consultation, tmp_path: Path) -> None:
+    appels = (AppelOutil(id_appel="a1", nom_outil="get_risques", arguments={}),)
+    texte = "ENT-C a 42 Anomalies, voir MIG-999 et MIG-998."
+    session, _ = _session(cas_palier_2, tmp_path, [ReponseAgentScriptee(texte, appels)])
+    reponse = session.repondre("Risques ?")
+    assert reponse.statut_controle is StatutControle.rejete
+    assert session.derniers_refus == RefusControle(("42",), ("MIG-999", "MIG-998"))
+
+
+def test_derniers_refus_vides_si_conforme(cas_palier_2: Consultation, tmp_path: Path) -> None:
+    session, _ = _session(cas_palier_2, tmp_path, [ReponseAgentScriptee(SANS_REPONSE)])
+    session.repondre("Question ?")
+    assert session.derniers_refus == RefusControle()
+
+
+class FournisseurInterrompu(FournisseurFactice):
+    """Exécute `get_risques`, puis lève : une exception en cours de conversation."""
+
+    def executer_agent(
+        self,
+        messages: Sequence[MessageAgent],
+        outils: Sequence[OutilAgent],
+        parametres: ParametresAppel,
+    ) -> ReponseAgentBrute:
+        next(o for o in outils if o.nom == "get_risques").executer({})
+        raise RuntimeError("coupure du fournisseur")
+
+
+def test_exception_en_cours_garde_la_trace_de_l_outil(
+    cas_palier_2: Consultation, tmp_path: Path
+) -> None:
+    passerelle = Passerelle(
+        FournisseurInterrompu(), pseudonymiseur(), CacheMemoire(), lambda: INSTANT
+    )
+    session = SessionAgent(passerelle, cas_palier_2, tmp_path, lambda: INSTANT, "session-test")
+    with pytest.raises(RuntimeError, match="coupure"):
+        session.repondre("Risques ?")
+    lignes = session.chemin_traces.read_text("utf-8").splitlines()
+    (trace,) = [EntreeTrace.model_validate_json(ligne) for ligne in lignes]
+    assert trace.cible == "get_risques"
+    assert trace.tache is Tache.agent
