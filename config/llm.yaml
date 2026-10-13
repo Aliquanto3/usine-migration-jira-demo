@@ -3,6 +3,11 @@
 # quotas et des prix (`src/usine/adaptateurs/llm/registre.py`).
 
 # Fournisseur : anthropic (clé ANTHROPIC_API_KEY) ou mistral (clé MISTRAL_API_KEY).
+# Mode local (Story 6.12, FR-37) : `fournisseur: local` envoie les appels à `llama-server` (tag
+# b11552, lancé avec `--jinja`, modèle quantifié tenant dans 8 Go de VRAM) sur le poste, sans clé
+# ni coût. `modele` est le nom du modèle servi (libre) ; adresse par défaut
+# http://127.0.0.1:8080, remplaçable par la variable USINE_LLAMA_SERVER_URL. Mettre aussi les
+# `modeles_par_tache` au même nom (ou les retirer).
 fournisseur: anthropic
 # Modèle du fournisseur, par exemple claude-sonnet-5-5 ou mistral-large-latest.
 modele: claude-sonnet-5-5

@@ -247,3 +247,12 @@ def test_generer_corpus_llm_bilan(tmp_path: Path) -> None:
     assert bilan.jetons_sortie > 0
     assert bilan.cout_eur == Decimal(0)
     assert charger_corpus(bilan.chemin).modele_corpus == "factice:redacteur"
+
+
+def test_url_de_llama_server_par_variable_d_environnement(monkeypatch: pytest.MonkeyPatch) -> None:
+    from usine.composition import _url_serveur_local
+
+    monkeypatch.delenv("USINE_LLAMA_SERVER_URL", raising=False)
+    assert _url_serveur_local() == "http://127.0.0.1:8080"
+    monkeypatch.setenv("USINE_LLAMA_SERVER_URL", "http://127.0.0.1:9000")
+    assert _url_serveur_local() == "http://127.0.0.1:9000"

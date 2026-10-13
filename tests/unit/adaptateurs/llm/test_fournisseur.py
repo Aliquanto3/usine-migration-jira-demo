@@ -28,7 +28,7 @@ from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import MessageAgent, OutilAgent, ParametresAppel, Tache
 from usine.ports import FournisseurLLM
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 STRUCTURE = ParametresAppel(tache=Tache.classification, max_jetons_sortie=300)
 AGENT = ParametresAppel(tache=Tache.agent, max_jetons_sortie=300)
 
@@ -334,3 +334,36 @@ def test_temperature_decidee_par_le_modele(modele: str, accepte: bool) -> None:
     assert ("temperature" in corps) is accepte
     if accepte:
         assert corps["temperature"] == 0.2
+
+
+def test_local_sans_cle_vers_llama_server_et_sans_cout() -> None:
+    transport = TransportScripte([_sortie("local")])
+    adaptateur = construire_fournisseur_llm(
+        _config("local", "n-importe-quel-gguf"),
+        "",
+        transport.client(),
+        url_serveur_local="http://127.0.0.1:9090/",
+    )
+    adaptateur.generer_structure("p", Sortie, STRUCTURE)
+    assert transport.urls == ["http://127.0.0.1:9090/v1/chat/completions"]
+    assert adaptateur.version_modele == "local:n-importe-quel-gguf"
+    assert cout_estime_eur("local:n-importe-quel-gguf", 1_000_000, 1_000_000) == Decimal(0)
+
+
+def test_local_sans_nom_de_modele_refuse() -> None:
+    with pytest.raises(UsineErreur, match="registre"):
+        tarif("local:")
+
+
+def test_local_agent_sans_melanger_schema_et_outils() -> None:
+    transport = TransportScripte(
+        [
+            reponse_outil("local", "get_meteo", {"entite": "ENT-A"}, "id0000002"),
+            reponse_texte("local", "ENT-A est rouge."),
+        ]
+    )
+    reponse = fournisseur_scripte("local", transport).executer_agent(
+        (MessageAgent(role="utilisateur", contenu="Météo ?"),), [_outil([])], AGENT
+    )
+    assert reponse.texte == "ENT-A est rouge."
+    assert all(_noms_outils(c) == {"get_meteo"} for c in transport.requetes)

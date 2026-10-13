@@ -14,7 +14,11 @@ import httpx2
 from usine.adaptateurs.llm import FournisseurPydanticAI, construire_fournisseur_llm
 from usine.contrats.config import ConfigLLM
 
-MODELES = {"anthropic": "claude-sonnet-5-5", "mistral": "mistral-large-latest"}
+MODELES = {
+    "anthropic": "claude-sonnet-5-5",
+    "mistral": "mistral-large-latest",
+    "local": "qwen3-8b-q4_k_m",
+}
 """Modèle par défaut de chaque fournisseur dans les tests."""
 
 
@@ -125,6 +129,47 @@ def mistral_outil(
     return _mistral({"role": "assistant", "content": "", "tool_calls": [appel]}, "tool_calls")
 
 
+def llama_outil(
+    nom: str, arguments: Mapping[str, Any], id_appel: str = "5jzXG8TqmYh0oRkVpA2LbNcEwUs7DfIy"
+) -> httpx2.Response:
+    """Réponse de `llama-server` : format Chat Completions, avec ses champs propres."""
+    return _llama(
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {"name": nom, "arguments": json.dumps(dict(arguments))},
+                    "id": id_appel,
+                }
+            ],
+        },
+        "tool_calls",
+    )
+
+
+def llama_texte(texte: str) -> httpx2.Response:
+    """Réponse de `llama-server` en texte libre."""
+    return _llama({"role": "assistant", "content": texte}, "stop")
+
+
+def _llama(message: dict[str, Any], fin: str) -> httpx2.Response:
+    return httpx2.Response(
+        200,
+        json={
+            "choices": [{"finish_reason": fin, "index": 0, "message": message}],
+            "created": 1760000000,
+            "model": MODELES["local"],
+            "system_fingerprint": "b11552-0000000",
+            "object": "chat.completion",
+            "usage": {"completion_tokens": 7, "prompt_tokens": 12, "total_tokens": 19},
+            "id": "chatcmpl-Zk3VnQ0yT8aW1sLxJbR5uCeHdPo2MgFi",
+            "timings": {"prompt_n": 12, "predicted_n": 7, "predicted_per_second": 41.5},
+        },
+    )
+
+
 def mistral_texte(texte: str) -> httpx2.Response:
     """Réponse Chat Completions en texte libre."""
     return _mistral({"role": "assistant", "content": texte, "tool_calls": None}, "stop")
@@ -147,11 +192,15 @@ def reponse_outil(
     """`anthropic_outil` ou `mistral_outil` selon `fournisseur`."""
     if fournisseur == "anthropic":
         return anthropic_outil(nom, arguments, id_appel)
+    if fournisseur == "local":
+        return llama_outil(nom, arguments, id_appel)
     return mistral_outil(nom, arguments, id_appel)
 
 
 def reponse_texte(fournisseur: str, texte: str) -> httpx2.Response:
     """`anthropic_texte` ou `mistral_texte` selon `fournisseur`."""
+    if fournisseur == "local":
+        return llama_texte(texte)
     return anthropic_texte(texte) if fournisseur == "anthropic" else mistral_texte(texte)
 
 

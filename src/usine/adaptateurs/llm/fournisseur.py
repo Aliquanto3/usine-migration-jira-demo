@@ -52,11 +52,16 @@ from usine.contrats.llm import (
 )
 from usine.contrats.versions import version_modele
 
-FOURNISSEURS = ("anthropic", "mistral")
+FOURNISSEURS = ("anthropic", "mistral", "local")
 """Valeurs admises de `fournisseur` dans `config/llm.yaml`."""
 
 VARIABLES_CLE = {"anthropic": "ANTHROPIC_API_KEY", "mistral": "MISTRAL_API_KEY"}
-"""Variable d'environnement de la clé d'API de chaque fournisseur (AD-19, H-23)."""
+"""Variable d'environnement de la clé d'API de chaque fournisseur distant (AD-19, H-23).
+
+Le fournisseur `local` (`llama-server`) n'a pas de clé."""
+
+URL_LLAMA_SERVER = "http://127.0.0.1:8080"
+"""Adresse par défaut de `llama-server` (tag b11552) ; `USINE_LLAMA_SERVER_URL` la remplace."""
 
 ATTENTE_BASE_S = 1.0
 """Première attente après un 429 sans `Retry-After` ; chaque attente double au moins."""
@@ -370,17 +375,20 @@ def construire_fournisseur_llm(
     client_http: Any = None,
     attendre: Callable[[float], None] = time.sleep,
     horloge: Callable[[], float] = time.monotonic,
+    url_serveur_local: str = URL_LLAMA_SERVER,
 ) -> FournisseurPydanticAI:
     """Adaptateur du fournisseur de `config/llm.yaml`, sans modification de code (H-23).
 
     `client_http` remplace le client HTTP asynchrone des SDK (tests : faux transport).
+    `fournisseur: local` parle à `llama-server` (API compatible Chat Completions, lancé avec
+    `--jinja` pour les outils) à `url_serveur_local`, sans clé ; le modèle reste libre.
     """
     if config.fournisseur not in FOURNISSEURS:
         raise UsineErreur(
             f"config/llm.yaml, clé « fournisseur » : {config.fournisseur!r} inconnu ;"
             f" valeurs admises : {', '.join(FOURNISSEURS)}"
         )
-    if not cle_api.strip():
+    if config.fournisseur != "local" and not cle_api.strip():
         raise UsineErreur(
             f"variable d'environnement {VARIABLES_CLE[config.fournisseur]} absente ou vide"
         )
@@ -388,6 +396,13 @@ def construire_fournisseur_llm(
     if config.fournisseur == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=cle_api, http_client=client_http, max_retries=0)
         modele = AnthropicModel(config.modele, provider=AnthropicProvider(anthropic_client=client))
+    elif config.fournisseur == "local":
+        # `llama-server` sert `/v1/chat/completions` ; le client Mistral, déjà en dépendance,
+        # parle ce format (aucun SDK de plus). Aucune donnée ne quitte le poste.
+        local = Mistral(
+            api_key="sans-cle", server_url=url_serveur_local.rstrip("/"), async_client=client_http
+        )
+        modele = MistralModel(config.modele, provider=MistralProvider(mistral_client=local))
     else:
         mistral = Mistral(api_key=cle_api, async_client=client_http)
         modele = MistralModel(config.modele, provider=MistralProvider(mistral_client=mistral))

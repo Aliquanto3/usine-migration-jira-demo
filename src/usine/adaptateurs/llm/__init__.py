@@ -1,4 +1,4 @@
-"""Adaptateurs `FournisseurLLM` (Anthropic, Mistral) et registre des quotas et des prix.
+"""Adaptateurs `FournisseurLLM` (Anthropic, Mistral, `llama-server` local) et registre des prix.
 
 Seul paquet du produit autorisé à importer `pydantic_ai`, `anthropic` et `mistralai` (AD-12).
 """

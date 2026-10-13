@@ -64,9 +64,15 @@ REGISTRE: dict[str, TarifModele] = {
 }
 """Tarifs par `version_modele` (`fournisseur:modele`)."""
 
+TARIF_LOCAL = TarifModele(Decimal(0), Decimal(0), 600, 10_000_000)
+"""Modèle exécuté sur le poste (`local:<modele>`, Story 6.12) : aucun prix, aucun quota
+fournisseur (espacement de 0,1 s) ; tout nom de modèle est admis, il dépend du fichier chargé."""
+
 
 def tarif(version_modele: str) -> TarifModele:
     """Tarif de `version_modele` ; un modèle absent du registre lève une `UsineErreur`."""
+    if version_modele.startswith("local:") and len(version_modele) > len("local:"):
+        return TARIF_LOCAL
     try:
         return REGISTRE[version_modele]
     except KeyError:

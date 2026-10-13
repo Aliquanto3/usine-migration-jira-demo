@@ -61,6 +61,7 @@ moteur de Pseudonymisation, sur une table en mémoire qui refuse toute écriture
 """
 
 import json
+import os
 import secrets
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -364,7 +365,18 @@ def construire_fournisseur(
     secrets_usine = secrets_usine if secrets_usine is not None else charger_secrets(racine)
     cles = {"anthropic": secrets_usine.anthropic_api_key, "mistral": secrets_usine.mistral_api_key}
     cle = cles.get(config.fournisseur)
-    return construire_fournisseur_llm(config, cle.get_secret_value() if cle is not None else "")
+    return construire_fournisseur_llm(
+        config,
+        cle.get_secret_value() if cle is not None else "",
+        url_serveur_local=_url_serveur_local(),
+    )
+
+
+def _url_serveur_local() -> str:
+    """Adresse de `llama-server` (fournisseur `local`) : `USINE_LLAMA_SERVER_URL` ou le défaut."""
+    from usine.adaptateurs.llm.fournisseur import URL_LLAMA_SERVER
+
+    return os.environ.get("USINE_LLAMA_SERVER_URL", "").strip() or URL_LLAMA_SERVER
 
 
 def construire_fournisseurs_par_tache(
@@ -392,6 +404,7 @@ def construire_fournisseurs_par_tache(
             construits[tache] = construire_fournisseur_llm(
                 config.model_copy(update={"modele": modele}),
                 cle.get_secret_value() if cle is not None else "",
+                url_serveur_local=_url_serveur_local(),
             )
     except BaseException:
         _fermer_tous(construits.values())
