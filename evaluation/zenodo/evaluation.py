@@ -212,6 +212,10 @@ def _meteo(unite: Unite, seuil: Fraction) -> MeteoEntite:
     )
 
 
+meteo_de_unite = _meteo
+"""`MeteoEntite` rouge d'une unité, réutilisée par `evaluation.zenodo.modele_ml`."""
+
+
 def predire_sortie(
     serie_projet: pl.DataFrame, unite: Unite, *, seuil: Fraction = SEUIL
 ) -> tuple[Fraction, Fraction]:

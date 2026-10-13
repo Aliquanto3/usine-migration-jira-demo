@@ -146,3 +146,16 @@ L'évaluation de la Baseline sur ces séries (Story 4.4) est décrite dans [`RAP
   résolus au dernier changement de statut (sinon à la création).
 - **Borne de fin** : sans `--fin`, chaque série s'arrête au dernier événement de son projet ;
   la Story 4.4 choisit la borne commune de l'évaluation.
+
+## Modèle ML (Story 4.6, bonus)
+
+Le Modèle ML (LightGBM 4.7.0, groupe `bonus` : `uv sync --group bonus`) se compare à la
+Baseline avec le protocole de la Story 4.4, en moins d'une minute sur les cinq dépôts :
+
+```bash
+uv run python -m evaluation.zenodo.modele_ml --series ../externe/series/*.parquet \
+  --sortie evaluation/zenodo/resultats/modele_ml.json
+# Scénarios de démo avec le modèle réel (A sort, B reste) :
+USINE_SERIES_REELLES=../externe/series uv run pytest -q -m lent \
+  tests/unit/evaluation/zenodo/test_modele_ml.py
+```

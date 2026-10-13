@@ -1,0 +1,93 @@
+{
+  "protocole": {
+    "reference": "evaluation.zenodo.evaluation (Story 4.4)",
+    "horizon_jours_ouvres": 10,
+    "seuil": 3.0,
+    "modele": "LightGBM 4.7.0",
+    "parametres": {
+      "objective": "cross_entropy",
+      "learning_rate": 0.05,
+      "num_leaves": 15,
+      "min_data_in_leaf": 50,
+      "seed": 42,
+      "deterministic": true,
+      "force_row_wise": true,
+      "num_threads": 1,
+      "verbose": -1,
+      "tours": 200
+    },
+    "cible_entrainement": "part du stock résolue sous N Jours ouvrés, poids = stock",
+    "agregation": "P(Binomiale(S, p) >= k), k = résolutions requises, indépendance",
+    "caracteristiques": [
+      "stock",
+      "entrees_5",
+      "entrees_10",
+      "entrees_20",
+      "sorties_5",
+      "sorties_10",
+      "sorties_20",
+      "variation_stock_10",
+      "stock_max_20"
+    ],
+    "parametres_baseline": {
+      "fenetre_velocite": 10,
+      "horizon": 10,
+      "fenetre_fourchette": 5,
+      "profondeur_fourchette": 20
+    }
+  },
+  "entrainement": {
+    "unites": 2743,
+    "importance_gain": {
+      "stock": 90481.413,
+      "entrees_5": 13979.682,
+      "entrees_10": 22607.573,
+      "entrees_20": 49988.13,
+      "sorties_5": 4045.424,
+      "sorties_10": 4962.544,
+      "sorties_20": 79766.781,
+      "variation_stock_10": 4820.664,
+      "stock_max_20": 69783.121
+    }
+  },
+  "jeux": {
+    "test_temporel": {
+      "effectif": 1191,
+      "positifs": 15,
+      "series": 15,
+      "ml": {
+        "brier": 0.014966,
+        "auc": 0.88305
+      },
+      "baseline": {
+        "brier": 0.011922,
+        "auc": 0.657653
+      },
+      "naive": {
+        "brier": 0.013638,
+        "auc": 0.400879
+      },
+      "ml_bat_baseline_auc": true,
+      "ml_bat_baseline_brier": false
+    },
+    "test_projets_tenus_a_l_ecart": {
+      "effectif": 1203,
+      "positifs": 57,
+      "series": 10,
+      "ml": {
+        "brier": 0.041452,
+        "auc": 0.852684
+      },
+      "baseline": {
+        "brier": 0.047625,
+        "auc": 0.637657
+      },
+      "naive": {
+        "brier": 0.045207,
+        "auc": 0.5
+      },
+      "ml_bat_baseline_auc": true,
+      "ml_bat_baseline_brier": true
+    }
+  }
+}
