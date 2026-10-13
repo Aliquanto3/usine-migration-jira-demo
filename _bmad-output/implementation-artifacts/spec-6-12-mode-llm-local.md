@@ -48,4 +48,4 @@ deferred: []
 
 ## Résultats des contrôles
 
-Voir le rapport de l'orchestrateur (suite complète en fin de story).
+ruff check, ruff format --check, mypy, lint-imports (15 contrats) verts ; pytest : 2836 passés, 1 ignoré, 39 désélectionnés.
