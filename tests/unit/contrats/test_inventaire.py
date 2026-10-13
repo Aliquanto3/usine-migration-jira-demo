@@ -81,6 +81,8 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "EnveloppeCache",
         "ReponseExplication",
         "ReponseNarration",
+        "ReponseDoublon",
+        "SortieDoublon",
         "LONGUEUR_EMPREINTE_JETON",
         "MOTIF_TYPE_JETON",
         "CANDIDAT_JETON",
