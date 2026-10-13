@@ -1,0 +1,24 @@
+{
+  "contrats_version": "1.7.0",
+  "passage_id": "20261012T221158Z-96c621",
+  "horodatage": "2026-10-13T03:57:24.169962Z",
+  "reponse": {
+    "question": "Pourquoi ENT-B est-elle rouge ?",
+    "texte": "ENT-B est rouge sur IND-1, qui vaut 9 pour un seuil de 3. Tickets en cause : DEMO-2842, DEMO-2928, DEMO-3079, DEMO-3128, DEMO-3160, DEMO-3232, DEMO-3307, DEMO-3430 et DEMO-3450.",
+    "outils_appeles": [
+      "get_meteo"
+    ],
+    "tickets_cites": [
+      "DEMO-2842",
+      "DEMO-2928",
+      "DEMO-3079",
+      "DEMO-3128",
+      "DEMO-3160",
+      "DEMO-3232",
+      "DEMO-3307",
+      "DEMO-3430",
+      "DEMO-3450"
+    ],
+    "statut_controle": "conforme"
+  }
+}

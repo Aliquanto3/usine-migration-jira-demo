@@ -38,6 +38,8 @@ CLE_QUESTION_AGENT = "question_agent"
 """Clé de `session_state` de la question saisie sur l'écran Agent."""
 CLE_SESSION_AGENT = "session_agent"
 """Clé de `session_state` de la session de l'Agent, gardée d'une question à l'autre."""
+CLE_CHOIX_AGENT = "choix_agent"
+"""Clé de `session_state` de la question enregistrée choisie en Mode repli (écran Agent)."""
 
 
 def libelles_ecrans() -> list[str]:

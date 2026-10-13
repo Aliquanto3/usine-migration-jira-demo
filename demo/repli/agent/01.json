@@ -1,0 +1,21 @@
+{
+  "contrats_version": "1.7.0",
+  "passage_id": "20261012T221158Z-96c621",
+  "horodatage": "2026-10-13T03:57:24.163959Z",
+  "reponse": {
+    "question": "Quelles entités risquent de passer au rouge la semaine prochaine, et pourquoi ?",
+    "texte": "ENT-C risque de passer au rouge : son indicateur IND-4 vaut 27 sur 150, et le franchissement du seuil rouge est estimé au 2026-10-14. ENT-C est déjà orange sur IND-4 au 2026-10-09 ; tickets en cause : DEMO-2350, DEMO-2414, DEMO-2612, DEMO-2654 et DEMO-2658.",
+    "outils_appeles": [
+      "get_risques",
+      "get_meteo"
+    ],
+    "tickets_cites": [
+      "DEMO-2350",
+      "DEMO-2414",
+      "DEMO-2612",
+      "DEMO-2654",
+      "DEMO-2658"
+    ],
+    "statut_controle": "conforme"
+  }
+}

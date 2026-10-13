@@ -15,6 +15,7 @@ from tests.unit.chaine.environnement import (
     preparer_racine,
 )
 from usine.composition import lancer_rapport
+from usine.ia.agent.repli import REPERTOIRE_REPONSES
 from usine.ui.cli import REPERTOIRE_REPLI
 from usine.ui.outillage import FICHIER_FICHE
 
@@ -31,6 +32,7 @@ def racine_publiee(tmp_path_factory: pytest.TempPathFactory) -> Path:
         (racine / "docs").mkdir(exist_ok=True)
         shutil.copyfile(RACINE_DEPOT / FICHIER_FICHE, racine / FICHIER_FICHE)
         shutil.copytree(RACINE_DEPOT / REPERTOIRE_REPLI, racine / REPERTOIRE_REPLI)
+        shutil.copytree(RACINE_DEPOT / REPERTOIRE_REPONSES, racine / REPERTOIRE_REPONSES)
     return racine
 
 

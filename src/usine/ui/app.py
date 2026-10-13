@@ -31,7 +31,7 @@ from typing import IO, Literal, Protocol
 import streamlit as st
 
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.llm import StatutControle
+from usine.contrats.llm import ReponseAgent, StatutControle
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
 from usine.ui import (
     agent,
@@ -53,6 +53,7 @@ from usine.ui.cli import (
     manifestes_avant_apres,
     mode_repli,
     racine_ui,
+    reponses_repli,
     session_agent,
 )
 from usine.ui.liens import echapper_markdown, lien_ticket
@@ -386,12 +387,12 @@ def afficher_agent(racine: Path, repli: bool = False) -> None:
     """Écran Agent, en lecture seule : question, réponse contrôlée, statut, outils appelés.
 
     La session vient de `ui/cli.session_agent`, gardée dans `session_state` tant que le dernier
-    Passage publié ne change pas ; en Mode repli, aucun LLM n'est appelé (réponses
-    enregistrées : Story 7.11).
+    Passage publié ne change pas ; en Mode repli, aucun LLM n'est appelé : les réponses
+    enregistrées sont rejouées (`_afficher_agent_repli`).
     """
     st.subheader(Ecran.agent.value)
     if repli:
-        st.info(agent.MESSAGE_REPLI)
+        _afficher_agent_repli(racine)
         return
     if _racine_introuvable(racine):
         return
@@ -431,12 +432,47 @@ def afficher_agent(racine: Path, repli: bool = False) -> None:
     except Exception as exc:  # fournisseur, trace ou validation : message explicite
         st.error(f"Réponse de l'Agent impossible : {exc}")
         return
+    _afficher_reponse(reponse)
+
+
+def _afficher_reponse(reponse: ReponseAgent) -> None:
+    """Texte de la réponse (avertissement si rejetée), statut de contrôle, outils appelés."""
     if reponse.statut_controle is StatutControle.rejete:
         st.warning(reponse.texte)
     else:
         st.markdown(echapper_markdown(reponse.texte))
     st.caption(agent.texte_statut(reponse))
     st.caption(agent.texte_outils(reponse))
+
+
+def _afficher_agent_repli(racine: Path) -> None:
+    """Mode repli : questions enregistrées en choix fermés, réponse rejouée sans LLM (FR-45).
+
+    Réponses absentes, illisibles ou d'un autre Passage que la copie : refus explicite.
+    """
+    st.info(agent.MESSAGE_REPLI)
+    if _racine_introuvable(racine):
+        return
+    try:
+        consultation = consultation_repli(racine)
+        if consultation is None:
+            st.error(REPLI_ABSENT)
+            return
+        enregistrees = reponses_repli(racine, consultation.manifeste().passage_id)
+    except UsineErreur as exc:
+        st.error(f"{agent.REFUS_REPLI} : {exc}")
+        return
+    rang = st.radio(
+        agent.LIBELLE_CHOIX,
+        range(len(enregistrees)),
+        format_func=lambda i: enregistrees[i].reponse.question,
+        key=navigation.CLE_CHOIX_AGENT,
+    )
+    if not st.button(agent.LIBELLE_REJOUER) or rang is None:
+        return
+    enregistree = enregistrees[rang]
+    _afficher_reponse(enregistree.reponse)
+    st.caption(agent.mention_repli(enregistree))
 
 
 def afficher_a_venir(ecran: Ecran) -> None:
