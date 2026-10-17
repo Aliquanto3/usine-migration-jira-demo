@@ -26,9 +26,9 @@ Les contraintes d'architecture restent celles de l'UI actuelle :
 - le Mode repli se choisit par `USINE_MODE_REPLI=1` ou par le bouton de l'écran de lancement, jamais automatiquement (AD-19) ;
 - tout ce qu'elle charge (polices, script, styles) est servi en local, pour que la démo tourne hors réseau (NFR-12).
 
-L'interface est mono-utilisateur, sans authentification, en français seulement (NFR-11). Elle vise Chrome et Edge récents, ceux du poste de démo, sans version mobile dédiée. Les points de rupture sont dans `DESIGN.md`, section Layout & Spacing ; à toute largeur, l'interface garde les mêmes écrans, contrôles et URL. Le découpage des routes et des endpoints JSON revient à `bmad-architecture`. Les URL d'écran ci-dessous sont celles que l'utilisateur voit.
+L'interface est mono-utilisateur, sans authentification, en français seulement (NFR-11). Elle vise Chrome et Edge récents, ceux du poste de démo, sans version mobile dédiée. Les points de rupture sont dans `DESIGN.md`, section Layout & Spacing ; à toute largeur, l'interface garde les mêmes écrans, contrôles et URL. Le découpage des routes suit AD-25. Les URL d'écran ci-dessous sont celles que l'utilisateur voit.
 
-Trois points ouverts cadrent l'implémentation : le report du changement de stack dans la spine d'architecture, le service des livrables téléchargeables et les positions des pseudonymes (voir Open Questions).
+Les points ouverts sont tranchés par le Sprint Change Proposal du 2026-10-17 (AD-25) : livrables lus par `Consultation.livrable`, pseudonymes non surlignés (voir Décisions).
 
 ## Information Architecture
 
@@ -129,7 +129,7 @@ Comportement. L'apparence est décrite dans `DESIGN.md.Components`, sous les mê
 |---|---|
 | Comparatif avant / après | Valeurs reçues telles quelles : temps manuel déclaré (`config/demo.yaml`), temps mesuré du Passage affiché, cumul sur 5 Rapports. Le segment choisit la période des deux grandes cartes ; le tableau montre toujours les deux périodes. L'interface ne calcule ni écart ni ratio. La légende de source suit `avant_apres.legende`. |
 | Formulaire de sélection (ticket) | Liste des tickets du Passage dont la description n'est pas vide, triée par clé. « Afficher » charge `/pseudonymisation?ticket=DEMO-17`. |
-| Panneaux de Pseudonymisation | Texte brut, retours à la ligne conservés, sans interprétation HTML. Chaque panneau défile seul ; c'est une région focalisable (`tabindex="0"`, `role="region"`, libellée par son titre). Les pseudonymes sont marqués seulement si l'aperçu fournit leurs positions. Légende `pseudonymisation.LEGENDE`. |
+| Panneaux de Pseudonymisation | Texte brut, retours à la ligne conservés, sans interprétation HTML. Chaque panneau défile seul ; c'est une région focalisable (`tabindex="0"`, `role="region"`, libellée par son titre). Les pseudonymes ne sont pas surlignés : l'aperçu renvoie un texte seul (AD-11). Légende `pseudonymisation.LEGENDE`. |
 | Fiche d'outillage | Le serveur convertit le Markdown en HTML, en lecture seule. Les marqueurs ✅, ⚠️ et ❌ deviennent les pastilles « Oui », « À surveiller » et « Non ». Légende `outillage.LEGENDE`. |
 
 **Éléments communs**
@@ -244,7 +244,7 @@ Comportement. Les contrastes sont dans `DESIGN.md.Colors`. Le PRD ne pose aucune
 2. Il ouvre la carte météo, puis le détail d'ENT-B (flux 2). Les clés de ticket s'affichent en texte simple ; le bandeau dit pourquoi.
 3. Sur l'écran Agent, il clique sur deux questions enregistrées. Chaque réponse rejouée porte la mention de réponse enregistrée sans LLM.
 4. Il ouvre « Avant / après » : le reporting manuel déclaré face à la Chaîne mesurée, par Rapport, puis sur 5 Rapports d'un clic sur le segment. Il commente l'écart lui-même ; l'écran n'affiche aucun pourcentage.
-5. Le Sponsor demande ce que deviennent les noms de clients dans les tickets. Anaël ouvre « Pseudonymisation », choisit DEMO-17 et clique sur « Afficher » : à gauche le texte original, à droite le texte envoyé au LLM, où noms, contacts et numéros de compte sont remplacés. Si l'aperçu fournit les positions des pseudonymes, ils sont surlignés ; sinon, le panneau reste en texte brut et la comparaison suffit.
+5. Le Sponsor demande ce que deviennent les noms de clients dans les tickets. Anaël ouvre « Pseudonymisation », choisit DEMO-17 et clique sur « Afficher » : à gauche le texte original, à droite le texte envoyé au LLM, où noms, contacts et numéros de compte sont remplacés.
 6. **Climax :** « Et pour le faire chez nous ? » Anaël ouvre « Ce qu'il faut pour le faire en vrai » : les quatre demandes par ordre de priorité, puis le tableau des briques par cible (VM Python, Dataiku, Power Platform, poste local). La démo se termine sur une liste d'actions que le Sponsor peut lancer.
 
 Échec : à l'ouverture de la Pseudonymisation, le modèle spaCy n'est pas installé sur le poste. Le bandeau nomme le moteur manquant ; Anaël passe à l'écran suivant et la démo continue.
@@ -267,10 +267,12 @@ La parité est attendue avec `src/usine/ui/` : mêmes écrans, mêmes sources de
 
 Les tests de `tests/unit/ui/` qui portent sur les fonctions de présentation (`carte`, `detail`, `avant_apres`, `pseudonymisation`, `outillage`, `progression`) restent valables si ces modules sont gardés. Ceux qui pilotent Streamlit sont à réécrire contre FastAPI.
 
-## Open Questions
+## Décisions (2026-10-17)
 
-- **Positions des pseudonymes** [ASSUMPTION] : `cli.apercu_pseudonymisation` renvoie aujourd'hui un texte seul. Le surlignage suppose qu'il renvoie aussi les positions des pseudonymes ; la décision revient à l'architecture. Le flux 4 tient sans ce surlignage.
-- **Brouillon de commentaire (FR-33)** [ASSUMPTION] : ni l'UI Streamlit ni la maquette ne l'affichent. Il reste dans les livrables Excel et PowerPoint, hors de l'interface.
-- **Livrables téléchargeables** [ASSUMPTION] : la maquette les place sur la carte ; l'UI actuelle ne les sert pas. Le serveur doit exposer en lecture seule les fichiers du Passage affiché, y compris dans `demo/repli/passage/`.
-- **Changement de stack** : la spine d'architecture fixe Streamlit 1.65. Le passage à FastAPI doit y être reporté avant l'écriture des stories.
-- **Fiche d'outillage** : la ligne « UI de démo (Streamlit) » de `docs/fiche-outillage.md` (portabilité Dataiku et Power Platform) est à mettre à jour après la migration.
+Tranchées par `../../sprint-change-proposal-2026-10-17.md`.
+
+- **Positions des pseudonymes** : pas de surlignage. `Pseudonymiseur.apercu` garde sa forme (texte seul) ; les panneaux restent en texte brut. Un surlignage futur passerait par une méthode ajoutée au port, hors de ce lot.
+- **Brouillon de commentaire (FR-33)** : il reste dans les livrables Excel et PowerPoint, hors de l'interface.
+- **Livrables téléchargeables** : `Consultation.livrable(nom)` (contrats 1.9.0) les lit, `GET /livrables/{nom}` les sert en lecture seule, Mode repli compris.
+- **Changement de stack** : reporté dans la spine (AD-25, couche `ui`, versions). Stories 7.13 à 7.17.
+- **Fiche d'outillage** : ligne « UI de démo » mise à jour par la Story 7.17.

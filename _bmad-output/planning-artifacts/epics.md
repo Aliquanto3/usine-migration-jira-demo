@@ -139,7 +139,7 @@ Ce document découpe en epics et stories implémentables les exigences du PRD (F
 - Dépendances de recette finale : E0 → L1, L2, L3, L6, L8 ; L3 → L4, L5 ; L5 → L7 ; L6 → L7. Avant, chaque lane travaille sur contrats, doublures et fixtures.
 - Répertoires par lane : L1 `generateur/`, `outils/`, `config/programme.yaml`, `donnees/corpus/` ; L2 `adaptateurs/{jira_http,jira_cloud,jira_dc,journal,composite,entrepot_duckdb,cli}`, `config/jira.yaml`, `tests/fixtures/jira_*` ; L3 `domaine/{instantanes,kpi,meteo}`, `config/grille_meteo.yaml`, `tests/fixtures/reference` ; L4 `domaine/prevision`, `evaluation/` ; L5 `chaine/`, `consultation/`, `rendu/`, `gabarits/` ; L6 `ia/` sauf `ia/agent`, `domaine/causes`, `adaptateurs/{llm,presidio,pseudonymisation,stockage_sqlite}`, `config/{llm,pseudonymisation}.yaml`, `evals/` sauf `evals/agent` ; L7 `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` ; L8 `docs/`.
 
-**Stack et infrastructure** : Python 3.12, uv, versions figées par le spine (pydantic 2.14, polars 1.44.2, duckdb 1.5.6, pydantic-ai-slim 2.55, presidio 2.2.364, spacy 3.8.16 + `fr_core_news_md` 3.8.0, openpyxl 3.1.5, python-pptx 1.0.2, streamlit 1.65, scikit-learn 1.9.1, pymongo 4.18.3, pytest 9.1.1, ruff 0.17, mypy 2.4, import-linter 2.15, gitleaks v8.30.1) ; CI GitHub Actions Windows + Linux ; un seul site Jira Cloud Free, injection du projet `DEMO` depuis `main`.
+**Stack et infrastructure** : Python 3.12, uv, versions figées par le spine (pydantic 2.14, polars 1.44.2, duckdb 1.5.6, pydantic-ai-slim 2.55, presidio 2.2.364, spacy 3.8.16 + `fr_core_news_md` 3.8.0, openpyxl 3.1.5, python-pptx 1.0.2, fastapi (version figée en 7.13) + uvicorn 0.54.0 + markdown-it-py 4.2.0 (streamlit 1.65 jusqu'à la Story 7.17), scikit-learn 1.9.1, pymongo 4.18.3, pytest 9.1.1, ruff 0.17, mypy 2.4, import-linter 2.15, gitleaks v8.30.1) ; CI GitHub Actions Windows + Linux ; un seul site Jira Cloud Free, injection du projet `DEMO` depuis `main`.
 
 **Spikes différés à planifier** : création du workflow et des champs Jira par API (½ jour en début de L1, repli manuel documenté) ; organisation du dump Zenodo (½ jour en début de L4) ; calibrage des modèles par tâche et du plafond de coût (L6) ; quotas Mistral (L6).
 
@@ -239,7 +239,7 @@ Le Rapport quotidien s'enrichit des Causes racines proposées, d'Explications so
 **FR couvertes :** FR-24, FR-30, FR-31, FR-32, FR-33, FR-34, FR-35, FR-50 ; bonus FR-36, FR-37, FR-38. **NFR :** NFR-1, NFR-2 (Palier 2), NFR-5, NFR-6, NFR-9.
 
 ### Epic 7 : Interface de démo et Agent (L7 Agent et UI)
-Le Pilote et l'auteur disposent des écrans de la démo de 10 minutes (avant / après, Mode repli, comparaison des Paliers), puis d'un Agent en lecture seule évalué sur 15 questions. Stories Palier 1 avant la porte M3, stories Palier 2 après l'Epic 6.
+Le Pilote et l'auteur disposent des écrans de la démo de 10 minutes (avant / après, Mode repli, comparaison des Paliers), sur une interface web FastAPI (Stories 7.13 à 7.17), puis d'un Agent en lecture seule évalué sur 15 questions. Stories Palier 1 avant la porte M3, stories Palier 2 après l'Epic 6.
 **FR couvertes :** FR-39 à FR-46. **NFR :** NFR-1, NFR-5, NFR-11, NFR-12.
 
 ### Epic 8 : Dossier de portage (L8 Portage)
@@ -479,6 +479,8 @@ So that l'ordre imposé de la couche LLM est en place avant que L6 n'y branche d
 **And** le numéro de compte fictif n'y figure pas en clair (AD-16)
 
 ### Story 0.8 : UI minimale (E0-8)
+
+> Interface remplacée par l'UI web FastAPI (Stories 7.13 à 7.17, Sprint Change Proposal du 2026-10-17). Les critères ci-dessous restent des exigences de la nouvelle UI.
 
 As a Pilote,
 I want une page Streamlit qui affiche la carte météo du dernier Passage, lance la Chaîne et suit sa progression, avec le bandeau Mode repli,
@@ -1674,7 +1676,7 @@ So that j'analyse latences et coûts dans un outil dédié.
 
 ## Epic 7 : Interface de démo et Agent (L7 Agent et UI)
 
-Le Pilote et l'auteur disposent des écrans de la démo de 10 minutes, puis d'un Agent en lecture seule évalué sur 15 questions. **Stories 7.1 à 7.6 : Palier 1, avant la porte M3** (prérequis : Story 5.2). **Stories 7.7 à 7.12 : Palier 2, après l'Epic 6.** **Écrit seulement dans :** `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` et `tests/unit/` correspondant. L'UI ne lit les Passages que via `Consultation` (AD-11).
+Le Pilote et l'auteur disposent des écrans de la démo de 10 minutes, puis d'un Agent en lecture seule évalué sur 15 questions. **Stories 7.1 à 7.6 : Palier 1, avant la porte M3** (prérequis : Story 5.2). **Stories 7.7 à 7.11 : Palier 2, après l'Epic 6.** **Stories 7.13 à 7.17 : migration de l'UI vers FastAPI + HTML statique (AD-25), après 7.11 et avant 7.12** ; elles suivent `ux-designs/ux-usine-migration-jira-demo-2026-10-17/` (DESIGN.md pour l'apparence, EXPERIENCE.md pour le comportement) et reprennent comme critères de parité ceux des Stories 7.1 à 7.11. **Story 7.12 en dernier, sur la nouvelle UI.** **Écrit seulement dans :** `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` et `tests/unit/` correspondant ; 7.14 écrit aussi dans `contrats/`, `ports/consultation.py`, `consultation/` et `tests/contrat/` ; 7.17 dans `pyproject.toml`, `uv.lock`, `tests/depot/`, `docs/`, `README.md` et `SPEC-usine-migration-jira-demo.md`. L'UI ne lit les Passages que via `Consultation` (AD-11).
 
 ### Story 7.1 : Carte météo et navigation
 
@@ -1908,13 +1910,161 @@ So that la démo reste jouable de bout en bout sans réseau, Agent compris.
 **When** l'UI les charge
 **Then** elles sont refusées avec un message explicite
 
+### Story 7.13 : Socle web FastAPI et cadre commun
+
+As a auteur,
+I want que `usine ui` démarre un serveur FastAPI local qui sert le cadre commun des sept écrans,
+So that la démo a une interface web qui ressemble au produit d'une vraie équipe.
+
+**Exigences :** FR-43, FR-45, NFR-11, NFR-12 · **AD :** AD-11, AD-19, AD-25 · **UX :** DESIGN.md (tout), EXPERIENCE.md (Foundation, Information Architecture, Cadre, Accessibility Floor)
+
+**Acceptance Criteria:**
+
+**Given** `usine ui`
+**When** l'auteur le lance
+**Then** uvicorn sert l'application sur `127.0.0.1` seulement, et les sept URL d'écran de EXPERIENCE.md répondent par une page HTML statique
+
+**Given** n'importe quelle page
+**When** elle se charge hors réseau
+**Then** polices, CSS et script viennent tous du serveur local, et aucune requête ne sort (NFR-12)
+
+**Given** le cadre commun
+**When** on l'inspecte
+**Then** il porte l'en-tête (pastille « Passage publié » lue dans le manifeste, pastille de mode toujours visible, bouton « Lancer la Chaîne » absent de `/chaine`), la navigation latérale (`aria-current="page"`), le lien d'évitement, un seul `<h1>`, `<html lang="fr">` et un titre de page « {Écran} · Usine de migration »
+
+**Given** `USINE_MODE_REPLI=1` au démarrage
+**When** une page s'affiche
+**Then** la pastille « Mode repli » et le bandeau `app.BANDEAU_REPLI` sont visibles ; sans la variable, le mode est réel, et aucune bascule n'est jamais automatique (AD-19)
+
+**Given** le serveur arrêté pendant qu'une page est ouverte
+**When** un appel JSON échoue
+**Then** le bandeau d'erreur « L'interface ne joint plus le serveur. Relancer usine ui. » s'affiche une seule fois
+
+Notes : l'UI Streamlit reste en place jusqu'à 7.17 (`usine ui --streamlit` le temps du lot). Une liste de tests manuels du cadre est ajoutée à `docs/`. La version exacte de `fastapi` est figée dans le spine.
+
+### Story 7.14 : Carte météo, détail d'une Entité et livrables
+
+As a Pilote,
+I want la carte météo filtrable, le détail d'une Entité avec la comparaison des Paliers et les livrables du Passage à télécharger,
+So that je justifie un rouge et je repars avec le Rapport quotidien.
+
+**Exigences :** FR-17, FR-20, FR-21, FR-29, FR-32, FR-43, FR-46 · **AD :** AD-9, AD-11, AD-25 · **Parité :** Stories 7.1, 7.2, 7.7 (Explication, Paliers)
+
+**Acceptance Criteria:**
+
+**Given** le port `Consultation`
+**When** on lit un livrable
+**Then** `livrable(nom)` renvoie le contenu de `rapport_xlsx` ou `rapport_pptx` du Passage lu, ou `None` s'il est absent ; `CONTRATS_VERSION` passe à 1.9.0 et les suites `tests/contrat/` couvrent la méthode
+
+**Given** la carte météo
+**When** le Pilote filtre sur « Rouge »
+**Then** le tableau se filtre dans le navigateur, sans rechargement, et une région `role="status"` annonce « 1 Entité affichée »
+
+**Given** les livrables du Passage affiché
+**When** le Pilote clique sur l'un d'eux
+**Then** `GET /livrables/{nom}` le télécharge ; un livrable absent affiche « Non généré pour ce Passage », sans lien
+
+**Given** `/entites/ENT-B?palier=1` sur un Passage de Palier 2
+**When** la page s'affiche
+**Then** l'Explication affiche `detail.EXPLICATION_PALIER_1`, la Prévision est masquée, et Météo, Règles et KPI sont identiques à `?palier=2`
+
+**Given** une Entité absente du Passage
+**When** on ouvre son URL
+**Then** « Entité {entite} absente du Passage affiché. » et un lien vers la carte
+
+**Given** une clé de ticket
+**When** l'URL de `consultation.url_ticket` vaut `None` (Mode repli)
+**Then** la clé est du texte simple ; sinon c'est un lien qui s'ouvre dans un nouvel onglet, avec un nom accessible terminé par « (nouvel onglet) »
+
+### Story 7.15 : Lancement de la Chaîne et bouton de mode
+
+As a Pilote,
+I want lancer la Chaîne et suivre ses 10 étapes dans le navigateur, et basculer en Mode repli d'un clic,
+So that je montre le rapport fait en une commande et je prépare la démo hors réseau.
+
+**Exigences :** FR-25, FR-43, FR-45 · **AD :** AD-8, AD-19, AD-24, AD-25 · **Parité :** Stories 7.3, 7.6
+
+**Acceptance Criteria:**
+
+**Given** l'écran `/chaine`
+**When** le Pilote clique sur le bouton de lancement
+**Then** le serveur démarre `usine rapport` en sous-processus (une Chaîne à la fois), et la page sonde chaque seconde (`app.INTERVALLE_SONDAGE`) un état lu dans `sorties/progression/<passage_id>.jsonl` en ouvrir-lire-fermer
+
+**Given** une Chaîne en cours
+**When** le Pilote quitte puis rouvre `/chaine`
+**Then** le suivi reprend ; le bouton de lancement et le bouton de mode restent `aria-disabled="true"`, avec leur motif lié par `aria-describedby`
+
+**Given** une étape en échec
+**When** la CLI se termine
+**Then** l'étape est marquée « Échec », et le bandeau d'erreur nomme l'étape, le code de sortie et au plus 20 lignes d'erreur (`app.LIGNES_ERREUR_MAX`) ; le Passage affiché ailleurs ne change pas
+
+**Given** la barre de progression
+**When** les étapes avancent
+**Then** `aria-valuenow` suit le nombre d'étapes terminées, et la région `status` n'annonce que les changements d'étape, la fin et l'échec
+
+**Given** le bouton « Passer en Mode repli »
+**When** le Pilote clique
+**Then** le serveur bascule sur `demo/repli/passage/` pour tous les écrans ; « Revenir au Mode réel » ramène au dernier Passage réel ; `app.REPLI_ABSENT` s'affiche si la copie manque
+
+### Story 7.16 : Agent, Avant / après, Pseudonymisation et Outillage
+
+As a Pilote,
+I want les quatre derniers écrans de la démo dans l'interface web,
+So that la démo de 10 minutes se joue de bout en bout sur la nouvelle UI.
+
+**Exigences :** FR-31, FR-40, FR-41, FR-43, FR-44, FR-45, FR-47 · **AD :** AD-8, AD-11, AD-24, AD-25 · **Parité :** Stories 7.4, 7.5, 7.7 (Pseudonymisation), 7.9, 7.11
+
+**Acceptance Criteria:**
+
+**Given** l'écran `/agent` en Mode réel
+**When** le Pilote envoie une question
+**Then** `POST /api/agent/question` passe par la session de l'Agent existante, « L'Agent consulte le Passage… » s'affiche pendant l'attente, puis la réponse remplace la précédente avec son badge de contrôle et ses outils, et le focus passe sur la réponse ; une réponse rejetée n'affiche pas son texte
+
+**Given** le Mode repli
+**When** le Pilote ouvre `/agent`
+**Then** la saisie disparaît, `agent.MESSAGE_REPLI` s'affiche, et chaque question enregistrée rejoue sa réponse avec `agent.mention_repli` ; des réponses dont le `passage_id` diffère de la copie sont refusées (`agent.REFUS_REPLI`)
+
+**Given** `/avant-apres`
+**When** l'écran s'affiche
+**Then** les valeurs sont celles des fonctions de `avant_apres`, sans écart ni ratio calculé ; le segment choisit la période des deux grandes cartes
+
+**Given** `/pseudonymisation?ticket=DEMO-17`
+**When** l'écran s'affiche
+**Then** l'original et la version de `Pseudonymiseur.apercu` s'affichent en texte brut côte à côte, sans surlignage, dans deux régions focalisables ; un moteur absent est nommé dans le bandeau d'erreur
+
+**Given** `/outillage`
+**When** l'écran s'affiche
+**Then** le serveur rend `docs/fiche-outillage.md` en HTML (markdown-it-py, HTML brut désactivé), et ✅, ⚠️ et ❌ deviennent les pastilles « Oui », « À surveiller » et « Non »
+
+### Story 7.17 : Retrait de Streamlit
+
+As a auteur,
+I want que Streamlit disparaisse du code, des dépendances et des documents,
+So that le dépôt n'a plus qu'une seule interface, documentée telle qu'elle est.
+
+**Exigences :** FR-47, NFR-8 · **AD :** AD-1, AD-25 · **Prérequis :** 7.13 à 7.16
+
+**Acceptance Criteria:**
+
+**Given** le dépôt
+**When** on cherche `streamlit`
+**Then** il n'apparaît plus que dans l'historique : `app.py` et l'option `--streamlit` sont supprimés, `streamlit` est retiré de `pyproject.toml`, `uv.lock` et des listes d'externes de `[tool.importlinter]`, et `tests/depot/` est à jour (`fastapi`, `uvicorn`, `markdown_it` classés pour `usine.ui` seulement)
+
+**Given** `tests/unit/ui/`
+**When** la suite complète s'exécute
+**Then** plus aucun test n'importe `streamlit` ; les tests de pilotage passent par `TestClient`, et la CI est verte sous Windows et Linux
+
+**Given** `docs/fiche-outillage.md`, `demo/script-demo.md`, `SPEC-usine-migration-jira-demo.md`, `docs/QUESTIONS.md` (H-28) et `README.md`
+**When** on les relit
+**Then** ils décrivent l'interface web FastAPI (§ 4.5 du Sprint Change Proposal du 2026-10-17), et `tests/unit/docs/test_fiche_outillage.py` attend la nouvelle ligne
+
 ### Story 7.12 : Répétitions chronométrées de la démo
 
 As a auteur,
 I want répéter la démo de 10 minutes au moins trois fois, dont une en Mode repli,
 So that je la présente sans intervention hors script (SM-5).
 
-**Exigences :** FR-43 à FR-46, NFR-12 · **AD :** AD-24
+**Exigences :** FR-43 à FR-46, NFR-12 · **AD :** AD-24 · **Prérequis :** Story 7.17 (répétitions sur l'interface web)
 
 **Acceptance Criteria:**
 

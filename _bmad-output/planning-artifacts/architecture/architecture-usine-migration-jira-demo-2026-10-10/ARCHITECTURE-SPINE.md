@@ -45,7 +45,7 @@ Vocabulaire : celui du Glossaire du PRD (§ 3). Les `[HYPOTHÈSE H-n]` sont suiv
 | Générateur | `generateur/` | contrats, ports | — |
 | Configuration | `config/` (chargeur) | contrats | pyyaml, pydantic-settings |
 | Racine de composition | `composition.py`, `cli.py`, `*/cli.py` | tout | tout ; typer pour les modules `cli` |
-| Interface | `ui/` | contrats, consultation, composition | streamlit |
+| Interface | `ui/` | contrats, consultation, composition | fastapi, uvicorn, markdown-it-py |
 | Hors produit | `evaluation/`, `evals/`, `outils/` (racine du dépôt) | contrats, ports, domaine, composition | tout |
 
 **Liste blanche des externes.** Le socle de toute couche est pydantic, polars et la bibliothèque standard. Toute autre dépendance directe du projet (groupes compris, et `anthropic`, `mistralai` tirés par les extras de `pydantic-ai-slim`) est interdite à une couche qui ne la nomme pas. Le domaine n'importe pas non plus `io`, `os`, `pathlib`, `random`, `secrets`, `shutil`, `socket`, `sqlite3`, `subprocess`, `tempfile`, `time`, `urllib` ni `uuid` (AD-1, AD-9). `tests/depot/test_import_linter.py` vérifie que chaque dépendance directe est classée.
@@ -65,7 +65,7 @@ flowchart BT
   generateur["generateur"] --> ports
   config["config (chargeur)"] --> contrats
   composition["composition / cli"] --> chaine & ia & rendu & adaptateurs & generateur & config
-  ui["ui (Streamlit)"] --> composition
+  ui["ui (FastAPI)"] --> composition
 ```
 
 Une flèche signifie « importe », et elle est transitive vers le bas (tout paquet peut importer `contrats`). Le tableau des couches fait foi. Il est recopié tel quel dans `[tool.importlinter]` (contrats `layers` et `forbidden`, colonne des externes comprise), et vérifié en CI.
@@ -169,7 +169,7 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Ordre.** L'ordre des étapes est l'énumération `Etape` : `extraction, instantanes, kpi, meteo, prevision, classification, repartition_causes, explications, narration, rendu`.
   - **Palier.** Le Palier est le seul champ `ConfigChaine.palier` ∈ {1, 2}, lu seulement par la composition. En Palier 1, les étapes LLM sont enregistrées `sautee`. `config/llm.yaml` ne décide que du fournisseur et du modèle.
   - **Point d'entrée.** Le seul est `usine rapport [--date-arrete AAAA-MM-JJ]`. Une Date d'arrêté non ouvrée est rejetée par une `UsineErreur` qui la nomme.
-  - **Progression.** Elle s'écrit dans `sorties/progression/<passage_id>.jsonl`, hors du répertoire renommé. L'UI lance la CLI en sous-processus et lit ce fichier en ouvrir-lire-fermer à chaque sondage (décision du 10/10/2026, H-28).
+  - **Progression.** Elle s'écrit dans `sorties/progression/<passage_id>.jsonl`, hors du répertoire renommé. Le serveur de l'UI lance la CLI en sous-processus, une Chaîne à la fois, et lit ce fichier en ouvrir-lire-fermer à chaque sondage du navigateur (décision du 10/10/2026, H-28).
   - **Mesure (FR-44).** Le manifeste enregistre la durée de chaque étape, les drapeaux `classification_initiale` et le coût LLM. Temps mesuré = `horodatage_fin − horodatage_debut` du dernier Passage réussi sans classification initiale, lu par `consultation.dernier_passage(sans_classification_initiale=True)`. Cumul hebdomadaire = 5 × ce temps.
 
 ### AD-9 : Calcul en Polars, dans le domaine seulement
@@ -195,11 +195,12 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
 - **Rule :**
   - **Lecteur unique.** Le port `Consultation` est le seul lecteur des fichiers d'un Passage, publié ou en cours. Il sert aux étapes, à `rendu`, à `ui`, à `ia` et aux outils de l'Agent.
   - **Liens Jira.** Les URL de ticket se construisent dans `consultation.url_ticket(cle)` uniquement, à partir de `config/jira.yaml`. Elles valent `None` en Mode repli.
+  - **Livrables.** `Consultation.livrable(nom)` renvoie le contenu de `rapport_xlsx` ou `rapport_pptx` du Passage lu, ou `None`. L'UI ne construit aucun chemin vers un Passage (contrats 1.9.0, décision du 17/10/2026).
   - **Formatage.** Le formatage français (milliers à espace insécable, virgule, %, dates) vit dans `contrats.format`. Il sert à tous.
   - **Comparaison des Paliers (FR-46).** `Consultation` expose un filtre `palier` ∈ {1, 2} sur toute lecture qui porte une sortie du Palier 2, `anomalies()` comprise (cause racine proposée).
   - **Dérivations de lecture.** L'âge des anomalies en Jours ouvrés et l'appariement J-1 / J-5 de `evolution_meteo()` sont calculés à la lecture par `Consultation`, avec `contrats.calendrier`. Ce ne sont pas des calculs métier au sens d'AD-9 : ils ne changent pas la forme du port et ne produisent aucune valeur publiée (décision du 12/10/2026, D8).
   - **Vue de l'UI.** `ui` n'importe pas `ports`. Elle peut déclarer un `Protocol` local, sous-ensemble structurel de `Consultation` (`LectureMeteo`), qu'un test de conformité tient aligné sur le port. Ce n'est pas un port.
-  - **Côte à côte (FR-31).** Il passe par `Pseudonymiseur.apercu(texte)`, exposé à l'UI par la composition, en local seulement.
+  - **Côte à côte (FR-31).** Il passe par `Pseudonymiseur.apercu(texte)`, exposé à l'UI par la composition, en local seulement. Il renvoie un texte seul : l'UI ne surligne pas les pseudonymes (décision du 17/10/2026).
 
 ### AD-12 : Passerelle LLM unique, ordre imposé
 
@@ -358,8 +359,21 @@ Une flèche signifie « importe », et elle est transitive vers le bas (tout paq
   - **Mode repli.**
     - `demo/repli/passage/` contient la copie d'un Passage publié, entièrement fictif.
     - `demo/repli/agent/*.json` contient des `ReponseAgentEnregistree` qui portent le `passage_id` de cette copie, produites par `usine agent --enregistrer`.
-    - En Mode repli, l'UI propose les questions enregistrées sous forme de choix, sans saisie libre.
+    - En Mode repli, l'UI propose les questions enregistrées sous forme de choix, sans saisie libre. Les livrables proposés sont ceux de la copie, lus par `Consultation.livrable`.
   - **Corpus.** Il est produit une seule fois par `outils/generer_corpus.py`, via le port `FournisseurLLM`, puis versionné dans `donnees/corpus/` avec la métadonnée `modele_corpus`.
+
+### AD-25 : Interface web locale, pages statiques et vues JSON
+
+- **Binds :** FR-43 à FR-46, NFR-11, NFR-12
+- **Prevents :** une UI qui calcule ou formate à sa façon ; une démo qui casse hors réseau ; une interface joignable depuis le réseau invité ; un second écrivain du Passage.
+- **Rule :**
+  - **Serveur.** `usine ui` lance uvicorn sur `127.0.0.1`. Un seul module, `ui/serveur.py`, crée l'application FastAPI ; il ne reçoit ses services (`Consultation`, Agent, `apercu`) que de `ui/cli.py`, racine de composition (AD-1).
+  - **Pages.** Une page HTML statique par écran, dans `ui/statique/`, sans moteur de gabarits. Un script sans framework charge les données par `fetch` sur `/api/…`. Polices, CSS et JS sont servis en local (NFR-12).
+  - **Vues JSON.** Les réponses de `/api/…` sont des modèles pydantic locaux à `ui/`, pas des contrats. Ils sont construits par les modules de présentation purs (`carte`, `detail`, …) à partir de valeurs déjà formatées par `contrats.format`. Le navigateur affiche sans calculer ni formater (AD-9).
+  - **Écritures.** Seules trois routes changent un état, toutes en `POST` : lancer la Chaîne (sous-processus `usine rapport`, AD-8), changer de mode (état du processus serveur, jamais automatique, AD-19) et poser une question à l'Agent. Aucune ne touche un Passage ni Jira.
+  - **Livrables.** `GET /livrables/{nom}` sert le résultat de `Consultation.livrable` (AD-11).
+  - **Mono-utilisateur.** Pas d'authentification. L'état du mode et de la Chaîne en cours vit dans le processus serveur.
+  - **Spec UX.** `ux-designs/ux-usine-migration-jira-demo-2026-10-17/` : DESIGN.md fait foi pour l'apparence, EXPERIENCE.md pour le comportement (décision du 17/10/2026, remplace Streamlit).
 
 ## Conventions de cohérence
 
@@ -454,7 +468,7 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 | polars | 1.44.2 (2.0 écarté pour l'instant, (décision du 10/10/2026, H-24)) |
 | duckdb | 1.5.6 |
 | numpy | 2.4.6 (presidio exige < 2.5) |
-| pyarrow | 25.0.1 (streamlit exige < 26) |
+| pyarrow | 25.0.1 (contrainte < 26 à revérifier en 7.17, sans montée de version dans ce lot) |
 | pyyaml | 6.0.3 |
 | typer | 0.27.3 |
 | httpx | 0.28.1 |
@@ -463,7 +477,10 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 | spacy / fr_core_news_md | 3.8.16 / 3.8.0 (roue GitHub référencée par URL dans `pyproject.toml`) |
 | openpyxl | 3.1.5 |
 | python-pptx | 1.0.2 |
-| streamlit (tire pandas 3.0.6) | 1.65.0 |
+| fastapi | à figer en 7.13 (dernière stable compatible avec starlette 1.7.0) |
+| uvicorn | 0.54.0 |
+| markdown-it-py | 4.2.0 |
+| streamlit (tire pandas 3.0.6) | 1.65.0, retiré en 7.17 |
 | scikit-learn | 1.9.1 |
 | pymongo (lecture du dump Zenodo, L4) | 4.18.3 |
 | lightgbm (bonus FR-22) | 4.7.0 |
@@ -483,7 +500,8 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 ```mermaid
 flowchart LR
   subgraph Poste["Poste de l'auteur (Windows, Python 3.12)"]
-    UI["Streamlit (localhost)"]
+    NAV["Navigateur"]
+    UI["UI web FastAPI (127.0.0.1)"]
     CLI["usine rapport (verrou de Passage)"]
     ENT[("entrepot.duckdb")]
     SQL[("cache_llm.sqlite<br/>pseudonymes.sqlite (WAL)")]
@@ -497,6 +515,7 @@ flowchart LR
   LLM["Anthropic / Mistral"]
   LOC["llama-server (bonus)"]
   GH["GitHub Actions (Windows + Linux)<br/>ruff · mypy · import-linter · pytest · gitleaks"]
+  NAV -- HTTP local --> UI
   UI -- sous-processus --> CLI
   UI -- lecture --> PROG
   CLI --> PROG & PASS & ENT & SQL
@@ -529,7 +548,7 @@ usine-migration-jira-demo/
     ia/                   # passerelle, controles, taches, prompts/, agent/ (AD-12 à AD-15)
     adaptateurs/          # jira_http, jira_cloud, jira_dc, journal, composite, entrepot_duckdb, cli.py (L2) ; llm/, presidio, pseudonymisation, stockage_sqlite (L6)
     generateur/           # programme, scenarios, journal, injecteur (seul écrivain Jira)
-    ui/                   # Streamlit
+    ui/                   # FastAPI : serveur, vues JSON, statique/ (HTML, CSS, JS, polices) (AD-25)
     composition.py  cli.py
   outils/generer_corpus.py
   evaluation/             # zenodo/ (FR-51, FR-22), hors CI
@@ -569,7 +588,7 @@ flowchart LR
 | FR-50, FR-42 Évaluations | `evals/` | AD-14, AD-20, AD-23 |
 | FR-25 à FR-29 Rapport quotidien | `chaine/`, `rendu/`, `consultation/` | AD-7, AD-8, AD-11, AD-22 |
 | FR-39 à FR-42 Agent | `ia/agent` | AD-11 à AD-14, AD-16 |
-| FR-43 à FR-46 Interface, Mode repli | `ui/`, `demo/` | AD-8, AD-11, AD-19, AD-24 |
+| FR-43 à FR-46 Interface, Mode repli | `ui/`, `demo/` | AD-8, AD-11, AD-19, AD-24, AD-25 |
 | FR-47 (FR-48 en bonus) Portabilité | `docs/` | NFR-8 |
 | FR-36, FR-37, FR-38 Bonus LLM | `ia/`, `adaptateurs/llm` | AD-12, AD-13 |
 | NFR-2 Performance | `chaine/` | Mesure en E0-5 à la volumétrie cible |
@@ -587,7 +606,7 @@ Séquentiel sur `main`, avant toute lane. Critère de sortie : `usine rapport` p
 | E0-5 Chaîne et Passage | Registre d'étapes (les autres en bouchon ou `sautee`), `EcrivainPassage`, progression, manifeste, publication atomique, verrou, échec propre ; mesure de durée sur un Journal à la volumétrie cible (NFR-2) |
 | E0-6 Consultation et rendu | Excel à 1 onglet (Synthèse) et PowerPoint à 1 slide (carte météo), déterministes ; `url_ticket` |
 | E0-7 Passerelle LLM | Pseudonymisation par HMAC, cache SQLite, `FournisseurFactice`, une Explication sourcée contrôlée par `controler_citations`, une `EntreeTrace` |
-| E0-8 UI | Streamlit : carte météo depuis `Consultation`, lancement de la CLI en sous-processus avec suivi de la progression, bandeau Mode repli |
+| E0-8 UI | Streamlit : carte météo depuis `Consultation`, lancement de la CLI en sous-processus avec suivi de la progression, bandeau Mode repli (remplacé par AD-25, Stories 7.13 à 7.17) |
 | E0-9 Gel | Relecture des contrats contre ce spine, application des décisions D1 à D10 (`preparation-0-9-gel-contrats.md`, § 7), `CONTRATS_VERSION` à 1.0.0, puis étiquette `contrats-v1` et ouverture des worktrees |
 
 ## Carte des lanes (worktrees après `contrats-v1`)

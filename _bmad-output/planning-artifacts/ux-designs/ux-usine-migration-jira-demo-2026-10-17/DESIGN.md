@@ -249,11 +249,6 @@ components:
     background: '{colors.carte}'
     border: '1px solid {colors.bordure}'
     radius: '{rounded.bulle-reponse}'
-  marque-pseudonyme:
-    background: '{colors.lavande}'
-    foreground: '{colors.nuit}'
-    radius: '{rounded.xs}'
-    typography: '{typography.code}'
   bandeau-succes:
     background: '{colors.succes-fond}'
     foreground: '{colors.succes-texte}'
@@ -287,7 +282,7 @@ Références visuelles : la maquette canvas ([lien](https://claude.ai/artifact/8
 - **Violet nuit (`{colors.nuit}`)** : fond de l'en-tête et de l'encart Agent, titres de page et de section, survol des boutons primaires. C'est la couleur du cadre.
 - **Violet primaire (`{colors.primaire}`)** : boutons d'action, entrée de navigation active, option active d'un segment, liens, bulle de question, remplissage de la barre de progression. Une seule action primaire par zone.
 - **Violet 2 (`{colors.violet-2}`)** : pastilles d'information de l'en-tête et suggestions de questions sur fond nuit. Jamais sur fond clair.
-- **Lavande (`{colors.lavande}`)** : survols, étape en cours, pistes des segments et de la barre de progression, étiquettes d'outils, pseudonymes, bandeau du Mode repli. **Lavande texte (`{colors.lavande-texte}`)** : seulement du texte secondaire sur fond nuit ou console.
+- **Lavande (`{colors.lavande}`)** : survols, étape en cours, pistes des segments et de la barre de progression, étiquettes d'outils, bandeau du Mode repli. **Lavande texte (`{colors.lavande-texte}`)** : seulement du texte secondaire sur fond nuit ou console.
 - **Vert WaveStack (`{colors.vert-wavestack}`)** : logo, pastille Mode réel, puce d'étape réussie (coche en `{colors.nuit}`), anneau de focus sur fond nuit. Jamais en texte sur fond clair, jamais pour la météo verte, qui a sa propre teinte.
 - **Gamme météo** : chaque couleur a un fond pâle de pastille et un point saturé (`{colors.meteo-rouge-fond}` et `{colors.meteo-rouge}`, etc.). Le texte de la pastille reste en `{colors.encre}` et donne le nom de la couleur : la couleur ne porte jamais seule l'information. Ces quatre teintes ne servent qu'à la Météo.
 - **Statuts** : `{colors.succes-fond}` et `{colors.succes-texte}` pour « Contrôle : conforme » et la Chaîne terminée ; `{colors.refus-fond}` et `{colors.refus-texte}` pour « Hors périmètre » ; `{colors.erreur-fond}` et `{colors.erreur-texte}` pour les échecs. Les trois mêmes paires marquent les niveaux « Oui », « À surveiller » et « Non » de la fiche d'outillage.
@@ -331,7 +326,7 @@ Trois familles, servies en local par l'application (la démo doit tourner hors r
   - `{typography.corps-lecture}` pour les textes rédigés (Explication, réponse de l'Agent, fiche d'outillage, panneaux de Pseudonymisation) ;
   - `{typography.legende}` pour les sous-titres et les légendes de source ;
   - `{typography.entete-tableau}`, en capitales espacées, pour les en-têtes de colonne.
-- **JetBrains Mono** (`{typography.code}`), pour les identifiants et les traces : clés de ticket, règles IND-x avec valeur et seuil, tendances J-1 et J-5, noms d'étapes de la Chaîne, noms d'outils de l'Agent, journal de progression, pseudonymes, chemins de fichiers.
+- **JetBrains Mono** (`{typography.code}`), pour les identifiants et les traces : clés de ticket, règles IND-x avec valeur et seuil, tendances J-1 et J-5, noms d'étapes de la Chaîne, noms d'outils de l'Agent, journal de progression, chemins de fichiers.
 
 Pas de texte de corps en Fredoka.
 
@@ -444,7 +439,7 @@ Les noms ci-dessous sont aussi ceux des tableaux de `EXPERIENCE.md`.
 
 **Pseudonymisation**
 
-- **Panneaux de Pseudonymisation** : deux cartes jumelles titrées « Original » et « Version pseudonymisée », la seconde bordée de `{colors.primaire}`, avec l'étiquette « envoyée au LLM ». Texte en `{typography.corps-lecture}`, retours à la ligne conservés. Les pseudonymes sont marqués `{components.marque-pseudonyme}` quand leurs positions sont connues.
+- **Panneaux de Pseudonymisation** : deux cartes jumelles titrées « Original » et « Version pseudonymisée », la seconde bordée de `{colors.primaire}`, avec l'étiquette « envoyée au LLM ». Texte en `{typography.corps-lecture}`, retours à la ligne conservés, sans surlignage des pseudonymes.
 
 **Ce qu'il faut pour le faire en vrai**
 
