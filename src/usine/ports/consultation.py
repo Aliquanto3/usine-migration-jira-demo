@@ -137,3 +137,10 @@ class Consultation(Protocol):
     def url_ticket(self, cle: str) -> str | None:
         """Lien Jira du ticket (FR-29) ; `None` en Mode repli."""
         ...
+
+    def livrable(self, nom: Literal["rapport_xlsx", "rapport_pptx"]) -> bytes | None:
+        """Contenu du livrable `nom` du Passage lu, ou `None` s'il est absent (AD-11).
+
+        Fichier lu en entier, ouvrir-lire-fermer : rien ne reste ouvert pendant le téléchargement.
+        """
+        ...

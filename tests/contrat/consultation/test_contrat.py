@@ -1,5 +1,7 @@
 """Contrat de `Consultation` : lecteur unique d'un Passage (AD-11, AD-20)."""
 
+from typing import Literal
+
 import pytest
 
 from tests.contrat.consultation.fabriques import CasConsultation
@@ -159,3 +161,11 @@ def test_palier_1_par_entite(cas: CasConsultation) -> None:
     anomalies = c.anomalies(entite=cas.entite, palier=1)
     assert anomalies.total == c.anomalies(entite=cas.entite).total
     assert all(a.cause_racine_proposee is None for a in anomalies.anomalies)
+
+
+@pytest.mark.parametrize("nom", ["rapport_xlsx", "rapport_pptx"])
+def test_livrable(cas: CasConsultation, nom: Literal["rapport_xlsx", "rapport_pptx"]) -> None:
+    """Contrats 1.9.0 : octets du livrable du Passage lu, ou `None` s'il est absent (AD-11)."""
+    octets = cas.consultation.livrable(nom)
+    assert octets is None or (isinstance(octets, bytes) and octets.startswith(b"PK"))
+    assert cas.consultation.livrable(nom) == octets  # lecture répétable

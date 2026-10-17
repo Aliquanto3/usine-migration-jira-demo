@@ -17,7 +17,7 @@ import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import polars as pl
 from pydantic import ValidationError
@@ -38,6 +38,7 @@ from usine.contrats.passage import (
     FICHIERS_PASSAGE,
     EnveloppeFichier,
     ManifestePassage,
+    chemin_fichier_passage,
     lire_enveloppe,
 )
 from usine.contrats.prevision import ContenuPrevisions, Prevision, RisqueEntreeRouge
@@ -560,6 +561,15 @@ class ConsultationPassage:
         if self._url_jira is None:
             return None
         return f"{self._url_jira}/browse/{cle}"
+
+    # --- Livrables ---
+
+    def livrable(self, nom: Literal["rapport_xlsx", "rapport_pptx"]) -> bytes | None:
+        """Contenu du Rapport `nom` du Passage lu, ou `None` s'il est absent."""
+        chemin = self._repertoire / chemin_fichier_passage(nom, self.manifeste().date_arrete)
+        if not chemin.exists():
+            return None
+        return _lire_octets(chemin)
 
 
 def _age(date_derniere_entree: date | None, jour: date) -> int:

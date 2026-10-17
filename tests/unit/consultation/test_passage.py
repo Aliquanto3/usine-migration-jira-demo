@@ -6,7 +6,7 @@ import shutil
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import polars as pl
 import pytest
@@ -32,7 +32,7 @@ from usine.contrats.llm import (
     SortieNarration,
 )
 from usine.contrats.meteo import Couleur
-from usine.contrats.passage import EnveloppeFichier
+from usine.contrats.passage import EnveloppeFichier, chemin_fichier_passage
 from usine.contrats.prevision import ContenuPrevisions
 from usine.contrats.tickets import SCHEMA_TICKET_ETAT, CauseRacine, StatutAnomalie
 from usine.contrats.trace import EntreeTrace, TypeTrace
@@ -405,7 +405,7 @@ def test_version_etrangere_meteo(passage: Path) -> None:
     contenu = json.loads(chemin.read_text(encoding="utf-8"))
     contenu[CLE_VERSION] = "2.0.0"
     chemin.write_text(json.dumps(contenu), encoding="utf-8")
-    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1.8.0"):
+    with pytest.raises(UsineErreur, match=r"meteo\.json.*2\.0\.0.*1.9.0"):
         ConsultationPassage(passage).meteo(DATE_ARRETE)
 
 
@@ -618,3 +618,24 @@ def test_url_ticket_par_la_composition(
     monkeypatch.setenv("USINE_MODE_REPLI", "1")
     repli = construire_rapport(racine).fabrique_consultation(DATE_ARRETE)
     assert repli(lance.repertoire).url_ticket("DEMO-123") is None
+
+
+@pytest.mark.parametrize("nom", ["rapport_xlsx", "rapport_pptx"])
+def test_livrable(passage: Path, nom: Literal["rapport_xlsx", "rapport_pptx"]) -> None:
+    """Contenu du fichier du Passage lu ; `None` si absent ; rien ne reste ouvert (AD-8)."""
+    consultation = ConsultationPassage(passage)
+    chemin = passage / chemin_fichier_passage(nom, DATE_ARRETE)
+    octets = consultation.livrable(nom)
+    assert octets is not None
+    assert octets == chemin.read_bytes()
+    # Renommer échouerait sous Windows si le fichier restait ouvert.
+    chemin.rename(chemin.with_name("renomme.bin"))
+    assert consultation.livrable(nom) is None
+
+
+def test_livrable_illisible(passage: Path) -> None:
+    chemin = passage / chemin_fichier_passage("rapport_xlsx", DATE_ARRETE)
+    chemin.unlink()
+    chemin.mkdir()  # répertoire à la place du fichier : lecture impossible
+    with pytest.raises(UsineErreur, match=r"rapport-2026-10-09.xlsx"):
+        ConsultationPassage(passage).livrable("rapport_xlsx")
