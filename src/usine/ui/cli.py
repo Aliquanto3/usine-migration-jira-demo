@@ -12,35 +12,34 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Annotated
 
 import typer
+import uvicorn
+from fastapi import FastAPI
 
 from usine import composition
 from usine.config import charger_secrets, charger_yaml
 from usine.consultation.passage import ConsultationPassage
 from usine.contrats.config import ConfigDemo
+from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import ReponseAgentEnregistree
 from usine.contrats.passage import FICHIERS_PASSAGE, REPERTOIRE_PASSAGES, ManifestePassage
 from usine.ia.agent.repli import REPERTOIRE_REPONSES, charger_reponses
 from usine.ia.agent.session import SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
+from usine.ui.serveur import HOTE, LireManifeste, creer_application
+from usine.ui.textes import REPERTOIRE_REPLI as REPERTOIRE_REPLI
+from usine.ui.textes import REPLI_ABSENT
 
 CHEMIN_APP = Path(__file__).resolve().with_name("app.py")
 """Page Streamlit lancée par `usine ui`."""
 
-REPERTOIRE_REPLI = Path("demo/repli/passage")
-"""Passage publié fictif et versionné, lu par toute l'UI en Mode repli (relatif à la racine).
+app = typer.Typer(help="Interface web de la démo (FastAPI, 127.0.0.1).")
 
-Régénération, depuis un clone sans secrets Jira et avec `USINE_MODE_REPLI=1` :
-`usine donnees generer --graine 42 --date-generation 2026-10-12`, puis
-`usine rapport --date-arrete 2026-10-09`, puis copie de
-`sorties/passages/2026-10-09/<passage_id>/` vers `demo/repli/passage/`. Régénérée en Story 5.6
-sur le Journal des contrats 1.2 (A et B rouges, C orange). `passage_id` actuel :
-`20261012T221158Z-96c621`, repris par les réponses enregistrées de l'Agent (Story 7.11).
-"""
-
-app = typer.Typer(help="Interface de démo Streamlit.")
+PORT = 8000
+"""Port local par défaut de l'interface web."""
 
 
 def racine_ui() -> Path:
@@ -147,14 +146,60 @@ def commande_streamlit() -> list[str]:
     return [sys.executable, "-m", "streamlit", "run", str(CHEMIN_APP)]
 
 
-@app.callback(invoke_without_command=True)
-def ui() -> None:
-    """Démarre la page Streamlit ; la racine est le répertoire courant (ou `USINE_RACINE`)."""
+def lecture_manifeste(racine: Path) -> LireManifeste:
+    """Service du serveur : manifeste du Passage affiché (dernier Passage publié ou repli).
+
+    En Mode repli, la copie `demo/repli/passage/` absente est une erreur explicite
+    (`REPLI_ABSENT`), jamais un repli silencieux vers `sorties/passages/`.
+    """
+
+    def lire(repli: bool) -> ManifestePassage | None:
+        consultation = consultation_repli(racine) if repli else consultation_dernier_passage(racine)
+        if consultation is None:
+            if repli:
+                raise UsineErreur(REPLI_ABSENT)
+            return None
+        return consultation.manifeste()
+
+    return lire
+
+
+def application_web(racine: Path, repli: bool) -> FastAPI:
+    """Application FastAPI de l'UI web sur `racine`, dans le mode imposé au démarrage."""
+    return creer_application(repli=repli, lire_manifeste=lecture_manifeste(racine))
+
+
+def _lancer_streamlit() -> int:
     try:
-        code = subprocess.run(commande_streamlit(), check=False).returncode
+        return subprocess.run(commande_streamlit(), check=False).returncode
     except KeyboardInterrupt:
-        code = 0
+        return 0
     except OSError as exc:
         typer.echo(f"Erreur : lancement de Streamlit impossible ({exc})", err=True)
-        code = 1
-    raise typer.Exit(code)
+        return 1
+
+
+@app.callback(invoke_without_command=True)
+def ui(
+    streamlit: Annotated[
+        bool, typer.Option("--streamlit", help="Ancienne interface Streamlit (retirée en 7.17).")
+    ] = False,
+    port: Annotated[int, typer.Option("--port", help="Port local de l'interface web.")] = PORT,
+) -> None:
+    """Démarre l'interface web sur 127.0.0.1 ; racine : `USINE_RACINE` ou répertoire courant."""
+    if streamlit:
+        raise typer.Exit(_lancer_streamlit())
+    try:
+        racine = racine_ui()
+        repli = mode_repli(racine)
+    except UsineErreur as exc:
+        typer.echo(f"Erreur : {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Interface web : http://{HOTE}:{port}/" + (" (Mode repli)" if repli else ""))
+    try:
+        uvicorn.run(application_web(racine, repli), host=HOTE, port=port, log_level="warning")
+    except KeyboardInterrupt:
+        pass
+    except OSError as exc:
+        typer.echo(f"Erreur : démarrage du serveur impossible ({exc})", err=True)
+        raise typer.Exit(1) from exc

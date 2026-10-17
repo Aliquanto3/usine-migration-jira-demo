@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carte météo · Usine de migration</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/statique/cadre.css">
+  <script src="/statique/cadre.js" defer></script>
+</head>
+<body>
+  <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
+  <header class="entete">
+    <a class="marque" href="/" aria-label="Usine de migration, carte météo">
+      <span class="logo" aria-hidden="true">U</span>
+      <span class="marque-texte">
+        <span class="marque-nom">Usine de migration</span>
+        <span class="marque-sous-titre">Copilote de pilotage · projet DEMO</span>
+      </span>
+    </a>
+    <div class="entete-actions">
+      <span class="pastille-entete" id="pastille-passage" hidden></span>
+      <span class="pastille-mode" id="pastille-mode" hidden></span>
+      <a class="bouton-entete" href="/chaine">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div class="corps">
+    <div class="navigation">
+      <nav aria-label="Écrans">
+        <ul>
+          <li><a class="nav-lien" href="/" aria-current="page">Carte météo</a></li>
+          <li><a class="nav-lien" href="/entites/ENT-A">Détail d'une Entité</a></li>
+          <li><a class="nav-lien" href="/chaine">Lancement de la Chaîne</a></li>
+          <li><a class="nav-lien" href="/agent">Agent</a></li>
+          <li><a class="nav-lien" href="/avant-apres">Avant / après</a></li>
+          <li><a class="nav-lien" href="/pseudonymisation">Pseudonymisation</a></li>
+          <li><a class="nav-lien" href="/outillage">Ce qu'il faut pour le faire en vrai</a></li>
+        </ul>
+      </nav>
+        <aside class="carte mention" aria-label="Mention de données">
+          <p class="legende">Données fictives ou publiques. Chiffres et tickets vérifiés sur le dernier Passage.</p>
+        </aside>
+    </div>
+    <main class="contenu">
+      <div class="titre-ligne">
+        <h1 id="titre-ecran" tabindex="-1">Carte météo</h1>
+        <p class="legende">Météo des 10 Entités du dernier Passage, à la Date d'arrêté.</p>
+      </div>
+      <div id="bandeaux"></div>
+      <section class="carte" aria-labelledby="titre-contenu">
+        <h2 id="titre-contenu">Contenu de l'écran</h2>
+        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

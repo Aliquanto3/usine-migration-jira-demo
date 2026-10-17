@@ -83,6 +83,22 @@ uv run usine ui
 
 Vérifier que l'interface s'ouvre et que la carte, le détail des Entités et l'écran « Avant / après » s'affichent.
 
+### 3.6 Cadre de l'interface web (Story 7.13)
+
+`usine ui` sert l'interface FastAPI sur `http://127.0.0.1:8000/` (option `--port`) ; l'ancienne interface Streamlit reste accessible par `uv run usine ui --streamlit` jusqu'à la Story 7.17. Les contenus d'écran arrivent en 7.14 à 7.16 : ici, on contrôle le cadre commun des sept pages (`/`, `/entites/ENT-B`, `/chaine`, `/agent`, `/avant-apres`, `/pseudonymisation`, `/outillage`).
+
+```powershell
+uv run usine ui
+```
+
+1. Sur chaque page : l'en-tête montre le logo, « Usine de migration », la pastille « Passage publié · JJ/MM/AAAA HH:MM » (absente s'il n'y a aucun Passage), la pastille « Mode réel » et le bouton « Lancer la Chaîne » (absent sur `/chaine`) ; la navigation latérale a sept liens dont un seul actif ; l'onglet s'intitule « {Écran} · Usine de migration » ; il n'y a ni « Chargement… » ni bandeau d'erreur.
+2. Au clavier : la première touche Tab fait apparaître « Aller au contenu » ; Entrée amène le focus sur le titre ; l'anneau de focus reste visible partout.
+3. Hors réseau (couper le Wi-Fi ou débrancher le câble, recharger) : les polices (Fredoka, Atkinson Hyperlegible, JetBrains Mono), la feuille et le script se chargent ; dans l'onglet Réseau des outils du navigateur, aucune requête ne sort de `127.0.0.1`.
+4. Mode repli : relancer avec `$env:USINE_MODE_REPLI = "1"; uv run usine ui`. La pastille « Mode repli » et le bandeau « Mode repli : la démo lit le Passage enregistré `demo/repli/passage/` … » s'affichent sur toutes les pages. Sans la variable (la remettre à vide), le mode est « Mode réel ». Le mode ne change jamais seul.
+5. Serveur arrêté : ouvrir une page, arrêter `usine ui` (Ctrl+C), puis revenir sur l'onglet depuis un autre onglet. Le bandeau « L'interface ne joint plus le serveur. Relancer usine ui. » apparaît une seule fois, même après plusieurs retours sur l'onglet.
+6. Largeur de 320px et zoom à 200 % : aucun défilement horizontal de la page ; la navigation passe au-dessus du contenu sous 768px.
+7. `uv run usine ui --port 8123` : la page répond sur ce port, et sur aucune autre adresse que `127.0.0.1`.
+
 ## 4. À ne pas faire sans précaution
 
 - `usine donnees injecter` écrit dans Jira (site `DEMO`). Ne pas le lancer pour un test de routine.

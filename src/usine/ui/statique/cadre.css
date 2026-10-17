@@ -1,0 +1,241 @@
+/* Cadre commun de l'interface web : apparence d'après DESIGN.md (charte WaveStack).
+   Polices, feuille et script sont servis en local ; aucune ressource externe (NFR-12). */
+
+@font-face {
+  font-family: "Fredoka";
+  src: url("polices/Fredoka-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("polices/AtkinsonHyperlegible-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("polices/AtkinsonHyperlegible-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("polices/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("polices/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --nuit: #250f6b;
+  --primaire: #451dc7;
+  --violet-2: #3a2393;
+  --lavande: #ede7fe;
+  --lavande-texte: #c9bdff;
+  --vert-wavestack: #04f06a;
+  --blanc: #ffffff;
+  --fond: #f6f5fa;
+  --carte: #ffffff;
+  --bordure: #e6e6ec;
+  --bordure-champ: #8a8a9e;
+  --encre: #0a0a14;
+  --encre-secondaire: #4a4a5e;
+  --succes-fond: #cafee0;
+  --succes-texte: #0a5a2e;
+  --erreur-fond: #ffd6dc;
+  --erreur-texte: #8a0a1e;
+
+  --police-titre: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --police-corps: "Atkinson Hyperlegible", system-ui, "Segoe UI", sans-serif;
+  --police-code: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --gouttiere: 24px;
+  --entete: 64px;
+  --cible-min: 44px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--encre);
+  font: 400 15px/1.5 var(--police-corps);
+}
+
+a { color: var(--primaire); }
+code {
+  font-family: var(--police-code);
+  font-size: 13px;
+  background: var(--lavande);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* Focus clavier : anneau de 2px décalé de 2px, vert sur fond nuit. */
+:focus-visible { outline: 2px solid var(--primaire); outline-offset: 2px; }
+.entete :focus-visible { outline-color: var(--vert-wavestack); }
+
+.lien-evitement {
+  position: absolute;
+  left: 8px;
+  top: -80px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--cible-min);
+  padding: 0 16px;
+  background: var(--blanc);
+  color: var(--nuit);
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.lien-evitement:focus { top: 8px; }
+
+/* En-tête */
+.entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  min-height: var(--entete);
+  padding: 8px var(--gouttiere);
+  background: var(--nuit);
+  color: var(--blanc);
+}
+.marque { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--vert-wavestack);
+  color: var(--nuit);
+  font: 600 20px/1 var(--police-titre);
+}
+.marque-texte { display: flex; flex-direction: column; }
+.marque-nom { font: 600 20px/1.2 var(--police-titre); }
+.marque-sous-titre { font-size: 13px; color: var(--lavande-texte); }
+.entete-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+.pastille-entete,
+.pastille-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pastille-entete { background: var(--violet-2); color: var(--blanc); }
+.pastille-mode--reel { background: var(--vert-wavestack); color: var(--nuit); }
+.pastille-mode--repli { background: var(--lavande); color: var(--nuit); }
+[hidden] { display: none !important; }
+
+.bouton-entete {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--cible-min);
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--blanc);
+  color: var(--nuit);
+  font-weight: 700;
+  text-decoration: none;
+}
+.bouton-entete:hover { background: var(--lavande); }
+
+/* Corps : navigation latérale puis contenu */
+.corps {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: var(--gouttiere);
+  align-items: start;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--gouttiere);
+}
+.navigation { display: flex; flex-direction: column; gap: 16px; }
+.navigation ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-lien {
+  display: flex;
+  align-items: center;
+  min-height: var(--cible-min);
+  padding: 0 16px;
+  border-radius: 12px;
+  color: var(--encre-secondaire);
+  font-weight: 700;
+  text-decoration: none;
+}
+.nav-lien:hover { background: var(--lavande); }
+.nav-lien[aria-current="page"] { background: var(--primaire); color: var(--blanc); }
+
+.contenu {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gouttiere);
+}
+.titre-ligne h1 {
+  margin: 0;
+  color: var(--nuit);
+  font: 600 34px/1.2 var(--police-titre);
+}
+.titre-ligne h1:focus { outline: none; }
+.legende { margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: var(--encre-secondaire); }
+
+/* Cartes et bandeaux */
+.carte {
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 18px;
+  padding: 20px;
+}
+.carte h2 { margin: 0 0 8px; color: var(--nuit); font: 600 20px/1.3 var(--police-titre); }
+.carte p { margin: 0; }
+
+#bandeaux { display: flex; flex-direction: column; gap: 12px; }
+#bandeaux:empty { display: none; }
+.bandeau {
+  margin: 0;
+  padding: 14px 20px;
+  border-radius: 18px;
+  font-weight: 700;
+}
+.bandeau--repli { background: var(--lavande); color: var(--nuit); }
+.bandeau--succes { background: var(--succes-fond); color: var(--succes-texte); }
+.bandeau--erreur { background: var(--erreur-fond); color: var(--erreur-texte); }
+.bandeau code { font-weight: 400; background: transparent; padding: 0; }
+
+/* Points de rupture */
+@media (max-width: 1023px) {
+  .titre-ligne h1 { font-size: 30px; }
+}
+@media (max-width: 767px) {
+  .corps { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 16px; }
+  .navigation ul { flex-direction: row; flex-wrap: wrap; }
+  .entete { padding: 8px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

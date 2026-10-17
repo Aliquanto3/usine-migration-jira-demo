@@ -46,6 +46,9 @@ MODULES_DES_DEPENDANCES: dict[str, tuple[str, ...]] = {
     "openpyxl": ("openpyxl",),
     "python-pptx": ("pptx",),
     "streamlit": ("streamlit",),
+    "fastapi": ("fastapi",),
+    "uvicorn": ("uvicorn",),
+    "markdown-it-py": ("markdown_it",),
     "scikit-learn": ("sklearn",),
     "pymongo": ("pymongo",),
     "pytest": ("pytest",),
@@ -95,7 +98,10 @@ AUTORISATIONS: dict[str, tuple[set[str], set[str] | None]] = {
     ),
     "usine.generateur": ({"contrats", "ports"}, set()),
     "usine.config": ({"contrats"}, {"yaml", "pydantic_settings"}),
-    "usine.ui": ({"contrats", "consultation", "composition"}, {"streamlit"}),
+    "usine.ui": (
+        {"contrats", "consultation", "composition"},
+        {"streamlit", "fastapi", "uvicorn", "markdown_it"},
+    ),
     # Hors produit : aucun interdit externe (None).
     "evaluation": ({"contrats", "ports", "domaine", "composition"}, None),
 }

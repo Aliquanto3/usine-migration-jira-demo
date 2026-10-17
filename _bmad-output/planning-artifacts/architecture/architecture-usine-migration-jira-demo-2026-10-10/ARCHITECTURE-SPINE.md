@@ -477,7 +477,7 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 | spacy / fr_core_news_md | 3.8.16 / 3.8.0 (roue GitHub référencée par URL dans `pyproject.toml`) |
 | openpyxl | 3.1.5 |
 | python-pptx | 1.0.2 |
-| fastapi | à figer en 7.13 (dernière stable compatible avec starlette 1.7.0) |
+| fastapi | 0.143.3 (figée en 7.13 : dernière stable, `starlette>=0.46.0` donc compatible avec le starlette 1.7.0 du lock) |
 | uvicorn | 0.54.0 |
 | markdown-it-py | 4.2.0 |
 | streamlit (tire pandas 3.0.6) | 1.65.0, retiré en 7.17 |

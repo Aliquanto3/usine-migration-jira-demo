@@ -45,7 +45,6 @@ from usine.ui import (
     pseudonymisation,
 )
 from usine.ui.cli import (
-    REPERTOIRE_REPLI,
     apercu_pseudonymisation,
     config_demo,
     consultation_dernier_passage,
@@ -58,6 +57,7 @@ from usine.ui.cli import (
 )
 from usine.ui.liens import echapper_markdown, lien_ticket
 from usine.ui.navigation import Ecran
+from usine.ui.textes import BANDEAU_REPLI, DOSSIER_REPLI, REPLI_ABSENT
 
 # Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
 INTERVALLE_SONDAGE = 1.0  # secondes entre deux lectures de la progression, Chaîne en cours
@@ -73,24 +73,12 @@ _FICHIER_ERREURS = "fichier_erreurs"
 _ECHEC_LANCEMENT = "echec_lancement"
 
 
-_DOSSIER_REPLI = f"{REPERTOIRE_REPLI.as_posix()}/"
-
-# Bandeau permanent du Mode repli, premier élément de la zone principale.
-BANDEAU_REPLI = (
-    f"**Mode repli** : la démo lit le Passage enregistré `{_DOSSIER_REPLI}`, sans Jira ni LLM"
-    " réels ; les liens Jira sont inactifs."
-)
+_DOSSIER_REPLI = DOSSIER_REPLI
 
 # Aide de la bascule latérale du Mode repli.
 AIDE_REPLI = (
     f"Activation manuelle : l'UI lit le Passage enregistré {_DOSSIER_REPLI} et le lancement est"
     " désactivé."
-)
-
-# Mode repli sans copie versionnée : erreur explicite, jamais de repli silencieux.
-REPLI_ABSENT = (
-    f"Mode repli : Passage enregistré introuvable (`{_DOSSIER_REPLI}manifeste.json` absent) ;"
-    f" restaurer `{_DOSSIER_REPLI}` depuis le dépôt ou désactiver le Mode repli."
 )
 
 # Écran Lancement en Mode repli : bouton visible mais désactivé.
