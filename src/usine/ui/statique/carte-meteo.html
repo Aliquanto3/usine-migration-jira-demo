@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/carte.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -29,7 +30,7 @@
       <nav aria-label="Écrans">
         <ul>
           <li><a class="nav-lien" href="/" aria-current="page">Carte météo</a></li>
-          <li><a class="nav-lien" href="/entites/ENT-A">Détail d'une Entité</a></li>
+          <li><a class="nav-lien" href="/entites">Détail d'une Entité</a></li>
           <li><a class="nav-lien" href="/chaine">Lancement de la Chaîne</a></li>
           <li><a class="nav-lien" href="/agent">Agent</a></li>
           <li><a class="nav-lien" href="/avant-apres">Avant / après</a></li>
@@ -47,10 +48,33 @@
         <p class="legende">Météo des 10 Entités du dernier Passage, à la Date d'arrêté.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
+        <p><a id="message-lien" href="/chaine" hidden></a></p>
       </section>
+      <div id="bloc-carte" hidden>
+        <p class="legende" id="date-arrete"></p>
+        <ul class="tuiles" id="tuiles" aria-label="Entités par météo"></ul>
+        <section class="carte" aria-labelledby="titre-tableau">
+          <h2 id="titre-tableau">Entités du Passage</h2>
+          <div class="filtre">
+            <label for="filtre-meteo" id="libelle-filtre"></label>
+            <select id="filtre-meteo" class="champ"></select>
+          </div>
+          <p class="legende" id="annonce-filtre" role="status"></p>
+          <div class="table-defile" role="region" aria-labelledby="titre-tableau" tabindex="0">
+            <table id="tableau-entites">
+              <caption class="legende" id="legende-tableau"></caption>
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="carte" aria-labelledby="titre-livrables">
+          <h2 id="titre-livrables">Livrables du Passage</h2>
+          <ul class="livrables" id="livrables"></ul>
+        </section>
+      </div>
     </main>
   </div>
 </body>

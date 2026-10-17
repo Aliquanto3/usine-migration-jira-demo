@@ -29,7 +29,7 @@ from usine.ia.agent.repli import REPERTOIRE_REPONSES, charger_reponses
 from usine.ia.agent.session import SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
-from usine.ui.serveur import HOTE, LireManifeste, creer_application
+from usine.ui.serveur import HOTE, LireConsultation, LireManifeste, creer_application
 from usine.ui.textes import REPERTOIRE_REPLI as REPERTOIRE_REPLI
 from usine.ui.textes import REPLI_ABSENT
 
@@ -166,9 +166,31 @@ def lecture_manifeste(racine: Path) -> LireManifeste:
     return lire
 
 
+def lecture_consultation(racine: Path) -> LireConsultation:
+    """Service du serveur : `Consultation` du Passage affiché (dernier Passage publié ou repli).
+
+    En Mode repli, la copie `demo/repli/passage/` absente est une erreur explicite
+    (`REPLI_ABSENT`), jamais un repli silencieux vers `sorties/passages/`.
+    """
+
+    def lire(repli: bool) -> Consultation | None:
+        if not repli:
+            return consultation_dernier_passage(racine)
+        consultation = consultation_repli(racine)
+        if consultation is None:
+            raise UsineErreur(REPLI_ABSENT)
+        return consultation
+
+    return lire
+
+
 def application_web(racine: Path, repli: bool) -> FastAPI:
     """Application FastAPI de l'UI web sur `racine`, dans le mode imposé au démarrage."""
-    return creer_application(repli=repli, lire_manifeste=lecture_manifeste(racine))
+    return creer_application(
+        repli=repli,
+        lire_manifeste=lecture_manifeste(racine),
+        lire_consultation=lecture_consultation(racine),
+    )
 
 
 def _lancer_streamlit() -> int:

@@ -99,6 +99,20 @@ uv run usine ui
 6. Largeur de 320px et zoom à 200 % : aucun défilement horizontal de la page ; la navigation passe au-dessus du contenu sous 768px.
 7. `uv run usine ui --port 8123` : la page répond sur ce port, et sur aucune autre adresse que `127.0.0.1`.
 
+### 3.7 Carte météo, détail d'une Entité et livrables (Story 7.14)
+
+Lancer `uv run usine ui` (Mode réel, après un Passage publié) puis, pour les points 8 et 9, `$env:USINE_MODE_REPLI = "1"; uv run usine ui`.
+
+1. Carte (`/`) : la date d'arrêté, quatre tuiles de comptage (rouge, orange, jaune, vert), le filtre « Filtrer par météo », le tableau des Entités (de la Météo la plus grave à la moins grave, puis par Entité), la légende des flèches au-dessus du tableau et la carte « Livrables du Passage ».
+2. Filtre : choisir « Rouge » ; sans rechargement de la page, seules les lignes rouges restent et un lecteur d'écran (ou l'inspecteur : région `role="status"`) annonce « 2 Entités affichées » (« 1 Entité affichée » au singulier). Une couleur sans Entité affiche « Aucune Entité en {couleur} à cette Date d'arrêté. ».
+3. Navigation « Détail d'une Entité » : mène à la première Entité du tableau (`/entites` redirige vers elle) ; sans Passage publié, elle ramène à la carte.
+4. Détail (`/entites/ENT-A`) : lien « ← Carte météo », sélecteur d'Entité (rien ne se passe avant le clic sur « Afficher »), Météo, Règles déclenchantes (trois premières clés puis un bouton « +N » qui déplie les autres, `aria-expanded`), KPI clés, Prévision, Risque, Explication.
+5. Palier : sur un Passage de Palier 2, le segment « Palier 2 / Palier 1 » apparaît ; « Palier 1 » ajoute `?palier=1` à l'URL sans recharger, affiche « commentaire non généré (Palier 1) », masque la Prévision et laisse Météo, Règles et KPI inchangés ; le focus reste sur le bouton choisi. Sur un Passage de Palier 1, le segment est absent.
+6. Entité absente : `/entites/ENT-INCONNUE` affiche « Entité ENT-INCONNUE absente du Passage affiché. » et un lien « Voir la carte météo ».
+7. Clés de ticket (Mode réel) : chaque clé est un lien qui s'ouvre dans un nouvel onglet ; son nom accessible se termine par « (nouvel onglet) » (inspecteur d'accessibilité).
+8. Mode repli : les clés de ticket sont du texte simple, sans lien ni flèche.
+9. Livrables : cliquer sur « Rapport quotidien » et « Comité de pilotage » télécharge `rapport-AAAA-MM-JJ.xlsx` et `.pptx` (les ouvrir dans Excel et PowerPoint). Supprimer l'un des deux fichiers du Passage, recharger : le livrable affiche « Non généré pour ce Passage », sans lien ; `http://127.0.0.1:8000/livrables/rapport_xlsx` affiche alors une page qui nomme le fichier et renvoie à la carte. `/livrables/autre` répond 404.
+
 ## 4. À ne pas faire sans précaution
 
 - `usine donnees injecter` écrit dans Jira (site `DEMO`). Ne pas le lancer pour un test de routine.

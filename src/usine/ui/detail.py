@@ -20,8 +20,31 @@ from usine.contrats.llm import SortieExplication, SortieNarration, StatutControl
 from usine.contrats.meteo import Couleur, MeteoEntite
 from usine.contrats.passage import Etape, ManifestePassage, StatutEtape
 from usine.contrats.prevision import Prevision, RisqueEntreeRouge, StatutPrevision
-from usine.ui.carte import INCONNUE, formater_regle, tableau_markdown
+from usine.ui.carte import (
+    INCONNUE,
+    TICKETS_MAX,
+    entites_triees,
+    formater_regle,
+    tableau_markdown,
+    url_detail,
+    vue_meteo,
+    vues_tickets,
+)
 from usine.ui.liens import echapper_markdown, lien_ticket
+from usine.ui.vues import (
+    VueBloc,
+    VueDetail,
+    VueExplication,
+    VueExplications,
+    VueLien,
+    VueLigneKpi,
+    VueOptionPalier,
+    VueRegle,
+    VueSection,
+    VueSegmentPalier,
+    VueSegmentTexte,
+    VueTableau,
+)
 
 KPI_CLES: Mapping[str, str] = MappingProxyType(
     {
@@ -143,11 +166,7 @@ def valeur_kpi(code: str, numerateur: int, denominateur: int) -> str:
     return formater_fraction(valeur)
 
 
-def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
-    """KPI clés de la table `SCHEMA_KPI` d'une Entité, dans l'ordre de `KPI_CLES`.
-
-    Une ligne par dimension présente ; un KPI ventilé ajoute ` (dimension)` à son libellé.
-    """
+def _kpi_cles(table: pl.DataFrame, mise_en_forme: Callable[[str], str]) -> list[dict[str, str]]:
     lignes: list[dict[str, str]] = []
     rangees = list(table.iter_rows(named=True))
     for code, libelle in KPI_CLES.items():
@@ -155,7 +174,7 @@ def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
             if rangee["code_kpi"] != code:
                 continue
             dimension: str = rangee["dimension"]
-            nom = f"{libelle} ({echapper_markdown(dimension)})" if dimension else libelle
+            nom = f"{libelle} ({mise_en_forme(dimension)})" if dimension else libelle
             lignes.append(
                 {
                     "KPI": nom,
@@ -163,6 +182,15 @@ def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
                 }
             )
     return lignes
+
+
+def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
+    """KPI clés de la table `SCHEMA_KPI` d'une Entité, dans l'ordre de `KPI_CLES`.
+
+    Une ligne par dimension présente ; un KPI ventilé ajoute ` (dimension)` à son libellé
+    (dimension échappée pour le Markdown).
+    """
+    return _kpi_cles(table, echapper_markdown)
 
 
 def previsions_calculees(manifeste: ManifestePassage) -> bool:
@@ -191,19 +219,19 @@ def _facteurs(prevision: Prevision) -> list[str]:
 def _probabilite_et_horizon(prevision: Prevision) -> list[str]:
     probabilite = Fraction(prevision.probabilite_numerateur, prevision.probabilite_denominateur)
     return [
-        f"- Probabilité de sortie dans l'horizon : {formater_pourcentage(probabilite)}",
-        f"- Horizon : {prevision.horizon_jours_ouvres} jours ouvrés",
+        f"Probabilité de sortie dans l'horizon : {formater_pourcentage(probabilite)}",
+        f"Horizon : {prevision.horizon_jours_ouvres} jours ouvrés",
     ]
 
 
 def _fourchette(prevision: Prevision) -> list[str]:
     optimiste, pessimiste = prevision.date_sortie_optimiste, prevision.date_sortie_pessimiste
     if optimiste is not None and pessimiste is not None:
-        return [f"- Fourchette : {formater_date(optimiste)} – {formater_date(pessimiste)}"]
+        return [f"Fourchette : {formater_date(optimiste)} – {formater_date(pessimiste)}"]
     if optimiste is not None:
-        return [f"- Date optimiste : {formater_date(optimiste)}"]
+        return [f"Date optimiste : {formater_date(optimiste)}"]
     if pessimiste is not None:
-        return [f"- Date pessimiste : {formater_date(pessimiste)}"]
+        return [f"Date pessimiste : {formater_date(pessimiste)}"]
     return []
 
 
@@ -213,12 +241,16 @@ def _texte_une_prevision(prevision: Prevision) -> str:
         lignes = [
             f"**Sortie du rouge estimée** : {formater_date(estimee) if estimee else INCONNUE}",
             "",
-            *_fourchette(prevision),
-            *_probabilite_et_horizon(prevision),
+            *(f"- {ligne}" for ligne in _fourchette(prevision)),
+            *(f"- {ligne}" for ligne in _probabilite_et_horizon(prevision)),
             f"- Méthode : {prevision.methode.value}",
         ]
     elif prevision.statut is StatutPrevision.pas_de_sortie_projetee:
-        lignes = [f"**{PAS_DE_SORTIE}**", "", *_probabilite_et_horizon(prevision)]
+        lignes = [
+            f"**{PAS_DE_SORTIE}**",
+            "",
+            *(f"- {ligne}" for ligne in _probabilite_et_horizon(prevision)),
+        ]
     else:
         codes = ", ".join(code.value for code in prevision.regles_non_projetables)
         lignes = [f"**{NON_PROJETABLE} ({codes})**"]
@@ -277,6 +309,10 @@ def texte_risques(
     propres = [r for r in risques if r.entite == meteo.entite]
     if not propres:
         return AUCUN_RISQUE
+    return tableau_markdown(_lignes_risques(propres))
+
+
+def _lignes_risques(propres: list[RisqueEntreeRouge]) -> list[dict[str, str]]:
     avec_projection = any(r.valeur_projetee_denominateur is not None for r in propres)
     lignes: list[dict[str, str]] = []
     for risque in propres:
@@ -296,7 +332,20 @@ def texte_risques(
                 else INCONNUE
             )
         lignes.append(ligne)
-    return tableau_markdown(lignes)
+    return lignes
+
+
+def _morceaux(texte: str, citations: tuple[str, ...]) -> list[tuple[str, bool]]:
+    """`texte` découpé sur les clés de `citations` : (morceau, est une clé citée).
+
+    Les clés sont bornées par `(?<![\\w-])` et `(?![\\w-])`, les plus longues d'abord.
+    """
+    cles = sorted({c for c in citations if c}, key=len, reverse=True)
+    if not cles:
+        return [(texte, False)]
+    motif = re.compile(rf"(?<![\w-])({'|'.join(re.escape(c) for c in cles)})(?![\w-])")
+    morceaux = motif.split(texte)  # hors clé aux rangs pairs, clés aux rangs impairs
+    return [(morceau, rang % 2 == 1) for rang, morceau in enumerate(morceaux)]
 
 
 def texte_avec_liens(
@@ -304,17 +353,11 @@ def texte_avec_liens(
 ) -> str:
     """`texte` en Markdown, chaque clé citée en lien Jira (texte simple en Mode repli).
 
-    Le texte est découpé sur les clés de `citations`, bornées par `(?<![\\w-])` et
-    `(?![\\w-])`, les plus longues d'abord ; les morceaux hors clé sont échappés.
+    Les morceaux hors clé sont échappés.
     """
-    cles = sorted({c for c in citations if c}, key=len, reverse=True)
-    if not cles:
-        return echapper_markdown(texte)
-    motif = re.compile(rf"(?<![\w-])({'|'.join(re.escape(c) for c in cles)})(?![\w-])")
-    morceaux = motif.split(texte)  # hors clé aux rangs pairs, clés aux rangs impairs
     return "".join(
-        lien_ticket(morceau, url_ticket(morceau)) if rang % 2 else echapper_markdown(morceau)
-        for rang, morceau in enumerate(morceaux)
+        lien_ticket(morceau, url_ticket(morceau)) if est_cle else echapper_markdown(morceau)
+        for morceau, est_cle in _morceaux(texte, citations)
     )
 
 
@@ -354,3 +397,245 @@ def texte_explication(
     if not explications:
         return EXPLICATION_ABSENTE
     return "\n\n".join(_texte_une_explication(e, url_ticket) for e in explications)
+
+
+# --- Vue JSON de l'écran Détail d'une Entité (AD-25) : données structurées, sans Markdown ---
+
+TITRE_PREVISION = "Prévision de sortie du rouge"
+TITRE_RISQUE = "Risque d'entrée en rouge"
+TITRE_EXPLICATION = "Explication"
+LEGENDE_PALIER = "Palier 1 : la même Entité sans aucune sortie LLM."
+LIBELLE_CARTE = "← Carte météo"
+LIBELLE_CARTE_MESSAGE = "Voir la carte météo"
+
+
+def entite_absente(entite: str) -> str:
+    """Message d'une Entité qui n'est pas dans le Passage affiché."""
+    return f"Entité {entite} absente du Passage affiché."
+
+
+def _bloc_une_prevision(prevision: Prevision) -> VueBloc:
+    if prevision.statut is StatutPrevision.sortie_projetee:
+        estimee = prevision.date_sortie_estimee
+        facteurs = [
+            f"{facteur.libelle} :"
+            f" {formater_fraction(Fraction(facteur.numerateur, facteur.denominateur))}"
+            for facteur in prevision.facteurs
+        ]
+        return VueBloc(
+            titre=f"Sortie du rouge estimée : {formater_date(estimee) if estimee else INCONNUE}",
+            items=[
+                *_fourchette(prevision),
+                *_probabilite_et_horizon(prevision),
+                f"Méthode : {prevision.methode.value}",
+            ],
+            sous_titre="Facteurs explicatifs" if facteurs else None,
+            sous_items=facteurs,
+        )
+    if prevision.statut is StatutPrevision.pas_de_sortie_projetee:
+        return VueBloc(titre=PAS_DE_SORTIE, items=_probabilite_et_horizon(prevision))
+    codes = ", ".join(code.value for code in prevision.regles_non_projetables)
+    return VueBloc(titre=f"{NON_PROJETABLE} ({codes})")
+
+
+def section_prevision(
+    meteo: MeteoEntite,
+    previsions: tuple[Prevision, ...],
+    calculees: bool,
+    narrations: tuple[SortieNarration, ...] = (),
+) -> VueSection:
+    """Bloc Prévision en blocs structurés (mêmes cas que `texte_prevision`)."""
+
+    def message(texte: str) -> VueSection:
+        return VueSection(titre=TITRE_PREVISION, message=texte, blocs=[], tableau=None)
+
+    if not calculees:
+        return message(PREVISION_NON_CALCULEE_PASSAGE)
+    if meteo.couleur is not Couleur.rouge:
+        return message(PREVISION_SANS_OBJET)
+    propres = [p for p in previsions if p.entite == meteo.entite]
+    if not propres:
+        return message(PREVISION_NON_CALCULEE_ENTITE)
+    controlees = [
+        n for n in narrations if n.entite == meteo.entite and n.statut_controle in STATUTS_ACCEPTES
+    ]
+    if controlees:
+        blocs = [
+            VueBloc(
+                texte=n.texte,
+                note=f"{NARRATION_CONTROLEE} ({LIBELLES_STATUT[n.statut_controle]})",
+            )
+            for n in controlees
+        ]
+    else:
+        blocs = [_bloc_une_prevision(prevision) for prevision in propres]
+    return VueSection(titre=TITRE_PREVISION, message=None, blocs=blocs, tableau=None)
+
+
+def section_risque(
+    meteo: MeteoEntite, risques: tuple[RisqueEntreeRouge, ...], calculees: bool
+) -> VueSection:
+    """Bloc Risque d'entrée en rouge : message ou tableau (mêmes cas que `texte_risques`)."""
+
+    def message(texte: str) -> VueSection:
+        return VueSection(titre=TITRE_RISQUE, message=texte, blocs=[], tableau=None)
+
+    if not calculees:
+        return message(RISQUE_NON_CALCULE_PASSAGE)
+    if meteo.couleur is Couleur.rouge:
+        return message(RISQUE_SANS_OBJET)
+    propres = [r for r in risques if r.entite == meteo.entite]
+    if not propres:
+        return message(AUCUN_RISQUE)
+    lignes = _lignes_risques(propres)
+    colonnes = list(lignes[0])
+    tableau = VueTableau(
+        colonnes=colonnes, lignes=[[ligne[c] for c in colonnes] for ligne in lignes]
+    )
+    return VueSection(titre=TITRE_RISQUE, message=None, blocs=[], tableau=tableau)
+
+
+def _vue_explication(
+    explication: SortieExplication, url_ticket: Callable[[str], str | None]
+) -> VueExplication:
+    statut = f"{STATUT_CONTROLE} : {LIBELLES_STATUT[explication.statut_controle]}"
+    code = explication.statut_controle.value
+    if explication.statut_controle is StatutControle.rejete:
+        segments = [VueSegmentTexte(texte=explication.texte, ticket=None)]
+        return VueExplication(
+            segments=segments,
+            citations=[],
+            titre_citations=CITATIONS,
+            phrases_retirees=None,
+            statut=statut,
+            statut_code=code,
+        )
+    segments = [
+        VueSegmentTexte(
+            texte=morceau,
+            ticket=vues_tickets([morceau], url_ticket)[0] if est_cle else None,
+        )
+        for morceau, est_cle in _morceaux(explication.texte, explication.citations)
+        if morceau
+    ]
+    return VueExplication(
+        segments=segments,
+        citations=vues_tickets(explication.citations, url_ticket),
+        titre_citations=CITATIONS,
+        phrases_retirees=f"{PHRASES_RETIREES} : {explication.phrases_retirees}",
+        statut=statut,
+        statut_code=code,
+    )
+
+
+def section_explication(
+    palier: Palier,
+    explications: tuple[SortieExplication, ...],
+    url_ticket: Callable[[str], str | None],
+) -> VueExplications:
+    """Zone Explication en données (mêmes cas que `texte_explication`)."""
+    if palier == 1:
+        return VueExplications(
+            titre=TITRE_EXPLICATION, message=EXPLICATION_PALIER_1, explications=[]
+        )
+    if not explications:
+        return VueExplications(
+            titre=TITRE_EXPLICATION, message=EXPLICATION_ABSENTE, explications=[]
+        )
+    return VueExplications(
+        titre=TITRE_EXPLICATION,
+        message=None,
+        explications=[_vue_explication(e, url_ticket) for e in explications],
+    )
+
+
+def _segment_palier(palier: Palier) -> VueSegmentPalier:
+    options = [
+        VueOptionPalier(valeur=2, libelle="Palier 2", actif=palier == 2),
+        VueOptionPalier(valeur=1, libelle="Palier 1", actif=palier == 1),
+    ]
+    return VueSegmentPalier(options=options, legende=LEGENDE_PALIER)
+
+
+def vue_detail_message(
+    message: str, entites: list[VueLien] | None = None, entite: str | None = None
+) -> VueDetail:
+    """Détail remplacé par un message (aucune Météo, Entité absente) et un lien vers la carte."""
+    return VueDetail(
+        erreur=None,
+        message=message,
+        lien_message=VueLien(libelle=LIBELLE_CARTE_MESSAGE, url="/"),
+        entite=entite,
+        entites=entites or [],
+        lien_carte=VueLien(libelle=LIBELLE_CARTE, url="/"),
+        palier=2,
+        segment_palier=None,
+        meteo=None,
+        regles=[],
+        aucune_regle=None,
+        kpi=[],
+        aucun_kpi=None,
+        prevision=None,
+        risque=None,
+        explication=None,
+    )
+
+
+def vue_detail_erreur(erreur: str) -> VueDetail:
+    """Détail vide dont la lecture a échoué : le bandeau d'erreur porte le détail."""
+    return vue_detail_message("").model_copy(
+        update={"erreur": erreur, "message": None, "lien_message": None}
+    )
+
+
+def vue_detail(consultation: LectureDetail, entite: str, palier_demande: Palier = 2) -> VueDetail:
+    """Vue du détail de `entite` ; `palier_demande` vaut `?palier=` (Palier 1 ou 2, FR-46).
+
+    Sur un Passage de Palier 2, `palier_demande=1` affiche l'Explication du Palier 1
+    (`EXPLICATION_PALIER_1`) et masque la Prévision ; Météo, Règles, KPI et Risque ne changent
+    pas. Sur un Passage de Palier 1, le segment est absent et aucune sortie LLM n'est lue.
+    """
+    manifeste = consultation.manifeste()
+    meteos = entites_triees(consultation.meteo())
+    if not meteos:
+        return vue_detail_message("Ce Passage ne contient aucune Météo.")
+    entites = [VueLien(libelle=m.entite, url=url_detail(m.entite)) for m in meteos]
+    meteo = next((m for m in meteos if m.entite == entite), None)
+    if meteo is None:
+        return vue_detail_message(entite_absente(entite), entites)
+    avec_segment = manifeste.palier == 2
+    palier: Palier = 1 if not avec_segment or palier_demande == 1 else 2
+    calculees = previsions_calculees(manifeste)
+    kpi = _kpi_cles(consultation.kpi(entite=entite), lambda dimension: dimension)
+    narrations = consultation.narrations(entite=entite, palier=palier)
+    explications = consultation.explications(entite=entite, palier=palier)
+    previsions = consultation.previsions(entite=entite)
+    risques = consultation.risques(entite=entite)
+    masquer_prevision = avec_segment and palier == 1
+    return VueDetail(
+        erreur=None,
+        message=None,
+        lien_message=None,
+        entite=entite,
+        entites=entites,
+        lien_carte=VueLien(libelle=LIBELLE_CARTE, url="/"),
+        palier=palier,
+        segment_palier=_segment_palier(palier) if avec_segment else None,
+        meteo=vue_meteo(meteo.couleur),
+        regles=[
+            VueRegle(
+                regle=formater_regle(regle),
+                tickets=vues_tickets(regle.tickets_en_cause, consultation.url_ticket),
+                visibles=TICKETS_MAX,
+            )
+            for regle in meteo.regles
+        ],
+        aucune_regle=None if meteo.regles else AUCUNE_REGLE,
+        kpi=[VueLigneKpi(libelle=ligne["KPI"], valeur=ligne["Valeur"]) for ligne in kpi],
+        aucun_kpi=None if kpi else AUCUN_KPI,
+        prevision=None
+        if masquer_prevision
+        else section_prevision(meteo, previsions, calculees, narrations),
+        risque=section_risque(meteo, risques, calculees),
+        explication=section_explication(palier, explications, consultation.url_ticket),
+    )

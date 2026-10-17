@@ -93,8 +93,69 @@
     });
   }
 
+  // Éléments du DOM : textContent et createElement seulement, jamais innerHTML (données du
+  // serveur non fiables). Les textes arrivent déjà écrits par le serveur (AD-9).
+  function creer(balise, classe, texte) {
+    var element = document.createElement(balise);
+    if (classe) {
+      element.className = classe;
+    }
+    if (texte !== undefined && texte !== null) {
+      element.textContent = texte;
+    }
+    return element;
+  }
+
+  function vider(element) {
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+  }
+
+  // Clé de ticket : lien Jira dans un nouvel onglet, ou texte simple (url absente, Mode repli).
+  function ticket(vue) {
+    if (!vue.url) {
+      return creer("span", "ticket", vue.cle);
+    }
+    var lien = creer("a", "ticket ticket--lien", vue.cle);
+    lien.href = vue.url;
+    lien.target = "_blank";
+    lien.rel = "noopener noreferrer";
+    lien.setAttribute("aria-label", vue.nom_accessible);
+    return lien;
+  }
+
+  // Pastille météo : la couleur nomme la teinte, le libellé porte l'information.
+  function pastilleMeteo(vue) {
+    var pastille = creer("span", "pastille-meteo pastille-meteo--" + vue.couleur);
+    pastille.appendChild(creer("span", "pastille-meteo-point"));
+    pastille.appendChild(creer("span", "pastille-meteo-libelle", vue.libelle));
+    return pastille;
+  }
+
+  // Liste de clés de ticket séparées par des virgules ; tableau vide : cellule vide.
+  function listeTickets(tickets) {
+    var conteneur = creer("span", "tickets");
+    tickets.forEach(function (vue, rang) {
+      if (rang > 0) {
+        conteneur.appendChild(document.createTextNode(", "));
+      }
+      conteneur.appendChild(ticket(vue));
+    });
+    return conteneur;
+  }
+
   // Aux écrans de 7.14 à 7.16 : même fonction d'appel, même bandeau d'erreur unique.
-  window.usine = { appeler: appeler };
+  window.usine = {
+    appeler: appeler,
+    creer: creer,
+    vider: vider,
+    ticket: ticket,
+    pastilleMeteo: pastilleMeteo,
+    listeTickets: listeTickets,
+    poserBandeau: poserBandeau,
+    retirerBandeau: retirerBandeau,
+  };
 
   chargerCadre();
   // Retour sur l'onglet : relit le cadre ; un serveur arrêté entre-temps affiche le bandeau.

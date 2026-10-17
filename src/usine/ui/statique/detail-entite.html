@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/detail.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -29,7 +30,7 @@
       <nav aria-label="Écrans">
         <ul>
           <li><a class="nav-lien" href="/">Carte météo</a></li>
-          <li><a class="nav-lien" href="/entites/ENT-A" aria-current="page">Détail d'une Entité</a></li>
+          <li><a class="nav-lien" href="/entites" aria-current="page">Détail d'une Entité</a></li>
           <li><a class="nav-lien" href="/chaine">Lancement de la Chaîne</a></li>
           <li><a class="nav-lien" href="/agent">Agent</a></li>
           <li><a class="nav-lien" href="/avant-apres">Avant / après</a></li>
@@ -44,10 +45,56 @@
         <p class="legende">Règles déclenchantes, KPI, Explication, Prévision et Risque d'une Entité.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
+        <p><a id="message-lien" href="/" hidden></a></p>
       </section>
+      <div id="bloc-detail" hidden>
+        <p class="legende"><a id="lien-carte" href="/"></a></p>
+        <form class="carte formulaire" id="formulaire-entite">
+          <div class="filtre">
+            <label for="choix-entite">Entité</label>
+            <select id="choix-entite" class="champ"></select>
+          </div>
+          <button type="submit" class="bouton-secondaire">Afficher</button>
+        </form>
+        <div class="segment-bloc" id="bloc-segment" hidden>
+          <div class="segment" role="group" aria-label="Palier affiché" id="segment-palier"></div>
+          <p class="legende" id="legende-segment"></p>
+        </div>
+        <section class="carte" aria-labelledby="titre-meteo">
+          <h2 id="titre-meteo">Météo</h2>
+          <p id="meteo-entite"></p>
+        </section>
+        <section class="carte" aria-labelledby="titre-regles">
+          <h2 id="titre-regles">Règles déclenchantes</h2>
+          <p id="aucune-regle" hidden></p>
+          <div class="table-defile" role="region" aria-labelledby="titre-regles" tabindex="0" id="zone-regles">
+            <table id="tableau-regles">
+              <caption class="legende">Règles déclenchantes et tickets en cause</caption>
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="carte" aria-labelledby="titre-kpi">
+          <h2 id="titre-kpi">KPI clés</h2>
+          <p id="aucun-kpi" hidden></p>
+          <ul class="tuiles-kpi" id="liste-kpi"></ul>
+        </section>
+        <section class="carte" aria-labelledby="titre-prevision" id="section-prevision">
+          <h2 id="titre-prevision"></h2>
+          <div id="contenu-prevision"></div>
+        </section>
+        <section class="carte" aria-labelledby="titre-risque">
+          <h2 id="titre-risque"></h2>
+          <div id="contenu-risque"></div>
+        </section>
+        <section class="carte" aria-labelledby="titre-explication">
+          <h2 id="titre-explication"></h2>
+          <div id="contenu-explication"></div>
+        </section>
+      </div>
     </main>
   </div>
 </body>

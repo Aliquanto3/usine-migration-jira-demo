@@ -6,6 +6,8 @@ clé reste alors en texte simple.
 
 import re
 
+from usine.ui.vues import VueTicket
+
 _SPECIAUX = re.compile(r"([\\`*_{}\[\]()<>#+!|~$])")
 """Caractères Markdown (et `$` des formules de Streamlit) échappés par une barre oblique."""
 
@@ -26,3 +28,10 @@ def lien_ticket(cle: str, url: str | None) -> str:
     if url is None:
         return texte
     return f"[{texte}]({url.translate(_DESTINATION)})"
+
+
+def vue_ticket(cle: str, url: str | None) -> VueTicket:
+    """Clé de ticket en donnée : lien (nouvel onglet) si l'URL est connue, sinon texte simple."""
+    return VueTicket(
+        cle=cle, url=url, nom_accessible=None if url is None else f"{cle} (nouvel onglet)"
+    )

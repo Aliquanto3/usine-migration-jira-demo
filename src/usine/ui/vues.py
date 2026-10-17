@@ -51,3 +51,207 @@ def vue_cadre(*, repli: bool, manifeste: ManifestePassage | None, erreur: str | 
         passage_publie=None if manifeste is None else libelle_passage(manifeste),
         erreur=erreur,
     )
+
+
+# --- Carte météo, détail d'une Entité et livrables (Story 7.14) ---
+# Valeurs déjà formatées : le navigateur les affiche telles quelles (AD-9, AD-25).
+
+NomCouleur = Literal["vert", "jaune", "orange", "rouge"]
+NomLivrable = Literal["rapport_xlsx", "rapport_pptx"]
+
+
+class _Vue(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+
+class VueTicket(_Vue):
+    """Clé de ticket : lien Jira (`url`) ou texte simple (`url` à `None`, Mode repli, FR-29)."""
+
+    cle: str
+    url: str | None
+    nom_accessible: str | None
+    """« DEMO-1 (nouvel onglet) » quand `url` est connue, sinon `None`."""
+
+
+class VueLien(_Vue):
+    """Lien interne vers un autre écran."""
+
+    libelle: str
+    url: str
+
+
+class VueMeteo(_Vue):
+    """Pastille météo : nom de la couleur (teinte de la feuille de style) et libellé écrit."""
+
+    couleur: NomCouleur
+    libelle: str
+
+
+class VueTableau(_Vue):
+    """Tableau de cellules en texte simple."""
+
+    colonnes: list[str]
+    lignes: list[list[str]]
+
+
+class VueComptage(_Vue):
+    """Tuile de comptage : nombre d'Entités de la couleur."""
+
+    meteo: VueMeteo
+    nombre: int
+
+
+class VueOptionFiltre(_Vue):
+    """Option du filtre météo ; `valeur` vaut `toutes` ou le nom de la couleur."""
+
+    valeur: str
+    libelle: str
+    message_vide: str
+
+
+class VueFiltre(_Vue):
+    """Filtre météo de la carte et textes de la région `role="status"`."""
+
+    libelle: str
+    options: list[VueOptionFiltre]
+    annonce_une: str
+    annonce_plusieurs: str
+    """Contient `{n}`, remplacé par le nombre de lignes affichées."""
+
+
+class VueLigneCarte(_Vue):
+    """Une Entité de la carte."""
+
+    entite: str
+    meteo: VueMeteo
+    tendance: str
+    regle_principale: str
+    tickets: list[VueTicket]
+    tickets_restants: int
+    """Tickets en cause non listés (`+N`)."""
+    url_detail: str
+    libelle_detail: str
+
+
+class VueLivrable(_Vue):
+    """Livrable du Passage affiché ; `url` vaut `None` s'il est absent (aucun lien)."""
+
+    nom: NomLivrable
+    libelle: str
+    fichier: str
+    description: str
+    """Type et taille (« Excel (.xlsx) · 96 Ko ») ; vide si le livrable est absent."""
+    url: str | None
+    absent: str | None
+
+
+class VueCarte(_Vue):
+    """Écran Carte météo."""
+
+    erreur: str | None
+    message: str | None
+    """Remplace la carte (aucun Passage, aucune Météo)."""
+    lien_message: VueLien | None
+    sous_titre: str | None
+    comptages: list[VueComptage]
+    filtre: VueFiltre | None
+    legende: str | None
+    lignes: list[VueLigneCarte]
+    livrables: list[VueLivrable]
+    vide: str = "—"
+    """Contenu d'une cellule sans valeur (aucun ticket)."""
+
+
+class VueRegle(_Vue):
+    """Règle déclenchante et tous ses tickets en cause."""
+
+    regle: str
+    tickets: list[VueTicket]
+    visibles: int
+    """Tickets affichés d'emblée ; le bouton « +N » déplie les autres."""
+
+
+class VueLigneKpi(_Vue):
+    libelle: str
+    valeur: str
+
+
+class VueBloc(_Vue):
+    """Paragraphe d'un bloc de texte : titre, texte, liste, sous-liste titrée et note."""
+
+    titre: str | None = None
+    texte: str | None = None
+    items: list[str] = []
+    sous_titre: str | None = None
+    sous_items: list[str] = []
+    note: str | None = None
+
+
+class VueSection(_Vue):
+    """Prévision ou Risque : message à la place du contenu, blocs ou tableau."""
+
+    titre: str
+    message: str | None
+    blocs: list[VueBloc]
+    tableau: VueTableau | None
+
+
+class VueSegmentTexte(_Vue):
+    """Morceau du texte d'une Explication : texte brut ou clé de ticket citée."""
+
+    texte: str
+    ticket: VueTicket | None
+
+
+class VueExplication(_Vue):
+    segments: list[VueSegmentTexte]
+    citations: list[VueTicket]
+    titre_citations: str
+    phrases_retirees: str | None
+    statut: str
+    statut_code: str
+    """Valeur de `StatutControle` (teinte du badge)."""
+
+
+class VueExplications(_Vue):
+    titre: str
+    message: str | None
+    explications: list[VueExplication]
+
+
+class VueOptionPalier(_Vue):
+    valeur: Literal[1, 2]
+    libelle: str
+    actif: bool
+
+
+class VueSegmentPalier(_Vue):
+    """Segment Palier 1 / Palier 2 (Passage de Palier 2 seulement) et sa légende."""
+
+    options: list[VueOptionPalier]
+    legende: str
+
+
+class VueDetail(_Vue):
+    """Écran Détail d'une Entité."""
+
+    erreur: str | None
+    message: str | None
+    """Remplace le détail (aucun Passage, aucune Météo, Entité absente)."""
+    lien_message: VueLien | None
+    entite: str | None
+    entites: list[VueLien]
+    """Entités du Passage dans l'ordre de la carte ; `libelle` est l'Entité."""
+    lien_carte: VueLien
+    palier: Literal[1, 2]
+    segment_palier: VueSegmentPalier | None
+    meteo: VueMeteo | None
+    regles: list[VueRegle]
+    aucune_regle: str | None
+    kpi: list[VueLigneKpi]
+    aucun_kpi: str | None
+    prevision: VueSection | None
+    risque: VueSection | None
+    explication: VueExplications | None
+    vide: str = "—"
+    """Contenu d'une cellule sans valeur (aucun ticket)."""

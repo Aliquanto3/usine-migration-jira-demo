@@ -29,9 +29,15 @@ FIN = datetime(2026, 10, 16, 19, 5, 40, tzinfo=UTC)
 LIEN_NAV = r'<a class="nav-lien" href="([^"]+)"( aria-current="page")?>([^<]+)</a>'
 
 
+def _aucune(_repli: bool) -> None:
+    return None
+
+
 def client(*, repli: bool = False, passage: ManifestePassage | None = None) -> TestClient:
     return TestClient(
-        creer_application(repli=repli, lire_manifeste=lambda _repli: passage),
+        creer_application(
+            repli=repli, lire_manifeste=lambda _repli: passage, lire_consultation=_aucune
+        ),
         base_url=f"http://{HOTE}",
     )
 
@@ -163,7 +169,11 @@ def test_cadre_lecture_impossible() -> None:
     def lire(_repli: bool) -> ManifestePassage | None:
         raise UsineErreur("manifeste illisible")
 
-    vue = TestClient(creer_application(repli=False, lire_manifeste=lire)).get("/api/cadre").json()
+    vue = (
+        TestClient(creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune))
+        .get("/api/cadre")
+        .json()
+    )
     assert vue["erreur"] == "manifeste illisible"
     assert vue["passage_publie"] is None
     assert vue["mode"] == "reel"
@@ -176,7 +186,9 @@ def test_le_mode_ne_change_jamais_seul() -> None:
         appels.append(repli)
         raise UsineErreur("illisible")
 
-    http = TestClient(creer_application(repli=False, lire_manifeste=lire))
+    http = TestClient(
+        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune)
+    )
     assert http.get("/api/cadre").json()["mode"] == "reel"
     assert http.get("/api/cadre").json()["mode"] == "reel"
     assert appels == [False, False]
@@ -214,7 +226,9 @@ def test_lecture_repli(racine_publiee: Path) -> None:
 def test_lecture_repli_absent(tmp_path: Path) -> None:
     with pytest.raises(UsineErreur, match="introuvable"):
         lecture_manifeste(tmp_path)(True)
-    application = creer_application(repli=True, lire_manifeste=lecture_manifeste(tmp_path))
+    application = creer_application(
+        repli=True, lire_manifeste=lecture_manifeste(tmp_path), lire_consultation=_aucune
+    )
     vue = TestClient(application).get("/api/cadre").json()
     assert vue["erreur"] == REPLI_ABSENT
     assert vue["mode"] == "repli"
@@ -224,7 +238,9 @@ def test_cadre_repertoire_illisible() -> None:
     def lire(_repli: bool) -> ManifestePassage | None:
         raise PermissionError(13, "accès refusé", "sorties/passages")
 
-    reponse = TestClient(creer_application(repli=False, lire_manifeste=lire)).get("/api/cadre")
+    reponse = TestClient(
+        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune)
+    ).get("/api/cadre")
     assert reponse.status_code == 200
     assert reponse.json()["erreur"].startswith("Lecture du Passage impossible")
 
