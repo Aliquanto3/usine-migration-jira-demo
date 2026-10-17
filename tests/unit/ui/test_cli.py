@@ -191,3 +191,16 @@ def test_manifestes_avant_apres_seule_classification_initiale(tmp_path: Path) ->
     seul = manifeste(classification_initiale=True)
     publier(tmp_path, seul)
     assert cli_ui.manifestes_avant_apres(tmp_path) == (None, seul)
+
+
+def test_ui_port_reellement_occupe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import socket
+
+    monkeypatch.chdir(tmp_path)
+    with socket.socket() as occupant:
+        occupant.bind(("127.0.0.1", 0))
+        occupant.listen()
+        port = occupant.getsockname()[1]
+        resultat = CliRunner().invoke(app, ["ui", "--port", str(port)])
+    assert resultat.exit_code == 1
+    assert f"impossible sur 127.0.0.1:{port}" in resultat.stderr

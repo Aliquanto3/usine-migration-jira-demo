@@ -138,7 +138,7 @@ def test_cadre_mode_reel_avec_passage() -> None:
         "mode": "reel",
         "libelle_mode": "Mode réel",
         "bandeau_repli_html": None,
-        "passage_publie": "Passage publié · 16/10/2026 19:05",
+        "passage_publie": "Passage publié · 16/10/2026 19:05 UTC",
         "erreur": None,
     }
 
@@ -218,3 +218,21 @@ def test_lecture_repli_absent(tmp_path: Path) -> None:
     vue = TestClient(application).get("/api/cadre").json()
     assert vue["erreur"] == REPLI_ABSENT
     assert vue["mode"] == "repli"
+
+
+def test_cadre_repertoire_illisible() -> None:
+    def lire(_repli: bool) -> ManifestePassage | None:
+        raise PermissionError(13, "accès refusé", "sorties/passages")
+
+    reponse = TestClient(creer_application(repli=False, lire_manifeste=lire)).get("/api/cadre")
+    assert reponse.status_code == 200
+    assert reponse.json()["erreur"].startswith("Lecture du Passage impossible")
+
+
+def test_cadre_heure_convertie_en_utc() -> None:
+    from datetime import timedelta, timezone
+
+    paris = datetime(2026, 10, 16, 21, 5, tzinfo=timezone(timedelta(hours=2)))
+    passage = manifeste(secondes=0, debut=paris)
+    vue = client(passage=passage).get("/api/cadre").json()
+    assert vue["passage_publie"] == "Passage publié · 16/10/2026 19:05 UTC"

@@ -40,7 +40,7 @@ PAGES: dict[str, str] = {
 
 LireManifeste = Callable[[bool], ManifestePassage | None]
 """Manifeste du Passage affiché dans le mode donné (`True` : Mode repli), `None` s'il n'y en a pas ;
-lève `UsineErreur` si la lecture est impossible."""
+lève `UsineErreur` (ou `OSError`) si la lecture est impossible."""
 
 
 def creer_application(*, repli: bool, lire_manifeste: LireManifeste) -> FastAPI:
@@ -55,6 +55,9 @@ def creer_application(*, repli: bool, lire_manifeste: LireManifeste) -> FastAPI:
             return vue_cadre(repli=repli, manifeste=lire_manifeste(repli), erreur=None)
         except UsineErreur as exc:
             return vue_cadre(repli=repli, manifeste=None, erreur=str(exc))
+        except OSError as exc:  # répertoire illisible : bandeau d'erreur, pas une 500
+            erreur = f"Lecture du Passage impossible : {exc}"
+            return vue_cadre(repli=repli, manifeste=None, erreur=erreur)
 
     application.add_api_route("/api/cadre", cadre, response_model=VueCadre)
 

@@ -91,7 +91,7 @@ Vérifier que l'interface s'ouvre et que la carte, le détail des Entités et l'
 uv run usine ui
 ```
 
-1. Sur chaque page : l'en-tête montre le logo, « Usine de migration », la pastille « Passage publié · JJ/MM/AAAA HH:MM » (absente s'il n'y a aucun Passage), la pastille « Mode réel » et le bouton « Lancer la Chaîne » (absent sur `/chaine`) ; la navigation latérale a sept liens dont un seul actif ; l'onglet s'intitule « {Écran} · Usine de migration » ; il n'y a ni « Chargement… » ni bandeau d'erreur.
+1. Sur chaque page : l'en-tête montre le logo, « Usine de migration », la pastille « Passage publié · JJ/MM/AAAA HH:MM UTC » (absente s'il n'y a aucun Passage), la pastille « Mode réel » et le bouton « Lancer la Chaîne » (absent sur `/chaine`) ; la navigation latérale a sept liens dont un seul actif ; l'onglet s'intitule « {Écran} · Usine de migration » ; il n'y a ni « Chargement… » ni bandeau d'erreur.
 2. Au clavier : la première touche Tab fait apparaître « Aller au contenu » ; Entrée amène le focus sur le titre ; l'anneau de focus reste visible partout.
 3. Hors réseau (couper le Wi-Fi ou débrancher le câble, recharger) : les polices (Fredoka, Atkinson Hyperlegible, JetBrains Mono), la feuille et le script se chargent ; dans l'onglet Réseau des outils du navigateur, aucune requête ne sort de `127.0.0.1`.
 4. Mode repli : relancer avec `$env:USINE_MODE_REPLI = "1"; uv run usine ui`. La pastille « Mode repli » et le bandeau « Mode repli : la démo lit le Passage enregistré `demo/repli/passage/` … » s'affichent sur toutes les pages. Sans la variable (la remettre à vide), le mode est « Mode réel ». Le mode ne change jamais seul.

@@ -5,6 +5,7 @@ arrivent déjà écrits. Les vues des écrans (carte, détail, …) s'ajoutent i
 7.14 à 7.16.
 """
 
+from datetime import UTC
 from typing import Literal
 
 from markdown_it import MarkdownIt
@@ -17,7 +18,7 @@ from usine.ui.textes import BANDEAU_REPLI
 LIBELLE_MODE_REEL = "Mode réel"
 LIBELLE_MODE_REPLI = "Mode repli"
 
-_MARKDOWN = MarkdownIt("commonmark")
+_MARKDOWN = MarkdownIt("commonmark", {"html": False})  # aucun HTML brut ne traverse
 
 
 class VueCadre(BaseModel):
@@ -30,15 +31,15 @@ class VueCadre(BaseModel):
     bandeau_repli_html: str | None
     """`app.BANDEAU_REPLI` rendu en HTML en ligne (`<strong>`, `<code>`), texte constant."""
     passage_publie: str | None
-    """« Passage publié · JJ/MM/AAAA HH:MM », ou `None` s'il n'y a pas de Passage affiché."""
+    """« Passage publié · JJ/MM/AAAA HH:MM UTC », ou `None` s'il n'y a pas de Passage affiché."""
     erreur: str | None
     """Lecture impossible (manifeste, racine) : détail affiché dans le bandeau d'erreur."""
 
 
 def libelle_passage(manifeste: ManifestePassage) -> str:
-    """« Passage publié · JJ/MM/AAAA HH:MM », date et heure (UTC) de fin du Passage."""
-    fin = manifeste.horodatage_fin
-    return f"Passage publié · {formater_date(fin.date())} {fin:%H:%M}"
+    """« Passage publié · JJ/MM/AAAA HH:MM UTC », fin du Passage (convention de `rendu.commun`)."""
+    fin = manifeste.horodatage_fin.astimezone(UTC)
+    return f"Passage publié · {formater_date(fin.date())} {fin:%H:%M} UTC"
 
 
 def vue_cadre(*, repli: bool, manifeste: ManifestePassage | None, erreur: str | None) -> VueCadre:

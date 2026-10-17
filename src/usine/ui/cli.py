@@ -154,11 +154,13 @@ def lecture_manifeste(racine: Path) -> LireManifeste:
     """
 
     def lire(repli: bool) -> ManifestePassage | None:
-        consultation = consultation_repli(racine) if repli else consultation_dernier_passage(racine)
+        if not repli:  # manifeste seul : ni `.env` ni `config/jira.yaml` relus (URL Jira inutile)
+            racine_passages = racine / REPERTOIRE_PASSAGES
+            lecteur = ConsultationPassage(racine_passages, racine_passages=racine_passages)
+            return lecteur.dernier_passage()
+        consultation = consultation_repli(racine)
         if consultation is None:
-            if repli:
-                raise UsineErreur(REPLI_ABSENT)
-            return None
+            raise UsineErreur(REPLI_ABSENT)
         return consultation.manifeste()
 
     return lire
@@ -202,4 +204,12 @@ def ui(
         pass
     except OSError as exc:
         typer.echo(f"Erreur : démarrage du serveur impossible ({exc})", err=True)
+        raise typer.Exit(1) from exc
+    except SystemExit as exc:  # uvicorn journalise l'échec du bind puis sort (code 3)
+        if exc.code in (0, None):
+            return
+        typer.echo(
+            f"Erreur : démarrage du serveur impossible sur {HOTE}:{port} (port occupé ?)",
+            err=True,
+        )
         raise typer.Exit(1) from exc
