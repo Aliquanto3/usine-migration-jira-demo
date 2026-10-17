@@ -25,6 +25,7 @@ from usine.ui.carte import (
     TICKETS_MAX,
     entites_triees,
     formater_regle,
+    libelle_suite,
     tableau_markdown,
     url_detail,
     vue_meteo,
@@ -625,8 +626,11 @@ def vue_detail(consultation: LectureDetail, entite: str, palier_demande: Palier 
         regles=[
             VueRegle(
                 regle=formater_regle(regle),
-                tickets=vues_tickets(regle.tickets_en_cause, consultation.url_ticket),
-                visibles=TICKETS_MAX,
+                tickets=vues_tickets(regle.tickets_en_cause[:TICKETS_MAX], consultation.url_ticket),
+                tickets_suite=vues_tickets(
+                    regle.tickets_en_cause[TICKETS_MAX:], consultation.url_ticket
+                ),
+                libelle_suite=libelle_suite(len(regle.tickets_en_cause) - TICKETS_MAX),
             )
             for regle in meteo.regles
         ],

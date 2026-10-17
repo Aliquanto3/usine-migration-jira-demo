@@ -151,14 +151,13 @@
       if (!regle.tickets.length) {
         cellule.textContent = vue.vide;
       } else {
-        cellule.appendChild(u.listeTickets(regle.tickets.slice(0, regle.visibles)));
-        var reste = regle.tickets.slice(regle.visibles);
-        if (reste.length) {
+        cellule.appendChild(u.listeTickets(regle.tickets));
+        if (regle.libelle_suite) {
           var suite = texte("span", "tickets-suite");
           suite.hidden = true;
           suite.appendChild(document.createTextNode(", "));
-          suite.appendChild(u.listeTickets(reste));
-          var bouton = texte("button", "bouton-texte", "+" + reste.length);
+          suite.appendChild(u.listeTickets(regle.tickets_suite));
+          var bouton = texte("button", "bouton-texte", regle.libelle_suite);
           bouton.type = "button";
           bouton.setAttribute("aria-expanded", "false");
           bouton.addEventListener("click", function () {

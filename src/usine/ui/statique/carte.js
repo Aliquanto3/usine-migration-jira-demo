@@ -67,8 +67,8 @@
       var tickets = u.creer("td");
       if (ligne.tickets.length) {
         tickets.appendChild(u.listeTickets(ligne.tickets));
-        if (ligne.tickets_restants > 0) {
-          tickets.appendChild(u.creer("span", null, " +" + ligne.tickets_restants));
+        if (ligne.suite) {
+          tickets.appendChild(u.creer("span", null, " " + ligne.suite));
         }
       } else {
         tickets.textContent = vue.vide;

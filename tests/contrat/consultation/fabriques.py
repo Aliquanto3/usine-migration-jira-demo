@@ -12,6 +12,9 @@ au filtre de FR-44.
 `classification_initiale`), manifeste en Palier 2, complétée de `previsions.json`,
 `trace/previsions.jsonl`, `llm/*.json` et `repartition_causes.parquet` écrits par les modèles
 de contrats pour ENT-B (Risque d'entrée en rouge : ENT-A).
+
+`passage_sans_livrables` : copie du Passage sous une racine distincte, sans ses deux Rapports
+(`livrable` rend `None`).
 """
 
 import atexit
@@ -37,7 +40,7 @@ from usine.contrats.llm import (
     SortieNarration,
 )
 from usine.contrats.meteo import CodeIndicateur
-from usine.contrats.passage import EnveloppeFichier, ManifestePassage
+from usine.contrats.passage import EnveloppeFichier, ManifestePassage, chemin_fichier_passage
 from usine.contrats.prevision import (
     ContenuPrevisions,
     FacteurExplicatif,
@@ -66,6 +69,8 @@ class CasConsultation:
     """`url_ticket` rend une URL (sinon `None`, Mode repli)."""
     avec_sorties: bool = False
     """Le Passage porte Prévisions, Risque, trace et sorties LLM pour `entite`."""
+    avec_livrables: bool = True
+    """Le Passage porte `rapport_xlsx` et `rapport_pptx` (sinon ni l'un ni l'autre)."""
 
 
 PASSAGE_CLASSIFICATION_INITIALE = "20261012T093000Z-c0ffef"
@@ -276,8 +281,49 @@ def passage_palier_2() -> CasConsultation:
     )
 
 
+@functools.cache
+def _passage_sans_livrables() -> tuple[Path, Path]:
+    """Copie du Passage d'essai sous une racine distincte, sans `rapport_xlsx` ni `rapport_pptx`.
+
+    La copie marquée `classification_initiale` l'accompagne, intacte.
+    """
+    _, repertoire = _passage_publie()
+    racine_passages = Path(tempfile.mkdtemp(prefix="contrat-consultation-sl-")) / "passages"
+    atexit.register(shutil.rmtree, racine_passages.parent, ignore_errors=True)
+    cible_date = racine_passages / repertoire.parent.name
+    cible = cible_date / repertoire.name
+    shutil.copytree(repertoire, cible)
+    shutil.copytree(
+        repertoire.parent / PASSAGE_CLASSIFICATION_INITIALE,
+        cible_date / PASSAGE_CLASSIFICATION_INITIALE,
+    )
+    manifeste = ManifestePassage.model_validate_json(
+        (cible / "manifeste.json").read_text(encoding="utf-8")
+    )
+    for nom in ("rapport_xlsx", "rapport_pptx"):
+        (cible / chemin_fichier_passage(nom, manifeste.date_arrete)).unlink()
+    return racine_passages, cible
+
+
+def passage_sans_livrables() -> CasConsultation:
+    """`ConsultationPassage` sur le Passage d'essai privé de ses deux Rapports."""
+    racine, _ = _passage_publie()
+    racine_passages, repertoire = _passage_sans_livrables()
+    consultation = ConsultationPassage(
+        repertoire, racine_passages=racine_passages, url_jira=_url_jira(racine)
+    )
+    return CasConsultation(
+        consultation,
+        "ENT-A",
+        PASSAGE_CLASSIFICATION_INITIALE,
+        url_attendue=True,
+        avec_livrables=False,
+    )
+
+
 FABRIQUES: list[tuple[str, Callable[[], CasConsultation]]] = [
     ("passage_publie", passage_publie),
     ("passage_mode_repli", passage_mode_repli),
     ("passage_palier_2", passage_palier_2),
+    ("passage_sans_livrables", passage_sans_livrables),
 ]

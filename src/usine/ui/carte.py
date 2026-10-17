@@ -234,11 +234,16 @@ def entites_triees(meteos: Sequence[MeteoEntite]) -> list[MeteoEntite]:
     return sorted(par_entite, key=lambda meteo: meteo.couleur, reverse=True)
 
 
+def libelle_suite(reste: int) -> str | None:
+    """« +N » des tickets en cause non listés ; `None` s'il n'en reste pas."""
+    return f"+{reste}" if reste > 0 else None
+
+
 def taille_lisible(octets: int) -> str:
-    """`512 o`, `96 Ko`, `1,2 Mo`."""
+    """`512 o`, `96 Ko`, `1,2 Mo` ; l'arrondi ne produit jamais « 1024 Ko »."""
     if octets < 1024:
         return f"{octets} o"
-    if octets < 1024 * 1024:
+    if round(octets / 1024) < 1024:
         return f"{round(octets / 1024)} Ko"
     return f"{octets / (1024 * 1024):.1f} Mo".replace(".", ",")
 
@@ -323,7 +328,7 @@ def vue_carte(consultation: LectureVueCarte) -> VueCarte:
                 tendance=tendance(evolutions.get(meteo.entite)),
                 regle_principale=regle_principale(meteo),
                 tickets=vues_tickets(cles[:TICKETS_MAX], consultation.url_ticket),
-                tickets_restants=max(len(cles) - TICKETS_MAX, 0),
+                suite=libelle_suite(len(cles) - TICKETS_MAX),
                 url_detail=url_detail(meteo.entite),
                 libelle_detail=f"Détail {meteo.entite}",
             )

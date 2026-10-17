@@ -167,5 +167,9 @@ def test_palier_1_par_entite(cas: CasConsultation) -> None:
 def test_livrable(cas: CasConsultation, nom: Literal["rapport_xlsx", "rapport_pptx"]) -> None:
     """Contrats 1.9.0 : octets du livrable du Passage lu, ou `None` s'il est absent (AD-11)."""
     octets = cas.consultation.livrable(nom)
-    assert octets is None or (isinstance(octets, bytes) and octets.startswith(b"PK"))
+    if cas.avec_livrables:
+        assert isinstance(octets, bytes)
+        assert octets.startswith(b"PK")  # classeur ou présentation OOXML
+    else:
+        assert octets is None
     assert cas.consultation.livrable(nom) == octets  # lecture répétable

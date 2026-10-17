@@ -2,13 +2,13 @@
 title: "Story 7.14 : Carte météo, détail d'une Entité et livrables"
 type: 'feature'
 created: '2026-10-18'
-status: 'review'
+status: 'done'
 baseline_revision: '9e4639c0c68867d5d3becd508ee9df9557946560'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['_bmad-output/implementation-artifacts/epic-7-context.md']
 warnings: []
-deferred: ['colonne « Anomalies ouvertes » du tableau des Entités, variation depuis J-1 des tuiles de comptage, encart Agent (trois questions types) et bouton de question du détail : non demandés par les critères de la Story 7.14 ; l encart et le bouton relèvent de 7.16 (écran Agent, `/agent?question=`), les deux premiers sont à décider avec le Pilote', 'heure de génération des livrables (Design : « puis l heure de génération ») : `Consultation.livrable` ne renvoie que les octets, l heure demanderait une autre méthode du port, hors périmètre', 'suppression des sorties Markdown des modules purs (`tableau_markdown`, `lien_ticket`, `echapper_markdown`, `texte_*`, `lignes_*`, pastilles emoji) : encore utilisées par `app.py` (Streamlit) ; elles partent avec lui en 7.17', 'intégration (AD-21) : `src/usine/contrats/versions.py` (1.9.0), `src/usine/ports/consultation.py`, `docs/tests-manuels.md` sont des fichiers de `main` : fusionner la lane dans `main` sans pousser `lane/7-ui-web` seule, comme pour 7.13']
+deferred: ['colonne « Anomalies ouvertes » du tableau des Entités, variation depuis J-1 des tuiles de comptage, encart Agent (trois questions types) et bouton de question du détail : non demandés par les critères de la Story 7.14 ; l encart et le bouton relèvent de 7.16 (écran Agent, `/agent?question=`), les deux premiers sont à décider avec le Pilote', 'heure de génération des livrables (Design : « puis l heure de génération ») : `Consultation.livrable` ne renvoie que les octets, l heure demanderait une autre méthode du port, hors périmètre', 'suppression des sorties Markdown des modules purs (`tableau_markdown`, `lien_ticket`, `echapper_markdown`, `texte_*`, `lignes_*`, pastilles emoji) : encore utilisées par `app.py` (Streamlit) ; elles partent avec lui en 7.17', 'intégration (AD-21) : `controle_lanes.py` signale 12 fichiers hors de la lane 7 (`docs/tests-manuels.md`, `src/usine/consultation/passage.py`, `src/usine/contrats/versions.py`, `src/usine/ports/consultation.py`, `tests/contrat/consultation/fabriques.py`, `tests/contrat/consultation/test_contrat.py`, `tests/unit/adaptateurs/journal/test_source_journal.py`, `tests/unit/consultation/test_passage.py`, `tests/unit/contrats/test_evenements.py`, `tests/unit/contrats/test_llm.py`, `tests/unit/contrats/test_passage.py`, `tests/unit/contrats/test_versions.py`) : écart connu et accepté, la lane n est jamais poussée seule, `main` avance rapidement sur elle, comme pour 7.13']
 ---
 
 <intent-contract>
@@ -91,3 +91,20 @@ deferred: ['colonne « Anomalies ouvertes » du tableau des Entités, variation 
 - `node --check src/usine/ui/statique/carte.js` et `detail.js` -- sans erreur.
 - `bash verif_nav.sh <worktree> 8765 / /entites/ENT-A "/entites/ENT-A?palier=1" /entites/ENT-INCONNUE` (Edge headless, Mode repli) -- sortie 0 ; DOM : 10 lignes de carte (2 rouges, 1 orange, 6 jaunes, 1 verte), annonce « 10 Entités affichées », deux liens de livrables ; détail rempli ; Entité inconnue : message et lien. Avec une copie du repli en Palier 2 : segment présent, `?palier=1` masque la Prévision.
 - `curl -sI http://127.0.0.1:<port>/livrables/rapport_xlsx` (Mode repli) -- 200, type OOXML, `content-disposition: attachment; filename="rapport-2026-10-09.xlsx"`.
+
+## Revue
+
+Revue unique (Opus) du 2026-10-18 sur `9e4639c..9eb4728`, avec la liste du second avis (Haiku).
+
+- medium · second avis 1 · corrigé (spec) · `controle_lanes.py` signale 11 fichiers hors lane (12 avec `fabriques.py`), la note d'intégration n'en citait que 3 : liste complète dans `deferred` ; écart accepté (lane jamais poussée seule).
+- medium · second avis 2 · corrigé · `test_livrable` du contrat acceptait un `livrable()` toujours `None` : nouvelle fabrique `passage_sans_livrables` (copie sans les deux Rapports) et champ `CasConsultation.avec_livrables` ; présence (octets `PK`) exigée sur les trois Passages qui les ont, `None` exigé sur le quatrième.
+- low · second avis 3 · rejeté · Entité absente en HTTP 200 : `/api/*` rend toujours une vue d'écran (erreurs comprises, champ `erreur`) ; un 404 ferait afficher « serveur injoignable » par `usine.appeler` au lieu du message demandé.
+- low · second avis 4 · rejeté · `/` dans un nom d'Entité : impossible, `EntiteProgramme.code` impose `^ENT-[A-Z0-9]+$`.
+- low · second avis 5 · corrigé · sous-titre de `carte-meteo.html` sans « 10 » en dur : « Météo de chaque Entité du Passage affiché, à la Date d'arrêté. »
+- low · second avis 6 · corrigé · AD-9 : le serveur envoie « +N » (`VueLigneCarte.suite`, `VueRegle.libelle_suite`) et coupe les tickets (`tickets` / `tickets_suite`) ; `carte.js` et `detail.js` n'ont plus ni `slice` ni concaténation de compte.
+- low · second avis 7 · rejeté · chemins absolus dans les messages d'erreur : comportement préexistant de `ConsultationPassage` (Streamlit compris), serveur lié à 127.0.0.1, message échappé ; le chemin aide le Pilote à réparer.
+- low · second avis 8 · corrigé · `taille_lisible(1 048 575)` rendait « 1024 Ko » : bascule en Mo dès que l'arrondi atteint 1024 Ko ; test ajouté.
+- low · second avis 9 · rejeté · relecture des deux Rapports à chaque `/api/carte` : quelques dizaines de Ko, lecture ouvrir-lire-fermer voulue (AD-8) ; le port ne donne pas de taille sans lire, en ajouter une sortirait du périmètre des contrats.
+- info · dev · confirmé · `/entites` redirige (307) vers la première Entité, ou vers `/` sans Passage ou en erreur de lecture : la carte affiche alors le message ou le bandeau ; testé.
+- info · dev · confirmé · Prévision masquée seulement à `?palier=1` sur un Passage Palier 2 : c'est le critère de la story (epics.md, Story 7.14) ; sur un Passage Palier 1 la Prévision est déterministe et reste affichée comme dans l'UI Streamlit (parité 7.2/7.7).
+- Vérification navigateur (Edge headless, Mode repli) : `/`, `/entites/ENT-A`, `/entites/ENT-A?palier=1`, `/entites/ENT-INCONNUE` en sortie 0 ; carte à 10 lignes (2 rouges, 1 orange, 6 jaunes, 1 verte), « 10 Entités affichées », deux liens de livrables, « +N » servis par l'API ; Entité inconnue : message et lien.

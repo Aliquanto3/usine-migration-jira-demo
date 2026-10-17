@@ -127,8 +127,8 @@ class VueLigneCarte(_Vue):
     tendance: str
     regle_principale: str
     tickets: list[VueTicket]
-    tickets_restants: int
-    """Tickets en cause non listés (`+N`)."""
+    suite: str | None
+    """« +N » : tickets en cause non listés ; `None` s'il n'y en a pas."""
     url_detail: str
     libelle_detail: str
 
@@ -167,8 +167,11 @@ class VueRegle(_Vue):
 
     regle: str
     tickets: list[VueTicket]
-    visibles: int
-    """Tickets affichés d'emblée ; le bouton « +N » déplie les autres."""
+    """Tickets affichés d'emblée."""
+    tickets_suite: list[VueTicket]
+    """Tickets dépliés par le bouton `libelle_suite`."""
+    libelle_suite: str | None
+    """« +N » ; `None` si `tickets_suite` est vide."""
 
 
 class VueLigneKpi(_Vue):

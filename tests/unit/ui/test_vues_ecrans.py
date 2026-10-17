@@ -186,7 +186,7 @@ def test_carte_tri_comptages_et_lignes() -> None:
     assert premiere["meteo"] == {"couleur": "rouge", "libelle": "Rouge"}
     assert premiere["regle_principale"] == "IND-2 : 11 (seuil ≥ 10)"
     assert [t["cle"] for t in premiere["tickets"]] == ["DEMO-1", "DEMO-2", "DEMO-3"]
-    assert premiere["tickets_restants"] == 2
+    assert premiere["suite"] == "+2"
     assert premiere["url_detail"] == "/entites/ENT-B"
     assert premiere["libelle_detail"] == "Détail ENT-B"
     assert vue["sous_titre"] == "Date d'arrêté : 09/10/2026"
@@ -239,6 +239,9 @@ def test_taille_lisible() -> None:
     assert carte.taille_lisible(512) == "512 o"
     assert carte.taille_lisible(34842) == "34 Ko"
     assert carte.taille_lisible(1_300_000) == "1,2 Mo"
+    assert carte.taille_lisible(1_047_000) == "1022 Ko"
+    assert carte.taille_lisible(1_048_575) == "1,0 Mo"  # jamais « 1024 Ko »
+    assert carte.libelle_suite(0) is None
 
 
 def test_carte_sans_meteo() -> None:
@@ -288,8 +291,9 @@ def test_detail_palier_2_complet() -> None:
     assert vue["meteo"]["couleur"] == "rouge"
     (regle,) = vue["regles"]
     assert regle["regle"] == "IND-2 : 11 (seuil ≥ 10)"
-    assert len(regle["tickets"]) == 5
-    assert regle["visibles"] == 3
+    assert [t["cle"] for t in regle["tickets"]] == ["DEMO-1", "DEMO-2", "DEMO-3"]
+    assert [t["cle"] for t in regle["tickets_suite"]] == ["DEMO-4", "DEMO-5"]
+    assert regle["libelle_suite"] == "+2"
     assert [(k["libelle"], k["valeur"]) for k in vue["kpi"]] == [
         ("Anomalies ouvertes", "40"),
         ("Taux KO des Cas de test (tnr)", formater_pourcentage(Fraction(1, 4))),
