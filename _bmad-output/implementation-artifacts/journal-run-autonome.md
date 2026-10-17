@@ -170,3 +170,17 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
   - verdict SM-9 de la 6.9 : l'essai réel n'a pas abouti (`UnexpectedModelBehavior` de Haiku, puis arrêt du second essai pour mémoire basse). La commande est dans la spec 6.9. Il faut aussi traiter ce risque dans `classer` avant la 6.10 ;
   - décider s'il faut réinjecter `DEMO` avec le Corpus définitif : Jira et le Journal local portent encore les textes provisoires ;
   - ménage possible : la branche `bloque/4-5` et les Passages de test dans `sorties/passages/`.
+
+## Run de nuit : migration de l'UI vers FastAPI + HTML statique (17-18/10/2026, plafond 2 M tokens)
+
+Source : Sprint Change Proposal du 2026-10-17 (AD-25). Stories 7.13 à 7.17 en série sur L7 (`../usine-lanes/lane-7-ui-web`, branche `lane/7-ui-web`). Par story : `dev-story` (Sonnet, workflow `bmad-build-auto` sans son étape de revue), `second-avis` (Haiku), `reviewer` (Opus, Sonnet pour 7.17).
+
+Règles propres au run :
+- Seul changement de contrats permis : `Consultation.livrable` (1.9.0, Story 7.14) avec sa suite `tests/contrat/`. Tout autre changement de `contrats/` ou `ports/` arrête la story (branche `bloque/<story>`).
+- Vérification navigateur par écran livré : `node --check`, `usine ui` en Mode repli, `msedge --headless --dump-dom` sur chaque URL, sans « Chargement… » ni bandeau d'erreur.
+- Intégration : `main` fusionné dans la lane, contrôles complets, avance rapide de `main`, push de `main` si vert, CI suivie par `gh run watch`. La branche `lane/7-ui-web` n'est pas poussée : `controle_lanes.py` refuse les fichiers de `main` qu'elle touche (`pyproject.toml`, `uv.lock`, spine, `tests/depot/`), comme en 7.8.
+- Ni étiquette ni release : la version 0.10.0 est préparée sans être publiée.
+
+| Story | Statut | Commit sur `main` | Coût (agents) | Résumé |
+|---|---|---|---|---|
+| 7.13 | done | `bc8ab21` | ~370 k | `usine ui` lance uvicorn sur 127.0.0.1 (`ui/serveur.py`, services injectés par `ui/cli.py`) ; sept pages statiques avec cadre commun, `cadre.css`, `cadre.js`, polices OFL locales (Atkinson Hyperlegible, JetBrains Mono, Fredoka convertie en woff2) ; `fastapi==0.143.3` (starlette 1.7.0 inchangé) ; Mode repli par `USINE_MODE_REPLI` ; ancienne UI sous `usine ui --streamlit`. Revue : 500 sur `OSError` du cadre, port occupé, heure UTC explicite, markdown-it sans HTML brut. |

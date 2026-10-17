@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-11-2026 07:55
-last_updated: 12-10-2026 19:00
+last_updated: 18-10-2026 (run UI web)
 project: usine-migration-jira-demo
 project_key: NOKEY
 tracking_system: file-system
@@ -150,7 +150,7 @@ development_status:
   7-10-suite-d-évaluation-de-l-agent: done
   7-11-réponses-enregistrées-de-l-agent-et-mode-repli-complet: done
   # Migration UI FastAPI + HTML statique (SCP 2026-10-17), en série sur L7, avant 7.12
-  7-13-socle-web-fastapi-et-cadre-commun: backlog
+  7-13-socle-web-fastapi-et-cadre-commun: done
   7-14-carte-météo-détail-d-une-entité-et-livrables: backlog  # contrats 1.9.0 (Consultation.livrable)
   7-15-lancement-de-la-chaîne-et-bouton-de-mode: backlog
   7-16-agent-avant-après-pseudonymisation-et-outillage: backlog
