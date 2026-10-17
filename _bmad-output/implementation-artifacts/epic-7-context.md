@@ -46,7 +46,7 @@ Donner au Pilote et à l'auteur les écrans de la démo de 10 minutes présenté
 
 - **Périmètre d'écriture de la lane** : `ia/agent`, `ui/`, `demo/`, `config/demo.yaml`, `evals/agent` et leurs tests miroirs. `contrats/` et `ports/` ne changent que par une PR dédiée sur `main`.
 - **Lecture des Passages** : l'UI et l'Agent lisent un Passage uniquement via `Consultation` (dernier Passage : `dernier_passage()`, ou `dernier_passage(sans_classification_initiale=True)` pour l'avant / après). Ils n'ouvrent jamais `entrepot.duckdb` ni un répertoire `.en-cours-*`. Les URL de ticket viennent uniquement de `consultation.url_ticket(cle)`, qui renvoie `None` en Mode repli. Le formatage français vient de `contrats.format`. La comparaison des Paliers passe par le filtre `palier` de `Consultation`.
-- **Couches** : `ui` (Streamlit 1.65) peut importer `contrats`, `consultation` et `composition`, mais pas `ports`. Elle déclare le `Protocol` local `LectureMeteo`, tenu aligné sur `Consultation` par un test de conformité. `ia/agent` peut importer `contrats`, `ports` et `consultation`. `pydantic_ai` n'est importé que dans `adaptateurs/llm/`. `import-linter` vérifie ces règles en CI.
+- **Couches** : `ui` (FastAPI + HTML statique, AD-25 ; Streamlit 1.65 jusqu'à la Story 7.17) peut importer `contrats`, `consultation` et `composition`, mais pas `ports`. Elle déclare le `Protocol` local `LectureMeteo`, tenu aligné sur `Consultation` par un test de conformité. `ia/agent` peut importer `contrats`, `ports` et `consultation`. `pydantic_ai` n'est importé que dans `adaptateurs/llm/`. `import-linter` vérifie ces règles en CI.
 - **Lancement de la Chaîne** : l'UI démarre `usine rapport` en sous-processus. Elle lit `sorties/progression/<passage_id>.jsonl` en ouvrir-lire-fermer. Les étapes suivent l'énumération figée `Etape`, avec les statuts en cours, réussie, `sautee` et en échec, plus leur durée. En échec, l'UI nomme l'étape fautive et n'affiche aucun rapport partiel. La durée mesurée vient des horodatages du manifeste.
 - **Outils de l'Agent** : exactement `get_meteo`, `list_anomalies` (filtres Entité, Gravité, Phase, statut), `get_tendance`, `get_prevision` et `get_risques`. Leurs signatures et résultats sont des contrats de `contrats.agent`, servis par `Consultation`. `OutilAgent` est une `@dataclass(frozen=True)`.
 - **Passerelle LLM** : l'Agent passe par `ia.passerelle`, tâche `agent`, et la méthode `executer_agent` du port `FournisseurLLM` (`output_type=str`, jamais combinée à un schéma de sortie). La passerelle enveloppe chaque outil pour que son résultat soit pseudonymisé et tracé avant d'atteindre le fournisseur. L'ordre est imposé : Pseudonymisation → cache → fournisseur → contrôle → ré-identification → trace. Les tests utilisent `FournisseurFactice`.
@@ -58,7 +58,7 @@ Donner au Pilote et à l'auteur les écrans de la démo de 10 minutes présenté
 
 ## UX & Interaction Patterns
 
-- Aucun document UX : les contenus sont fixés par les exigences, et la mise en page revient à la lane.
+- Jusqu'à 7.11 : aucun document UX. Pour 7.13 à 7.17, la spec UX `planning-artifacts/ux-designs/ux-usine-migration-jira-demo-2026-10-17/` fait foi : `DESIGN.md` pour l'apparence, `EXPERIENCE.md` pour le comportement et les textes. Les maquettes de `imports/maquette-canvas/` et `mockups/` servent de référence visuelle.
 - Navigation en étoile autour de la carte météo. Chaque Entité y figure avec sa Météo, une flèche de tendance J-1 / J-5 et sa Règle déclenchante principale.
 - Un bandeau « Mode repli » est visible en permanence quand le mode est actif.
 - Un sélecteur de Palier sur le détail d'Entité montre ce qu'apporte la couche LLM. En Palier 2, chaque Citation de l'Explication est un lien Jira, et le nombre de phrases retirées est affiché. La narration de la Prévision remplace la Prévision brute seulement si elle a passé le contrôle.
@@ -78,4 +78,9 @@ Donner au Pilote et à l'auteur les écrans de la démo de 10 minutes présenté
 - Story 7.5 : elle exige la fiche de la Story 8.1. La Story 7.12 conditionne la validation de la Story 8.2.
 - Story 7.8 précède 7.9, qui précède 7.10 et 7.11. Story 7.6 précède 7.11.
 - La Story 7.12 suppose toutes les autres stories terminées.
+- Stories 7.13 à 7.17 (migration FastAPI, SCP du 2026-10-17, AD-25) : en série, après 7.11 et avant 7.12.
+  - Les critères des Stories 0.8 et 7.1 à 7.11 restent des critères de parité.
+  - Les constantes de texte des modules de `ui/` restent la source unique de la microcopie.
+  - Chaque story écrit les tests `TestClient` de ses écrans ; la 7.17 supprime les tests Streamlit restants.
+  - Seule la 7.14 touche les contrats, par un ajout autorisé (`Consultation.livrable`, 1.9.0), avec sa suite `tests/contrat/`.
 - Pour la recette finale, les Scénarios A, B et C doivent être calés (Epic 1) et les Prévisions disponibles (Epic 4).
