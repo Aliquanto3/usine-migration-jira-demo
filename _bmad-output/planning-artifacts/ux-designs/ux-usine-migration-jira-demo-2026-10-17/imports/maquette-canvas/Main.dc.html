@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Carte météo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:4px 12px 4px 8px;border-radius:999px;font-weight:700;font-size:14px;color:#0A0A14}
+.pill i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.vert{background:#CAFEE0}.vert i{background:#0B9A4B}
+.jaune{background:#FFF1C7}.jaune i{background:#D9A100}
+.orange{background:#FFE2CC}.orange i{background:#C85A12}
+.rouge{background:#FFD6DC}.rouge i{background:#D80F2E}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{text-align:left;font-weight:700;color:#4A4A5E;font-size:13px;text-transform:uppercase;letter-spacing:.04em;padding:12px 16px;border-bottom:1px solid #E6E6EC}
+td{padding:14px 16px;border-bottom:1px solid #E6E6EC;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+      <a href="Chaine.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: #FFFFFF; color: #250F6B; font-weight: 700; text-decoration: none">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a class="on" href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a href="Agent.dc.html">Agent</a>
+      <a href="#">Avant / après</a>
+      <a href="#">Pseudonymisation</a>
+      <a href="#">Ce qu'il faut pour le faire en vrai</a>
+      <div style="margin-top: 16px; padding: 14px; border-radius: 12px; background: #FFFFFF; border: 1px solid #E6E6EC; font-size: 13px; color: #4A4A5E; line-height: 1.5">Données fictives ou publiques. Chiffres et tickets vérifiés sur le dernier Passage.</div>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px">
+        <div>
+          <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Carte météo</h1>
+          <div style="margin-top: 6px; color: #4A4A5E">Date d'arrêté : 17/10/2026 · 10 Entités · Grille IND-1 à IND-8</div>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4A4A5E">Filtrer par météo
+          <select style="min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid #E6E6EC; background: #FFFFFF; font: inherit; font-size: 15px; color: #0A0A14"><option>Toutes</option><option>Rouge</option><option>Orange</option><option>Jaune</option><option>Vert</option></select>
+        </label>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+        <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+          <div style="background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+            <span class="pill {{t.cls}}"><i></i>{{t.label}}</span>
+            <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 40px; color: #0A0A14">{{t.n}}</div>
+            <div style="font-size: 13px; color: #4A4A5E">{{t.delta}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+        <section style="flex: 999 1 560px; min-width: 0; background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; overflow: hidden">
+          <div style="padding: 18px 20px 6px; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px; color: #250F6B">Entités</div>
+          <div style="overflow-x: auto">
+            <table>
+              <thead><tr><th>Entité</th><th>Météo</th><th>Tendance</th><th>Règle principale</th><th>Anomalies ouvertes</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+                  <tr>
+                    <td style="font-weight: 700">{{r.id}}</td>
+                    <td><span class="pill {{r.cls}}"><i></i>{{r.meteo}}</span></td>
+                    <td class="mono">{{r.trend}}</td>
+                    <td class="mono">{{r.regle}}</td>
+                    <td>{{r.anom}}</td>
+                    <td style="text-align: right"><a href="Detail.dc.html" style="font-weight: 700; white-space: nowrap">Détail {{r.id}}</a></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <div style="background: #250F6B; color: #FFFFFF; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+            <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Demander à l'agent</div>
+            <div style="font-size: 14px; color: #C9BDFF; line-height: 1.5">Lecture seule : il interroge le dernier Passage, chaque chiffre est contrôlé.</div>
+            <a href="Agent.dc.html" style="display: block; padding: 12px 14px; border-radius: 12px; background: #3A2393; color: #FFFFFF; text-decoration: none; font-size: 14px">Quelle Entité risque de passer au rouge, et pourquoi ?</a>
+            <a href="Agent.dc.html" style="display: block; padding: 12px 14px; border-radius: 12px; background: #3A2393; color: #FFFFFF; text-decoration: none; font-size: 14px">Pourquoi ENT-B est-elle rouge ?</a>
+            <a href="Agent.dc.html" style="display: block; padding: 12px 14px; border-radius: 12px; background: #3A2393; color: #FFFFFF; text-decoration: none; font-size: 14px">Combien d'Anomalies sont ouvertes chez ENT-C ?</a>
+          </div>
+          <div style="background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px; color: #250F6B">Livrables du Passage</div>
+            <a href="#" style="font-weight: 700">Rapport quotidien.xlsx</a>
+            <a href="#" style="font-weight: 700">Comité de pilotage.pptx</a>
+            <div style="font-size: 13px; color: #4A4A5E">Générés à 07:42 · 10 étapes réussies</div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = { Vert: 'vert', Jaune: 'jaune', Orange: 'orange', Rouge: 'rouge' };
+    const data = [
+      ['ENT-B', 'Rouge', 'J-1 ↗ · J-5 ↗', 'IND-2 : 11 (seuil ≥ 10)', 14],
+      ['ENT-E', 'Orange', 'J-1 ↗ · J-5 →', 'IND-5 : 38 % (seuil ≥ 30 %)', 9],
+      ['ENT-C', 'Jaune', 'J-1 → · J-5 ↗', 'IND-1 : 6 (seuil ≥ 5)', 7],
+      ['ENT-H', 'Jaune', 'J-1 ↘ · J-5 →', 'IND-3 : 4 j (seuil ≥ 3 j)', 5],
+      ['ENT-A', 'Vert', 'J-1 → · J-5 ↘', '—', 2],
+      ['ENT-D', 'Vert', 'J-1 → · J-5 →', '—', 1],
+      ['ENT-F', 'Vert', 'J-1 ↘ · J-5 ↘', '—', 3],
+      ['ENT-G', 'Vert', 'J-1 → · J-5 →', '—', 0],
+      ['ENT-I', 'Vert', 'J-1 → · J-5 ↘', '—', 2],
+      ['ENT-J', 'Vert', 'J-1 → · J-5 →', '—', 1]
+    ];
+    return {
+      rows: data.map(([id, meteo, trend, regle, anom]) => ({ id, meteo, trend, regle, anom, cls: C[meteo] })),
+      tiles: [
+        { label: 'Rouge', cls: 'rouge', n: 1, delta: 'stable depuis J-1' },
+        { label: 'Orange', cls: 'orange', n: 1, delta: '+1 depuis J-1' },
+        { label: 'Jaune', cls: 'jaune', n: 2, delta: 'stable depuis J-1' },
+        { label: 'Vert', cls: 'vert', n: 6, delta: '−1 depuis J-1' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

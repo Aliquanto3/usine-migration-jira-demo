@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Lancement de la Chaîne</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.card{background:#FFFFFF;border:1px solid #E6E6EC;border-radius:18px;padding:20px;min-width:0}
+.h2{font-family:Fredoka,sans-serif;font-weight:600;font-size:20px;color:#250F6B;margin:0}
+.step{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:14px}
+.dot{width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:14px}
+.s-ok .dot{background:#04F06A;color:#250F6B}
+.s-run{background:#EDE7FE}.s-run .dot{background:#451DC7;color:#FFFFFF}
+.s-wait .dot{background:#F6F5FA;color:#4A4A5E;border:1px solid #E6E6EC}
+.badge{margin-left:auto;font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px}
+.s-ok .badge{background:#CAFEE0;color:#0A5A2E}
+.s-run .badge{background:#451DC7;color:#FFFFFF}
+.s-wait .badge{background:#F6F5FA;color:#4A4A5E}
+.go{min-height:48px;padding:0 22px;border:none;border-radius:14px;background:#451DC7;color:#FFFFFF;font:inherit;font-weight:700;font-size:16px;cursor:pointer}
+.go:hover{background:#250F6B}
+.go:disabled{background:#8A8A9E;cursor:default}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a class="on" href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a href="Agent.dc.html">Agent</a>
+      <a href="#">Avant / après</a>
+      <a href="#">Pseudonymisation</a>
+      <a href="#">Ce qu'il faut pour le faire en vrai</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div>
+          <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Lancement de la Chaîne</h1>
+          <div style="margin-top: 6px; color: #4A4A5E">Extraction Jira → Météo → IA → Excel et PowerPoint, en 10 étapes.</div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+          <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; color: #4A4A5E"><input type="checkbox" style="width: 20px; height: 20px; accent-color: #451DC7"> Mode repli (sans Jira ni LLM)</label>
+          <button class="go" onClick="{{lancer}}" disabled="{{busy}}">{{btnLabel}}</button>
+        </div>
+      </div>
+      <sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 18px; background: #CAFEE0; color: #0A5A2E; font-weight: 700">✓ Chaîne terminée : Passage publié. <a href="Main.dc.html" style="color: #0A5A2E">Voir la carte météo</a></div>
+      </sc-if>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+        <section class="card" style="flex: 999 1 520px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px">
+            <div class="h2">Étapes</div>
+            <div class="mono" style="color: #4A4A5E">{{progress}}</div>
+          </div>
+          <div style="height: 8px; border-radius: 999px; background: #EDE7FE; overflow: hidden; margin-bottom: 10px"><div style="height: 8px; border-radius: 999px; background: #04F06A; width: {{pct}}"></div></div>
+          <sc-for list="{{steps}}" as="s" hint-placeholder-count="10">
+            <div class="step {{s.cls}}">
+              <div class="dot">{{s.n}}</div>
+              <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                <div class="mono" style="font-weight: 600; color: #0A0A14">{{s.id}}</div>
+                <div style="font-size: 13px; color: #4A4A5E">{{s.desc}}</div>
+              </div>
+              <span class="badge">{{s.label}}</span>
+            </div>
+          </sc-for>
+        </section>
+        <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <section style="background: #0A0A14; color: #E6E6EC; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px; color: #FFFFFF">Journal de progression</div>
+            <sc-for list="{{log}}" as="l" hint-placeholder-count="4">
+              <div class="mono" style="line-height: 1.5; color: #C9BDFF">{{l}}</div>
+            </sc-for>
+          </section>
+          <section class="card" style="display: flex; flex-direction: column; gap: 8px">
+            <div class="h2" style="font-size: 18px">Dernier Passage</div>
+            <div style="font-size: 14px; color: #4A4A5E; line-height: 1.6">17/10/2026 07:42 · 3 min 12 s<br>412 tickets DEMO extraits · 10 Entités<br>manifeste.json publié</div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { cur: -1 }; }
+  componentWillUnmount() { clearInterval(this.timer); }
+  renderVals() {
+    const S = [
+      ['extraction', 'Lecture des tickets Jira du projet DEMO'],
+      ['instantanes', 'Photo du jour, comparée à J-1 et J-5'],
+      ['kpi', 'Calcul des indicateurs par Entité'],
+      ['meteo', 'Application de la Grille IND-1 à IND-8'],
+      ['prevision', 'Date probable de sortie du rouge'],
+      ['classification', 'Tri des Anomalies par l’IA'],
+      ['repartition_causes', 'Causes principales par Entité'],
+      ['explications', 'Explication sourcée du rouge, contrôlée'],
+      ['narration', 'Synthèse pour le comité'],
+      ['rendu', 'Excel et PowerPoint']
+    ];
+    const cur = this.state.cur;
+    const busy = cur >= 0 && cur < S.length;
+    const done = cur >= S.length;
+    const steps = S.map(([id, desc], i) => {
+      const st = done || i < cur ? 'ok' : i === cur ? 'run' : 'wait';
+      return { id, desc, n: st === 'ok' ? '✓' : String(i + 1), cls: 's-' + st, label: { ok: 'Réussie', run: 'En cours', wait: 'En attente' }[st] };
+    });
+    const nOk = done ? S.length : Math.max(cur, 0);
+    const log = cur < 0 ? ['En attente d’un lancement.'] : S.slice(0, Math.min(cur + 1, S.length)).map(([id], i) => '07:4' + i + ' ' + (i < cur || done ? '✓ ' : '… ') + id).reverse();
+    return {
+      steps, busy, done, log,
+      progress: nOk + ' / ' + S.length,
+      pct: Math.round(nOk / S.length * 100) + '%',
+      btnLabel: busy ? 'Chaîne en cours…' : done ? 'Relancer la Chaîne' : 'Lancer la Chaîne',
+      lancer: () => {
+        clearInterval(this.timer);
+        this.setState({ cur: 0 });
+        this.timer = setInterval(() => {
+          const n = this.state.cur + 1;
+          this.setState({ cur: n });
+          if (n >= S.length) clearInterval(this.timer);
+        }, 700);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

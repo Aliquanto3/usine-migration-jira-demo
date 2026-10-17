@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Pseudonymisation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.card{background:#FFFFFF;border:1px solid #E6E6EC;border-radius:18px;padding:20px;min-width:0}
+.h2{font-family:Fredoka,sans-serif;font-weight:600;font-size:20px;color:#250F6B;margin:0}
+.txt{margin:0;font-size:16px;line-height:1.7;white-space:pre-line}
+mark{background:#EDE7FE;color:#250F6B;font-family:'JetBrains Mono',monospace;font-size:14px;padding:1px 5px;border-radius:4px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+      <a href="Chaine.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 12px; background: #FFFFFF; color: #250F6B; font-weight: 700; text-decoration: none">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a href="Agent.dc.html">Agent</a>
+      <a href="AvantApres.dc.html">Avant / après</a>
+      <a class="on" href="Pseudonymisation.dc.html" aria-current="page">Pseudonymisation</a>
+      <a href="Outillage.dc.html">Ce qu'il faut pour le faire en vrai</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div>
+          <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Pseudonymisation</h1>
+          <div style="margin-top: 6px; color: #4A4A5E">Ce que le LLM reçoit : la description d'un ticket, sans les données personnelles.</div>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4A4A5E">Ticket
+          <select onChange="{{pick}}" style="min-height: 44px; min-width: 200px; padding: 0 12px; border-radius: 12px; border: 1px solid #8A8A9E; background: #FFFFFF; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #0A0A14"><option value="0">DEMO-17</option><option value="1">DEMO-4</option></select>
+        </label>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px">
+        <a href="#" class="mono" style="font-weight: 600">{{t.cle}}</a>
+        <span style="color: #4A4A5E">{{t.titre}}</span>
+        <span style="color: #4A4A5E">· {{t.n}} données remplacées</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch">
+        <section class="card" style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 12px">
+          <h2 class="h2">Original</h2>
+          <p class="txt">{{t.orig}}</p>
+        </section>
+        <section class="card" style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 12px; border-color: #451DC7">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+            <h2 class="h2">Version pseudonymisée</h2>
+            <span style="padding: 4px 10px; border-radius: 999px; background: #EDE7FE; color: #250F6B; font-size: 13px; font-weight: 700">envoyée au LLM</span>
+          </div>
+          <sc-if value="{{t.first}}" hint-placeholder-val="{{ true }}">
+            <p class="txt">Le client <mark>PERSONNE_1</mark> (<mark>EMAIL_1</mark>, <mark>TELEPHONE_1</mark>) signale que son compte <mark>IBAN_1</mark> n'apparaît pas après la reprise de la Vague 2.
+Contrôle fait par <mark>PERSONNE_2</mark> le 14/10 : le compte est présent dans l'extraction source mais absent de la cible.</p>
+          </sc-if>
+          <sc-if value="{{t.second}}" hint-placeholder-val="{{ false }}">
+            <p class="txt">Écart de solde sur le dossier de <mark>PERSONNE_3</mark> après la migration à blanc. Ticket ouvert par <mark>PERSONNE_4</mark>, joignable au <mark>TELEPHONE_2</mark>.</p>
+          </sc-if>
+        </section>
+      </div>
+      <div style="font-size: 13px; color: #4A4A5E; line-height: 1.6; max-width: 760px">Aperçu local : la description est pseudonymisée sur ce poste, sans appel LLM ni écriture de la table de correspondance (<span class="mono">donnees/pseudonymes.sqlite</span>). Les noms, contacts et pseudonymes de cette maquette sont fictifs ; le format réel des pseudonymes est celui du moteur.</div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const T = [
+      { cle: 'DEMO-17', titre: 'Compte client absent après reprise', n: 5,
+        orig: 'Le client Paul Lefèvre (paul.lefevre@exemple.test, 01 23 45 67 89) signale que son compte FR76 3000 6000 0112 3456 7890 189 n\'apparaît pas après la reprise de la Vague 2.\nContrôle fait par Inès Moreau le 14/10 : le compte est présent dans l\'extraction source mais absent de la cible.' },
+      { cle: 'DEMO-4', titre: 'Écart de solde après migration à blanc', n: 3,
+        orig: 'Écart de solde sur le dossier de Marc Durand après la migration à blanc. Ticket ouvert par Léa Petit, joignable au 01 98 76 54 32.' }
+    ];
+    const i = this.state.i;
+    return {
+      t: Object.assign({}, T[i], { first: i === 0, second: i === 1 }),
+      pick: (e) => this.setState({ i: Number(e.target.value) || 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>

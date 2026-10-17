@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Ce qu'il faut pour le faire en vrai</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.fiche{font-size:16px;line-height:1.6}
+.fiche h2{font-family:Fredoka,sans-serif;font-weight:600;font-size:22px;color:#250F6B;margin:32px 0 12px}
+.fiche h3{font-family:Fredoka,sans-serif;font-weight:600;font-size:18px;color:#250F6B;margin:20px 0 8px}
+.fiche p{margin:0 0 12px}
+.fiche ul{margin:0 0 12px;padding-left:22px}
+.fiche li{margin-bottom:6px}
+.fiche code{font-family:'JetBrains Mono',monospace;font-size:13px;background:#F6F5FA;border:1px solid #E6E6EC;border-radius:4px;padding:0 4px}
+.req{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px}
+.req li{display:flex;gap:14px;align-items:flex-start;margin:0}
+.num{flex:none;width:36px;height:36px;border-radius:12px;background:#EDE7FE;color:#451DC7;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:18px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:820px}
+th{text-align:left;font-weight:700;color:#4A4A5E;font-size:13px;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;border-bottom:1px solid #E6E6EC;vertical-align:bottom}
+td{padding:10px 12px;border-bottom:1px solid #E6E6EC;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.oui,.att,.non{display:inline-block;padding:2px 8px;border-radius:999px;font-size:13px;font-weight:700;margin-right:4px}
+.oui{background:#CAFEE0;color:#0A5A2E}
+.att{background:#FFF1C7;color:#6B4A00}
+.non{background:#FFD6DC;color:#8A0A1E}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+      <a href="Chaine.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 12px; background: #FFFFFF; color: #250F6B; font-weight: 700; text-decoration: none">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a href="Agent.dc.html">Agent</a>
+      <a href="AvantApres.dc.html">Avant / après</a>
+      <a href="Pseudonymisation.dc.html">Pseudonymisation</a>
+      <a class="on" href="Outillage.dc.html" aria-current="page">Ce qu'il faut pour le faire en vrai</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div>
+        <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Ce qu'il faut pour le faire en vrai</h1>
+        <div style="margin-top: 6px; color: #4A4A5E; max-width: 760px">Quel outillage demander au client, dans quel ordre, et comment chaque brique se porte sur chaque cible.</div>
+      </div>
+      <section style="background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; padding: 24px; max-width: 760px; box-sizing: border-box">
+        <h2 style="margin: 0 0 16px; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 22px; color: #250F6B">Demandes, par ordre de priorité</h2>
+        <ol class="req">
+          <li><span class="num" aria-hidden="true">1</span><div><strong>Compte de service Jira en lecture seule + jeton API.</strong> Indispensable pour le palier 1.</div></li>
+          <li><span class="num" aria-hidden="true">2</span><div><strong>Environnement d'exécution Python</strong> (VM ou Dataiku) avec accès réseau à Jira, plus un dépôt Git interne.</div></li>
+          <li><span class="num" aria-hidden="true">3</span><div><strong>Ordonnanceur et cible de publication</strong> (SharePoint ou partage réseau).</div></li>
+          <li><span class="num" aria-hidden="true">4</span><div><strong>Endpoint LLM validé par le client.</strong> Palier 2. À défaut, modèle on-prem.</div></li>
+        </ol>
+      </section>
+      <section style="background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; overflow: hidden">
+        <h2 style="margin: 0; padding: 24px 24px 8px; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 22px; color: #250F6B">Correspondance par brique</h2>
+        <div tabindex="0" role="region" aria-label="Tableau de correspondance, défilable" style="overflow-x: auto">
+          <table>
+            <caption style="text-align: left; padding: 0 24px 8px; font-size: 13px; color: #4A4A5E">Oui : se porte tel quel · À surveiller : possible avec réserve · Non : à refaire</caption>
+            <thead><tr><th scope="col">Brique</th><th scope="col">Serveur / VM Python</th><th scope="col">Dataiku</th><th scope="col">Power Platform</th><th scope="col">Poste local seul</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">Extraction Jira</th><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span> recette Python</td><td><span class="oui">Oui</span> connecteur Jira (limité sur le changelog et les volumes)</td><td><span class="oui">Oui</span></td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">KPI, météo</th><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span> recettes et scénarios</td><td><span class="att">À surveiller</span> possible, peu maintenable</td><td><span class="oui">Oui</span></td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">Prévision ML</th><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span> Visual ML</td><td><span class="non">Non</span></td><td><span class="oui">Oui</span></td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">LLM</th><td><span class="oui">Oui</span> endpoint validé</td><td><span class="oui">Oui</span> LLM Mesh</td><td><span class="oui">Oui</span> AI Builder / Copilot Studio</td><td><span class="att">À surveiller</span> modèle local uniquement</td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">Excel / PPT</th><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span></td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">Agent conversationnel</th><td><span class="oui">Oui</span></td><td><span class="oui">Oui</span> agents Dataiku</td><td><span class="oui">Oui</span> Copilot Studio</td><td><span class="oui">Oui</span></td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">Planification</th><td><span class="oui">Oui</span> cron</td><td><span class="oui">Oui</span> scénarios</td><td><span class="oui">Oui</span> Power Automate</td><td><span class="att">À surveiller</span> poste allumé</td></tr>
+              <tr><th scope="row" style="text-transform: none; letter-spacing: 0; font-size: 14px; color: #0A0A14">UI de démo</th><td><span class="oui">Oui</span></td><td>[À METTRE À JOUR APRÈS LE PASSAGE À FASTAPI]</td><td>[À METTRE À JOUR]</td><td><span class="oui">Oui</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding: 8px 24px 20px; font-size: 13px; color: #4A4A5E">La colonne « Appui dans le dépôt » de la fiche (règle et contrôle par brique) est omise dans cette maquette.</div>
+      </section>
+      <section class="fiche" style="background: #FFFFFF; border: 1px solid #E6E6EC; border-radius: 18px; padding: 8px 24px 16px; max-width: 760px; box-sizing: border-box">
+        <h2>Points d'attention par cible</h2>
+        <h3>VM Python</h3>
+        <ul>
+          <li>Ouvrir le flux vers Jira (proxy, certificats TLS), un miroir PyPI interne pour <code>uv sync</code> et l'accès GitHub au modèle spaCy <code>fr_core_news_md</code>, vérifier les projets visibles du compte de service, poser les secrets en variables d'environnement (AD-19, gitleaks).</li>
+          <li>Le code livré tourne sans adaptation : la CI le joue sous Linux et Windows (NFR-8).</li>
+          <li>Le lancement planifié se résume à <code>usine rapport</code> dans un cron, paramétré par <code>config/*.yaml</code>.</li>
+        </ul>
+        <h3>Dataiku</h3>
+        <ul>
+          <li>Chaque étape de la Chaîne devient une recette Python ; le domaine n'a aucune I/O à réécrire (AD-1, <code>lint-imports</code>).</li>
+          <li>Brancher le LLM Mesh demande un nouvel adaptateur derrière le port LLM existant, sans toucher au domaine.</li>
+        </ul>
+        <h3>Power Platform</h3>
+        <ul>
+          <li>Le connecteur Jira est limité sur le changelog et les volumes : garder l'extraction en Python et ne porter que la publication.</li>
+          <li>La Prévision ML n'a pas d'équivalent : le domaine reste en Python (AD-1).</li>
+        </ul>
+        <h3>Poste seul</h3>
+        <ul>
+          <li>Le palier 1 tourne sans LLM : les étapes LLM sont marquées <code>sautee</code> (FR-28, NFR-8).</li>
+          <li>La planification exige un poste allumé ; un <code>.env</code> par poste porte les secrets (AD-19, gitleaks).</li>
+        </ul>
+      </section>
+      <div style="font-size: 13px; color: #4A4A5E">Fiche <span class="mono">docs/fiche-outillage.md</span> (Story 8.1), affichée en lecture seule. Extraits abrégés dans cette maquette.</div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

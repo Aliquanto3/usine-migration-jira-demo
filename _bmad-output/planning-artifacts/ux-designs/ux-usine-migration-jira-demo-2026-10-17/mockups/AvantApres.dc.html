@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Avant / après</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.card{background:#FFFFFF;border:1px solid #E6E6EC;border-radius:18px;padding:20px;min-width:0}
+.h2{font-family:Fredoka,sans-serif;font-weight:600;font-size:20px;color:#250F6B;margin:0}
+.big{font-family:Fredoka,sans-serif;font-weight:600;font-size:40px;line-height:1.1}
+.tag{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:700}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th{text-align:left;font-weight:700;color:#4A4A5E;font-size:13px;text-transform:uppercase;letter-spacing:.04em;padding:12px 16px;border-bottom:1px solid #E6E6EC}
+td{padding:14px 16px;border-bottom:1px solid #E6E6EC;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+      <a href="Chaine.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: #FFFFFF; color: #250F6B; font-weight: 700; text-decoration: none">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a href="Agent.dc.html">Agent</a>
+      <a class="on" href="AvantApres.dc.html" aria-current="page">Avant / après</a>
+      <a href="Pseudonymisation.dc.html">Pseudonymisation</a>
+      <a href="Outillage.dc.html">Ce qu'il faut pour le faire en vrai</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <div>
+        <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Avant / après</h1>
+        <div style="margin-top: 6px; color: #4A4A5E">Le temps d'un Rapport quotidien fait à la main, face au temps mesuré de la Chaîne.</div>
+      </div>
+      <div class="seg" role="group" aria-label="Période" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 14px; background: #EDE7FE; align-self: flex-start">
+        <button style="{{b1}}" onClick="{{set1}}" aria-pressed="{{p1}}">Par Rapport quotidien</button>
+        <button style="{{b5}}" onClick="{{set5}}" aria-pressed="{{p5}}">Cumulé sur 5 Rapports</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 24px">
+        <section class="card" style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+            <h2 class="h2">Reporting manuel</h2>
+            <span class="tag" style="background: #F6F5FA; color: #4A4A5E; border: 1px solid #E6E6EC">déclaré</span>
+          </div>
+          <div class="big" style="color: #4A4A5E">{{manuel}}</div>
+          <div style="font-size: 14px; color: #4A4A5E; line-height: 1.5">Extraction Jira, consolidation Excel, mise en forme du support de comité, à la main.</div>
+        </section>
+        <section class="card" style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+            <h2 class="h2">Chaîne</h2>
+            <span class="tag" style="background: #CAFEE0; color: #0A5A2E">mesuré</span>
+          </div>
+          <div class="big" style="color: #250F6B">{{chaine}}</div>
+          <div style="font-size: 14px; color: #4A4A5E; line-height: 1.5">De l'extraction au rendu Excel et PowerPoint, 10 étapes, horodatage du manifeste.</div>
+        </section>
+      </div>
+      <section class="card" style="padding: 0; overflow: hidden">
+        <h2 class="h2" style="padding: 20px 20px 0">Détail</h2>
+        <div style="overflow-x: auto">
+          <table>
+            <thead><tr><th scope="col">Rapport</th><th scope="col">Reporting manuel (déclaré)</th><th scope="col">Chaîne (mesuré)</th></tr></thead>
+            <tbody>
+              <tr><td style="font-weight: 700">Par Rapport quotidien</td><td class="mono">120 min</td><td class="mono">3 min 12 s</td></tr>
+              <tr><td style="font-weight: 700">Cumulé sur 5 Rapports</td><td class="mono">600 min</td><td class="mono">16 min</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div style="font-size: 13px; color: #4A4A5E; line-height: 1.6; max-width: 760px">Chaîne mesurée sur le Passage <span class="mono">[passage_id]</span>, Date d'arrêté 17/10/2026, sans classification initiale. Temps manuel : valeur déclarative fictive (<span class="mono">config/demo.yaml</span>, Q-5). Cumul : 5 × le temps d'un Rapport.</div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { p: 1 }; }
+  renderVals() {
+    const one = this.state.p === 1;
+    const base = 'min-height: 44px; padding: 0 18px; border: none; border-radius: 10px; font: inherit; font-size: 15px; cursor: pointer; ';
+    const on = base + 'background: #FFFFFF; color: #250F6B; font-weight: 700; box-shadow: 0 1px 2px rgba(10,10,20,.12)';
+    const off = base + 'background: transparent; color: #4A4A5E';
+    return {
+      manuel: one ? '120 min' : '600 min',
+      chaine: one ? '3 min 12 s' : '16 min',
+      b1: one ? on : off, b5: one ? off : on,
+      p1: one ? 'true' : 'false', p5: one ? 'false' : 'true',
+      set1: () => this.setState({ p: 1 }),
+      set5: () => this.setState({ p: 5 })
+    };
+  }
+}
+</script>
+</body>
+</html>

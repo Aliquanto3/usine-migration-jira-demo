@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Agent</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Atkinson+Hyperlegible:wght@400;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F5FA}
+a{color:#451DC7}a:hover{color:#250F6B}
+.nav a{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-radius:12px;color:#4A4A5E;text-decoration:none;font-size:15px}
+.nav a:hover{background:#EDE7FE;color:#250F6B}
+.nav a.on{background:#451DC7;color:#FFFFFF;font-weight:700}
+.mono{font-family:'JetBrains Mono',monospace;font-size:13px}
+.card{background:#FFFFFF;border:1px solid #E6E6EC;border-radius:18px;padding:20px;min-width:0}
+.h2{font-family:Fredoka,sans-serif;font-weight:600;font-size:18px;color:#250F6B;margin:0}
+.chip{display:block;width:100%;text-align:left;min-height:44px;padding:10px 14px;border-radius:12px;border:1px solid #E6E6EC;background:#FFFFFF;font:inherit;font-size:14px;color:#0A0A14;cursor:pointer}
+.chip:hover{border-color:#451DC7}
+.chip.on{background:#EDE7FE;border-color:#451DC7;color:#250F6B;font-weight:700}
+.tool{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;background:#EDE7FE;color:#250F6B}
+.ok{background:#CAFEE0;color:#0A5A2E}
+.refus{background:#FFF1C7;color:#6B4A00}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #F6F5FA; font-family: 'Atkinson Hyperlegible', sans-serif; color: #0A0A14">
+  <header style="background: #250F6B; color: #FFFFFF; padding: 0 24px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; flex: 1 1 auto">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 18px">U</div>
+      <div style="font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px">Usine de migration</div>
+      <div style="font-size: 13px; color: #C9BDFF">Copilote de pilotage · projet DEMO</div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px">
+      <span style="padding: 6px 12px; border-radius: 999px; background: #3A2393; color: #FFFFFF">Passage publié · 17/10/2026 07:42</span>
+      <span style="padding: 6px 12px; border-radius: 999px; background: #04F06A; color: #250F6B; font-weight: 700">Mode réel</span>
+      <a href="Chaine.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 12px; background: #FFFFFF; color: #250F6B; font-weight: 700; text-decoration: none">Lancer la Chaîne</a>
+    </div>
+  </header>
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box">
+    <nav class="nav" aria-label="Navigation principale" style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html">Carte météo</a>
+      <a href="Detail.dc.html">Détail d'une Entité</a>
+      <a href="Chaine.dc.html">Lancement de la Chaîne</a>
+      <a class="on" href="Agent.dc.html">Agent</a>
+      <a href="#">Avant / après</a>
+      <a href="#">Pseudonymisation</a>
+      <a href="#">Ce qu'il faut pour le faire en vrai</a>
+    </nav>
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <section style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <div>
+          <h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 34px; color: #250F6B">Agent</h1>
+          <div style="margin-top: 6px; color: #4A4A5E">Posez une question sur le dernier Passage. L'agent lit, il ne modifie rien.</div>
+        </div>
+        <div style="display: flex; justify-content: flex-end">
+          <div style="max-width: 80%; padding: 14px 18px; border-radius: 18px 18px 4px 18px; background: #451DC7; color: #FFFFFF; font-size: 16px; line-height: 1.5">{{c.q}}</div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: flex-start">
+          <div aria-hidden="true" style="width: 36px; height: 36px; flex: none; border-radius: 10px; background: #04F06A; color: #250F6B; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600">IA</div>
+          <div class="card" style="flex: 1 1 auto; border-radius: 4px 18px 18px 18px; display: flex; flex-direction: column; gap: 14px">
+            <p style="margin: 0; font-size: 16px; line-height: 1.6; white-space: pre-line">{{c.a}}</p>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #E6E6EC; font-size: 13px">
+              <span class="{{c.ctlCls}}" style="padding: 4px 10px; border-radius: 999px; font-weight: 700">{{c.ctl}}</span>
+              <span style="color: #4A4A5E">Outils appelés :</span>
+              <sc-for list="{{c.tools}}" as="t" hint-placeholder-count="2">
+                <span class="tool mono">{{t}}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <form style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 8px">
+          <label style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #4A4A5E">Votre question
+            <textarea rows="2" style="padding: 12px 14px; border-radius: 14px; border: 1px solid #E6E6EC; background: #FFFFFF; font: inherit; font-size: 15px; color: #0A0A14; resize: vertical">Quelle Entité risque de passer au rouge, et pourquoi ?</textarea>
+          </label>
+          <button type="button" style="min-height: 48px; padding: 0 22px; border: none; border-radius: 14px; background: #451DC7; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 16px; cursor: pointer">Envoyer</button>
+        </form>
+      </section>
+      <aside style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <section class="card" style="display: flex; flex-direction: column; gap: 8px">
+          <div class="h2" style="margin-bottom: 4px">Questions enregistrées</div>
+          <sc-for list="{{qs}}" as="x" hint-placeholder-count="4">
+            <button class="chip {{x.cls}}" onClick="{{x.pick}}">{{x.q}}</button>
+          </sc-for>
+        </section>
+        <section class="card" style="display: flex; flex-direction: column; gap: 10px">
+          <div class="h2">Outils de l'agent</div>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: #4A4A5E">
+            <div><span class="tool mono">get_meteo</span> météo et KPI d'une Entité</div>
+            <div><span class="tool mono">get_risques</span> Entités proches d'un seuil</div>
+            <div><span class="tool mono">get_prevision</span> date de sortie du rouge</div>
+            <div><span class="tool mono">get_tendance</span> évolution J-1 et J-5</div>
+          </div>
+          <div style="font-size: 13px; color: #4A4A5E; line-height: 1.5; padding-top: 8px; border-top: 1px solid #E6E6EC">Chaque réponse est contrôlée : chiffres et tickets cités sont revérifiés dans le Passage avant affichage.</div>
+        </section>
+      </aside>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const C = [
+      { q: 'Quelle Entité risque de passer au rouge, et pourquoi ?',
+        a: 'ENT-E est la plus exposée. Elle est orange : son taux KO des Cas de test atteint 38 % (IND-5), à 2 points du seuil rouge de 40 %, et il monte depuis cinq jours.\nENT-C suit, en jaune, avec 6 Anomalies ouvertes (IND-1, seuil orange à 8).',
+        ctl: '✓ Contrôle : conforme · chiffres et tickets vérifiés', ctlCls: 'ok', tools: ['get_risques', 'get_meteo'] },
+      { q: 'Pourquoi ENT-B est-elle rouge ?',
+        a: 'ENT-B compte 11 Anomalies bloquantes ouvertes (IND-2, seuil ≥ 10), dont DEMO-4, DEMO-17 et DEMO-23. La tendance est à la hausse sur J-1 et J-5.\nAu rythme actuel, la sortie du rouge est prévue vers le 24/10/2026.',
+        ctl: '✓ Contrôle : conforme · chiffres et tickets vérifiés', ctlCls: 'ok', tools: ['get_meteo', 'get_tendance', 'get_prevision'] },
+      { q: 'Combien d’Anomalies sont ouvertes chez ENT-C ?',
+        a: 'ENT-C a 6 Anomalies ouvertes à la date d’arrêté du 17/10/2026, une de moins qu’à J-1.',
+        ctl: '✓ Contrôle : conforme · chiffres et tickets vérifiés', ctlCls: 'ok', tools: ['get_meteo'] },
+      { q: 'Quel est le budget restant du programme de migration ?',
+        a: 'Je ne peux pas répondre : le budget ne figure pas dans les données du Passage. Je réponds seulement sur la météo, les KPI, les tendances et les prévisions des Entités.',
+        ctl: 'Hors périmètre · aucune donnée inventée', ctlCls: 'refus', tools: ['aucun'] }
+    ];
+    return {
+      c: C[this.state.i],
+      qs: C.map((x, i) => ({ q: x.q, cls: i === this.state.i ? 'on' : '', pick: () => this.setState({ i }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>
