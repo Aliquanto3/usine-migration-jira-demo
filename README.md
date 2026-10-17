@@ -7,7 +7,7 @@ Toutes les données sont **fictives ou publiques**. Aucun nom, libellé, gabarit
 - Spécification : [`SPEC-usine-migration-jira-demo.md`](SPEC-usine-migration-jira-demo.md)
 - Artefacts de conception (méthode BMAD) : `_bmad-output/`
 
-Projet en cours de cadrage. Licence MIT.
+Version 0.9.0 : chaîne de reporting utilisable et testée (CI verte), exécutée sur le projet Jira Cloud `DEMO` ; les dernières stories sont en cours. Licence MIT.
 
 ## Performance (NFR-2)
 
