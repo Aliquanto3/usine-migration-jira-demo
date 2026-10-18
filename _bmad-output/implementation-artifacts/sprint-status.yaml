@@ -151,7 +151,7 @@ development_status:
   7-11-réponses-enregistrées-de-l-agent-et-mode-repli-complet: done
   # Migration UI FastAPI + HTML statique (SCP 2026-10-17), en série sur L7, avant 7.12
   7-13-socle-web-fastapi-et-cadre-commun: done
-  7-14-carte-météo-détail-d-une-entité-et-livrables: backlog  # contrats 1.9.0 (Consultation.livrable)
+  7-14-carte-météo-détail-d-une-entité-et-livrables: done  # contrats 1.9.0 (Consultation.livrable)
   7-15-lancement-de-la-chaîne-et-bouton-de-mode: backlog
   7-16-agent-avant-après-pseudonymisation-et-outillage: backlog
   7-17-retrait-de-streamlit: backlog
