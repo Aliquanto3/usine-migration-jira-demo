@@ -8,6 +8,7 @@ de l'Agent (`session_agent`) ou ses réponses enregistrées du Mode repli (`repo
 La page n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, cast
@@ -38,6 +39,29 @@ app = typer.Typer(help="Interface web de la démo (FastAPI, 127.0.0.1).")
 
 PORT = 8000
 """Port local par défaut de l'interface web."""
+
+VARIABLE_HOTE = "USINE_UI_HOTE"
+"""Variable d'environnement réservée au conteneur (Dockerfile) : adresse d'écoute du serveur."""
+
+HOTE_CONTENEUR = "0.0.0.0"
+"""Seule autre adresse d'écoute permise : la publication de port d'un conteneur n'atteint pas
+127.0.0.1 du conteneur. Le contrôle du `Host` et de l'`Origin` reste celui de `HOTE`."""
+
+
+def hote_ecoute() -> str:
+    """Adresse d'écoute : `HOTE` (127.0.0.1) sauf `USINE_UI_HOTE=0.0.0.0` (conteneur seulement).
+
+    Lue dans l'environnement du processus, jamais dans `.env`. Toute autre valeur lève une
+    `UsineErreur` qui nomme la variable.
+    """
+    valeur = os.environ.get(VARIABLE_HOTE, "").strip()
+    if valeur in ("", HOTE):
+        return HOTE
+    if valeur == HOTE_CONTENEUR:
+        return HOTE_CONTENEUR
+    raise UsineErreur(
+        f"{VARIABLE_HOTE}={valeur!r} refusée (valeurs permises : {HOTE} ou {HOTE_CONTENEUR})"
+    )
 
 
 def racine_ui() -> Path:
@@ -231,12 +255,21 @@ def ui(
     try:
         racine = racine_ui()
         repli = mode_repli(racine)
+        hote = hote_ecoute()
     except UsineErreur as exc:
         typer.echo(f"Erreur : {exc}", err=True)
         raise typer.Exit(1) from exc
-    typer.echo(f"Interface web : http://{HOTE}:{port}/" + (" (Mode repli)" if repli else ""))
+    typer.echo(
+        f"Interface web : http://{HOTE}:{port}/"
+        + (" (Mode repli)" if repli else "")
+        + (
+            f" (écoute sur {hote} dans le conteneur ; publier avec -p {HOTE}:{port}:{port})"
+            if hote != HOTE
+            else ""
+        )
+    )
     try:
-        uvicorn.run(application_web(racine, repli), host=HOTE, port=port, log_level="warning")
+        uvicorn.run(application_web(racine, repli), host=hote, port=port, log_level="warning")
     except KeyboardInterrupt:
         pass
     except OSError as exc:
@@ -246,7 +279,7 @@ def ui(
         if exc.code in (0, None):
             return
         typer.echo(
-            f"Erreur : démarrage du serveur impossible sur {HOTE}:{port} (port occupé ?)",
+            f"Erreur : démarrage du serveur impossible sur {hote}:{port} (port occupé ?)",
             err=True,
         )
         raise typer.Exit(1) from exc

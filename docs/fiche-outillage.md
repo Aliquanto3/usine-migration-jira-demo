@@ -50,6 +50,8 @@ La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déj�
 - Aucun mode LLM local n'est livré aujourd'hui (bonus FR-37) ; l'Agent en dépend aussi.
 - La planification exige un poste allumé ; un `.env` par poste porte les secrets (AD-19, gitleaks).
 
+Pour le découpage détaillé, les secrets, les limites et l'image conteneur : [`portage-detaille.md`](portage-detaille.md).
+
 ## Références
 
 AD-1 (couches hexagonales, contrôlées par `lint-imports`), AD-19 (configuration et secrets, contrôlés par le chargeur de `usine.config` et gitleaks) et NFR-8 (cœur sans service propriétaire autre que Jira, contrôlé par la CI Windows et Linux). Sources : `ARCHITECTURE-SPINE.md` et `prd.md` sous `_bmad-output/planning-artifacts/`.

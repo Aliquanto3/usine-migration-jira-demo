@@ -161,5 +161,5 @@ development_status:
   epic-8: in-progress  # lane L8 Portage
   8-1-fiche-outillage-demandé-et-note-de-portage-courte: done
   8-2-validation-par-le-responsable-de-mission-m7: backlog  # prérequis : 7.12 — dernier indispensable
-  8-3-bonus-conteneur-et-note-de-portage-détaillée: backlog  # BONUS — après tous les indispensables
+  8-3-bonus-conteneur-et-note-de-portage-détaillée: review  # BONUS ; Dockerfile à intégrer par PR sur main (build non vérifié)
   epic-8-retrospective: optional

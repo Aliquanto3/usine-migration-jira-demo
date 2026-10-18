@@ -1,0 +1,38 @@
+# Secrets et configuration locale : jamais dans l'image (AD-19).
+.env
+.env.*
+!.env.example
+
+# Données locales, sorties, environnements et caches.
+donnees/
+sorties/
+.venv/
+.git/
+.github/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+*.duckdb
+*.duckdb.wal
+
+# Hors exécution : tests, conception, évaluation, outils, médias.
+tests/
+_bmad/
+_bmad-output/
+evals/
+evaluation/
+outils/
+docs/media/
+.claude/
+.vscode/
+.idea/
+Dockerfile
+.dockerignore

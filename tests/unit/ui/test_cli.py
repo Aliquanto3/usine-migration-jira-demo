@@ -178,3 +178,40 @@ def test_ui_port_reellement_occupe(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         resultat = CliRunner().invoke(app, ["ui", "--port", str(port)])
     assert resultat.exit_code == 1
     assert f"impossible sur 127.0.0.1:{port}" in resultat.stderr
+
+
+def test_hote_conteneur_ecoute_sur_toutes_les_interfaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_UI_HOTE", "0.0.0.0")
+    appels = _capter_uvicorn(monkeypatch)
+    resultat = CliRunner().invoke(app, ["ui"])
+    assert resultat.exit_code == 0, resultat.output
+    assert appels[0]["host"] == "0.0.0.0"
+    assert "http://127.0.0.1:8000/" in resultat.output
+    assert "-p 127.0.0.1:8000:8000" in resultat.output
+    # Le contrôle du Host reste celui de la boucle locale.
+    client = TestClient(appels[0]["application"], base_url="http://0.0.0.0")
+    assert client.get("/api/cadre").status_code == 400
+
+
+def test_hote_par_defaut_et_valeur_explicite_127(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_UI_HOTE", "127.0.0.1")
+    appels = _capter_uvicorn(monkeypatch)
+    resultat = CliRunner().invoke(app, ["ui"])
+    assert appels[0]["host"] == "127.0.0.1"
+    assert "conteneur" not in resultat.output
+
+
+def test_hote_refuse_toute_autre_valeur(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_UI_HOTE", "192.168.1.5")
+    appels = _capter_uvicorn(monkeypatch)
+    resultat = CliRunner().invoke(app, ["ui"])
+    assert resultat.exit_code == 1
+    assert "USINE_UI_HOTE" in resultat.stderr
+    assert appels == []
