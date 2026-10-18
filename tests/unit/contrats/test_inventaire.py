@@ -76,6 +76,8 @@ INVENTAIRE: dict[str, tuple[str, ...]] = {
         "SCHEMA_REPARTITION_CAUSES",
         "SortieExplication",
         "SortieNarration",
+        "PaireDoublon",
+        "SortieDoublons",
         "ReponseAgent",
         "ReponseAgentEnregistree",
         "EnveloppeCache",

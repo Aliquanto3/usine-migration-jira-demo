@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from usine.contrats.erreurs import UsineErreur
 
-CONTRATS_VERSION = "1.10.0"
+CONTRATS_VERSION = "1.11.0"
 """Version des contrats ; toute PR de `contrats/` ou `ports/` l'incrémente (AD-2)."""
 
 CLE_VERSION = "contrats_version"

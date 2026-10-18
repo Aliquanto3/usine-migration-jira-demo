@@ -31,6 +31,8 @@ class Tache(StrEnum):
     explication = "explication"
     narration = "narration"
     agent = "agent"
+    doublons = "doublons"
+    """Détection de doublons (FR-36) : tâche locale, sans appel au fournisseur (contrats 1.11)."""
 
 
 class StatutControle(StrEnum):
@@ -229,6 +231,33 @@ class SortieExplication(Enregistrement):
     citations: tuple[str, ...]
     brouillon_commentaire: str
     phrases_retirees: int = Field(default=0, ge=0)
+    statut_controle: StatutControle = StatutControle.non_controle
+
+
+class PaireDoublon(Enregistrement):
+    """Deux Anomalies probablement en doublon (FR-36) ; `cle_a` précède `cle_b` par rang."""
+
+    cle_a: str = Field(min_length=1)
+    cle_b: str = Field(min_length=1)
+    score: float = Field(ge=0, le=1)
+    """Similarité des textes pseudonymisés, de 0 à 1 ; à revoir par le Pilote."""
+
+    @model_validator(mode="after")
+    def _distinctes(self) -> Self:
+        if self.cle_a == self.cle_b:
+            raise ValueError(f"{self.cle_a} : une paire de doublons porte deux clés distinctes")
+        return self
+
+
+class SortieDoublons(Enregistrement):
+    """Paires d'Anomalies ouvertes probablement en doublon (FR-36), par score décroissant.
+
+    Suggestions à revoir par le Pilote : jamais de fusion, jamais d'écriture dans Jira.
+    """
+
+    date_arrete: date
+    seuil: float = Field(ge=0, le=1)
+    paires: tuple[PaireDoublon, ...] = ()
     statut_controle: StatutControle = StatutControle.non_controle
 
 

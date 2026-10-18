@@ -124,6 +124,7 @@ from usine.contrats.llm import (
     ReponseAgentBrute,
     ReponseStructuree,
     SortieClassification,
+    SortieDoublons,
     SortieExplication,
     Tache,
 )
@@ -169,6 +170,7 @@ from usine.ia.classification import (
 )
 from usine.ia.classification import lire_prompt as lire_prompt_classification
 from usine.ia.controles import controler_citations as controler_citations
+from usine.ia.doublons import LIMITE_DEFAUT, SEUIL_DEFAUT, detecter_doublons
 from usine.ia.etape import EtapeExplications, EtapeNarration
 from usine.ia.explication import ContexteExplication, expliquer, lire_prompt
 from usine.ia.passerelle import Passerelle
@@ -622,6 +624,30 @@ def consultation_repertoire(repertoire: Path) -> Consultation:
     `evals` ne peut pas importer `usine.consultation` : la composition construit le lecteur.
     """
     return ConsultationPassage(repertoire, racine_passages=repertoire, url_jira=None)
+
+
+def doublons_passage(
+    racine: Path,
+    repertoire: Path,
+    seuil: float = SEUIL_DEFAUT,
+    limite: int = LIMITE_DEFAUT,
+) -> SortieDoublons:
+    """Paires d'Anomalies ouvertes probablement en doublon dans le Passage de `repertoire` (FR-36).
+
+    Textes pseudonymisés par l'aperçu du moteur de `config/pseudonymisation.yaml` (clé
+    `USINE_CLE_PSEUDO` requise), sans fournisseur LLM, sans écriture dans le Passage, dans la
+    table de correspondance ni dans Jira.
+    """
+    consultation = consultation_repertoire(repertoire)
+    ouvertes = consultation.anomalies(limite=None)
+    return detecter_doublons(
+        consultation.textes_tickets(),
+        [a.cle_ticket for a in ouvertes.anomalies],
+        ouvertes.date_arrete,
+        apercu_pseudonymisation(racine),
+        seuil=seuil,
+        limite=limite,
+    )
 
 
 def construire_session_agent(
