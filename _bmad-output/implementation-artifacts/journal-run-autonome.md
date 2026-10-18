@@ -171,7 +171,7 @@ Run lancé le 2026-10-12, en l'absence d'Anaël (au moins 6 h). Point de départ
   - décider s'il faut réinjecter `DEMO` avec le Corpus définitif : Jira et le Journal local portent encore les textes provisoires ;
   - ménage possible : la branche `bloque/4-5` et les Passages de test dans `sorties/passages/`.
 
-## Run de nuit : migration de l'UI vers FastAPI + HTML statique (17-18/10/2026, plafond 2 M tokens)
+## Run de nuit : migration de l'UI vers FastAPI + HTML statique (17-18/10/2026, plafond 2 M tokens porté à 2,6 M par Anaël)
 
 Source : Sprint Change Proposal du 2026-10-17 (AD-25). Stories 7.13 à 7.17 en série sur L7 (`../usine-lanes/lane-7-ui-web`, branche `lane/7-ui-web`). Par story : `dev-story` (Sonnet, workflow `bmad-build-auto` sans son étape de revue), `second-avis` (Haiku), `reviewer` (Opus, Sonnet pour 7.17).
 
@@ -185,3 +185,4 @@ Règles propres au run :
 |---|---|---|---|---|
 | 7.13 | done | `bc8ab21` | ~370 k | `usine ui` lance uvicorn sur 127.0.0.1 (`ui/serveur.py`, services injectés par `ui/cli.py`) ; sept pages statiques avec cadre commun, `cadre.css`, `cadre.js`, polices OFL locales (Atkinson Hyperlegible, JetBrains Mono, Fredoka convertie en woff2) ; `fastapi==0.143.3` (starlette 1.7.0 inchangé) ; Mode repli par `USINE_MODE_REPLI` ; ancienne UI sous `usine ui --streamlit`. Revue : 500 sur `OSError` du cadre, port occupé, heure UTC explicite, markdown-it sans HTML brut. |
 | 7.14 | done | `23c1fd3` (contrats `9e4639c`) | ~480 k | Contrats 1.9.0 : `Consultation.livrable(nom)` (seul changement de contrats du lot), couvert par `tests/contrat/consultation` (présence et absence). Carte météo filtrable dans le navigateur (`role="status"`), détail d'une Entité avec `?palier=1|2`, livrables par `GET /livrables/{nom}` (attachment, 404 hors liste, « Non généré pour ce Passage »), liens ticket en texte simple en Mode repli. Revue : test de contrat qui acceptait toujours `None`, « +N » et tailles formatés côté serveur (AD-9). |
+| 7.15 | done | `c86b2f7` | ~340 k | Écran `/chaine` : `POST /api/chaine` lance `usine rapport` en sous-processus (une Chaîne à la fois, 409 sinon), sondage chaque seconde de `sorties/progression/<passage_id>.jsonl`, reprise du suivi, échec avec étape, code et 20 lignes au plus, ARIA (`aria-disabled` + `aria-describedby`, `aria-valuenow`, annonces filtrées). `POST /api/mode` bascule Mode repli / Mode réel, jamais automatiquement. Revue : DNS rebinding (liste blanche des Host `127.0.0.1`/`localhost` et Origin de même hôte et port), verrou commun mode/lancement, sondage unique côté JS, `OSError` sans 500. |
