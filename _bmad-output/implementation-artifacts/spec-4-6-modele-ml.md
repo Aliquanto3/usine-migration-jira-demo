@@ -2,7 +2,7 @@
 title: 'Story 4.6 : Modèle ML validé sur données réelles'
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'done'
 baseline_revision: '962ff54'
 context: []
 deferred: []
@@ -66,3 +66,10 @@ deferred: []
 - `[low]` rejeté : projets tenus à l'écart testés sur des dates qui chevauchent l'entraînement des autres projets du même dépôt, c'est le protocole 4.4 imposé (même découpage).
 - `[low]` rejeté : cible d'entraînement approchée (Sorties pouvant viser des bloquantes entrées dans l'horizon), déjà en Reports.
 - Sans constat : fuite temporelle (caractéristiques rétrospectives, purge date + N < coupure), graine/un thread, agrégation binomiale (k = S − 2) et indépendance conformes, `Prevision` ml valide, Baseline et contrats intacts, lightgbm hors domaine.
+
+## Intégration du 18/10/2026
+
+- Fusion `--no-ff` de `origin/a/4-7` dans `integ/bonus` (base main fe2665d) : aucun conflit.
+- Adaptation : `tests/unit/evaluation/zenodo/test_modele_ml.py` passe par `pytest.importorskip("lightgbm")`, car LightGBM 4.7.0 est dans le groupe optionnel `bonus` (hors groupes par défaut) ; sans cela la collecte échoue en CI.
+- Dépendances : LightGBM 4.7.0 déjà dans `pyproject.toml` et `uv.lock`, déjà classé dans les externes interdits des contrats ; `uv.lock` inchangé, pas de pandas, `contrats/` et `ports/` inchangés.
+- Résultats : ruff, format, mypy, lint-imports (15 contrats) verts ; pytest 2975 passés, 1 ignoré, 41 désélectionnés.

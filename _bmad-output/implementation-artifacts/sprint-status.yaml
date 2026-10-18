@@ -107,8 +107,8 @@ development_status:
   4-3-conversion-du-public-jira-dataset-en-seriestock: done
   4-4-évaluation-de-la-baseline-sur-données-réelles: done
   4-5-recette-de-la-prévision-sur-les-scénarios-de-démo: done
-  4-6-bonus-modèle-ml-validé-sur-données-réelles: backlog  # BONUS — après tous les indispensables
-  4-7-bonus-facteurs-explicatifs-du-modèle-ml: backlog  # BONUS — après tous les indispensables
+  4-6-bonus-modèle-ml-validé-sur-données-réelles: done  # BONUS
+  4-7-bonus-facteurs-explicatifs-du-modèle-ml: done  # BONUS
   epic-4-retrospective: optional
 
   epic-5: done  # lane L5 Rapport (après L3)

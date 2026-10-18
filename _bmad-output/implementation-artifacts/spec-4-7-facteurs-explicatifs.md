@@ -2,7 +2,7 @@
 title: 'Story 4.7 : [BONUS] Facteurs explicatifs du Modèle ML'
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'done'
 baseline_revision: 'a/4-7 depuis 4.6'
 context: []
 deferred: []
@@ -48,3 +48,10 @@ deferred: []
 - Low, rejeté : une contribution NaN lèverait `ValueError` (Fraction) et non `UsineErreur` ; LightGBM ne produit pas de NaN pour des variables finies, cas inatteignable.
 - Low, rejeté : SM-C4 vérifié par libellé obligatoire de chaque variable (test sur `CARACTERISTIQUES`), pas par mesure de lisibilité ; documenté comme garde-fou, suffisant.
 - Vérifié sans défaut : biais exclu (`[: len(CARACTERISTIQUES)]`), signe (positif = favorise), tri |c| puis nom, plafond 5, nulles écartées, moins de 5 variables, non projetable sans facteurs, contrat respecté, couches inchangées, 4.6 sans régression.
+
+## Intégration du 18/10/2026
+
+- Fusion `--no-ff` de `origin/a/4-7` dans `integ/bonus` (base main fe2665d) : aucun conflit.
+- Adaptation : `tests/unit/evaluation/zenodo/test_modele_ml.py` passe par `pytest.importorskip("lightgbm")`, car LightGBM 4.7.0 est dans le groupe optionnel `bonus` (hors groupes par défaut) ; sans cela la collecte échoue en CI.
+- Dépendances : LightGBM 4.7.0 déjà dans `pyproject.toml` et `uv.lock`, déjà classé dans les externes interdits des contrats ; `uv.lock` inchangé, pas de pandas, `contrats/` et `ports/` inchangés.
+- Résultats : ruff, format, mypy, lint-imports (15 contrats) verts ; pytest 2975 passés, 1 ignoré, 41 désélectionnés.

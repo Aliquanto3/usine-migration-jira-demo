@@ -16,6 +16,9 @@ import numpy as np
 import polars as pl
 import pytest
 
+# LightGBM est dans le groupe optionnel `bonus` : sans lui, le module est ignoré.
+pytest.importorskip("lightgbm")
+
 from evaluation.zenodo.evaluation import (
     HISTORIQUE,
     HORIZON,
