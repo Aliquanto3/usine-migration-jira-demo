@@ -385,7 +385,7 @@ def vue_pseudonymisation(
         version = apercu()(textes[cle])
     except UsineErreur as exc:
         return _vue_pseudo(**base, erreur=f"Aperçu de la Pseudonymisation impossible : {exc}")
-    except (ImportError, OSError) as exc:  # Presidio ou modèle spaCy indisponible
+    except Exception as exc:  # Presidio ou modèle spaCy indisponible ou en échec
         return _vue_pseudo(**base, erreur=pseudonymisation.moteur_indisponible(exc))
     return _vue_pseudo(
         **base, legende=pseudonymisation.LEGENDE, original=textes[cle], pseudonymise=version

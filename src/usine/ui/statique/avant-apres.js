@@ -86,6 +86,7 @@
 
   function afficher(vue) {
     vueCourante = vue;
+    periode = vue.periode === "cumul" ? "cumul" : "rapport"; // période renvoyée par le serveur
     if (vue.erreur) {
       u.poserBandeau("erreur-ecran", "erreur", "alert", vue.erreur, null);
     } else {
@@ -122,7 +123,7 @@
     el("bloc-avant-apres").hidden = false;
   }
 
-  u.appeler("/api/avant-apres").then(function (vue) {
+  u.appeler("/api/avant-apres" + (periode === "cumul" ? "?periode=cumul" : "")).then(function (vue) {
     if (vue) {
       afficher(vue);
     }

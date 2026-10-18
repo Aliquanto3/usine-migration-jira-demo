@@ -13,6 +13,7 @@ l'Agent, appelle le LLM : aucune ne touche un Passage ni Jira.
 """
 
 import html
+import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -113,6 +114,12 @@ en a pas ; lève `UsineErreur` (ou `OSError`) si la lecture est impossible."""
 LIENS_CARTE = VueLien(libelle="← Carte météo", url="/")
 LIEN_CHAINE = VueLien(libelle="Lancer la Chaîne", url="/chaine")
 SEULEMENT_REPLI = "Réponses enregistrées : Mode repli seulement."
+REPONSE_IMPOSSIBLE = (
+    "Réponse de l'Agent impossible : le fournisseur ou le contrôle a échoué ; le détail est"
+    " dans le journal du serveur."
+)
+
+_journal = logging.getLogger(__name__)
 
 
 class _Mode:
@@ -326,9 +333,11 @@ def _ajouter_ecrans(
             reponse = garde.repondre(consultation, demande.question)
         except SessionIndisponible as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        except Exception as exc:  # fournisseur, trace ou validation : message explicite
-            detail = f"Réponse de l'Agent impossible : {exc}"
-            raise HTTPException(status_code=502, detail=detail) from exc
+        except Exception as exc:  # fournisseur, trace ou validation : détail au journal seulement
+            # Le message d'un fournisseur peut citer une URL ou un corps de réponse : il reste
+            # dans le journal du serveur, le navigateur reçoit un message générique.
+            _journal.exception("Réponse de l'Agent impossible")
+            raise HTTPException(status_code=502, detail=REPONSE_IMPOSSIBLE) from exc
         return vue_reponse_agent(reponse, services.texte_hors_perimetre)
 
     application.add_api_route(

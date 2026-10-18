@@ -29,7 +29,7 @@ from usine.ui.ecrans import (
     vue_reponse_agent,
 )
 from usine.ui.outillage import rendre_fiche
-from usine.ui.serveur import HOTE, REPERTOIRE_STATIQUE, creer_application
+from usine.ui.serveur import HOTE, REPERTOIRE_STATIQUE, REPONSE_IMPOSSIBLE, creer_application
 from usine.ui.textes import REPLI_ABSENT
 
 PASSAGE_REPLI = "20261012T221158Z-96c621"
@@ -207,11 +207,13 @@ def test_agent_indisponible_et_reponse_impossible(racine_publiee: Path) -> None:
     assert "Agent indisponible" in refus.json()["detail"]
     assert "USINE_CLE_LLM absente" in refus.json()["detail"]
 
-    session = SessionFactice("p", [RuntimeError("fournisseur muet")])
+    session = SessionFactice("p", [RuntimeError("https://fournisseur.test/v1 cle=sk-secret")])
     client = application(racine_publiee, session_agent=fabrique(session))
     refus = client.post("/api/agent/question", json={"question": "Q ?"})
     assert refus.status_code == 502
-    assert refus.json()["detail"] == "Réponse de l'Agent impossible : fournisseur muet"
+    assert refus.json()["detail"] == REPONSE_IMPOSSIBLE  # détail au journal du serveur seulement
+    assert "sk-secret" not in refus.text
+    assert "fournisseur.test" not in refus.text
 
 
 def test_question_sans_passage_ou_en_mode_repli(racine_publiee: Path, tmp_path: Path) -> None:
@@ -497,6 +499,24 @@ def test_moteur_absent_nomme_dans_le_bandeau(racine_publiee: Path) -> None:
     assert vue["tickets"]  # la sélection du ticket reste utilisable
 
 
+def test_moteur_en_echec_nomme_dans_le_bandeau(racine_publiee: Path) -> None:
+    def moteur_en_echec() -> Callable[[str], str]:
+        def apercu(_texte: str) -> str:
+            raise ValueError("modèle spaCy fr_core_news_md incompatible\ndétail")
+
+        return apercu
+
+    client = application(racine_publiee, repli=True, apercu_pseudonymisation=moteur_en_echec)
+    reponse = client.get("/api/pseudonymisation?ticket=DEMO-17")
+    assert reponse.status_code == 200
+    vue = reponse.json()
+    assert vue["erreur"] == (
+        "Moteur de Pseudonymisation indisponible (Presidio ou modèle spaCy) : ValueError :"
+        " modèle spaCy fr_core_news_md incompatible"
+    )
+    assert vue["tickets"]
+
+
 def test_aperçu_impossible_cle_absente(racine_publiee: Path) -> None:
     def sans_cle() -> Callable[[str], str]:
         raise UsineErreur("USINE_CLE_PSEUDO absente")
@@ -555,6 +575,17 @@ def test_fiche_absente_ou_illisible(racine_publiee: Path) -> None:
 
     vue = application(racine_publiee, lire_fiche=illisible).get("/api/outillage").json()
     assert vue["erreur"].startswith("Lecture de la fiche outillage impossible")
+
+
+def test_rendre_fiche_neutralise_html_et_liens_javascript() -> None:
+    html = rendre_fiche(
+        "# T\n\n<script>alert(1)</script>\n\n[clic](javascript:alert(1))"
+        " <img src=x onerror=alert(1)>\n"
+    )
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert 'href="javascript:' not in html
+    assert "&lt;script&gt;" in html
 
 
 def test_rendre_fiche_enveloppes_par_section() -> None:
