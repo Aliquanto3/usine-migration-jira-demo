@@ -133,7 +133,7 @@ development_status:
   6-9-suite-d-évaluation-de-la-classification: done
   6-10-recette-palier-2: done
   6-11-bonus-détection-de-doublons: backlog  # BONUS — après tous les indispensables
-  6-12-bonus-mode-llm-local: backlog  # BONUS — après tous les indispensables
+  6-12-bonus-mode-llm-local: done  # BONUS — après tous les indispensables
   6-13-bonus-observabilité-externe: backlog  # BONUS — après tous les indispensables
   epic-6-retrospective: optional
 

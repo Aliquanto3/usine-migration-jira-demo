@@ -2,7 +2,7 @@
 title: 'Story 6.12 : [BONUS] Mode LLM local'
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: done
 baseline_revision: '962ff5453a900b4a4180082493318d46fde9e167'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-6-context.md'
@@ -68,3 +68,9 @@ deferred:
 - Low, rejeté : aucun secret (clé factice « sans-cle » non transmise à un tiers), couches inchangées (tout reste dans `adaptateurs/llm`).
 - Low, reporté (déjà en `deferred`) : pas de délai explicite sur le client HTTP local ; un `llama-server` bloqué n'expire pas, à traiter avec la relance réelle.
 - Contrat `FournisseurLLM` exécuté sur `local` (fabrique enregistrée) et test de non-combinaison schéma/outils présents : aucun constat.
+
+## Intégration du 18/10/2026
+
+- Fusion `--no-ff` de `origin/a/6-12` dans `integ/bonus` (base main v0.10.1) : aucun conflit, aucune adaptation de code nécessaire. `src/usine/contrats/` et `src/usine/ports/` inchangés.
+- Le mode local reste désactivé par défaut (fournisseur de `config/llm.yaml` inchangé) ; aucun llama-server ni appel LLM réel dans les tests.
+- Résultats : ruff, ruff format, mypy, lint-imports (15 contrats tenus) verts ; pytest 2940 passés, 1 ignoré, 39 désélectionnés.
