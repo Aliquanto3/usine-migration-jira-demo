@@ -4,7 +4,9 @@
 **une en Mode repli**, **sans intervention hors script**. Valide FR-43 à FR-46 et NFR-12.
 
 Script suivi : [`script-demo.md`](script-demo.md) (durée prévue 9 min 40 s).
-Avant chaque répétition : `uv run python outils/verifier_demo.py` (code 0 attendu).
+Fiche à remplir pendant la répétition : [`fiche-chronometrage.md`](fiche-chronometrage.md).
+Avant chaque répétition : `uv run python outils/verifier_demo.py` puis
+`uv run python outils/controle_repetition.py` (écrans et livrables dans Edge, Mode repli) ; code 0 attendu.
 
 **Intervention hors script :** tout geste absent du script (commande tapée, page rechargée,
 fichier ouvert, retour en arrière pour corriger). Cocher « Mode repli » n'en est pas une : c'est

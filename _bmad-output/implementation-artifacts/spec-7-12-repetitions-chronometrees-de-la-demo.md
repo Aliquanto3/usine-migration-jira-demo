@@ -91,6 +91,14 @@ Bilan : déroulé complet ; lectures en 3838 ms au total.
 
 Depuis le worktree de lane (sans `.env`), seule la séquence 6 est `[KO]` (`USINE_CLE_PSEUDO` absente) : c'est le comportement attendu.
 
+## Préparation outillée (18/10/2026)
+
+- `outils/controle_repetition.py` : lance `usine ui` en Mode repli (port libre, 127.0.0.1), charge les sept écrans dans Edge sans fenêtre (`--dump-dom`, temps virtuel 5 s), exige ni « Chargement… » ni bandeau d'erreur visible et un bloc principal affiché, puis télécharge les livrables du Passage de repli (200, attachment, corps non vide). Code 0 / 1 ; 2 si Edge est introuvable ou le serveur muet ; serveur arrêté dans un `finally`. Complète `verifier_demo.py`, qu'il ne duplique pas.
+- Tests : `tests/unit/outils/test_controle_repetition.py` (DOM, recherche d'Edge, livrables, rapport, arrêt du serveur) ; un test `lent` lance le contrôle réel.
+- `demo/fiche-chronometrage.md` : tests manuels ouverts (aucun résultat consigné), commande de contrôle, tableau des 11 séquences pour R1 à R3. Lien depuis `repetitions.md`.
+- Exécution réelle (poste d'Anaël, racine du dépôt principal) : 7 écrans et 2 livrables `[OK]`, code 0 (environ 20 s). Depuis un worktree sans `.env`, seul Pseudonymisation sort en `[KO]` (`USINE_CLE_PSEUDO` absente).
+- Les répétitions restent humaines : la story reste en `review`.
+
 ## Répétitions
 
 À faire par Anaël, consignées dans `demo/repetitions.md`. La story passe à `done` quand SM-5 est atteint.
