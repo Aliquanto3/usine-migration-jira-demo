@@ -2,7 +2,7 @@
 title: "Story 6.13 : [BONUS] Observabilité externe"
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'done'
 baseline_revision: '962ff54'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -58,3 +58,7 @@ deferred: []
 - Low, rejeté : `flush` synchrone par trace, avec un Langfuse injoignable, peut bloquer jusqu'au délai du client à chaque appel (l'exception est avalée, mais pas la latence) ; choix déjà consigné dans Reports, bonus désactivé par défaut, à regrouper si la latence gêne.
 - Low, rejeté : les traces servies par le cache sont envoyées (jetons et coût à 0, `depuis_cache=true` en métadonnée) ; cohérent avec le Journal et utile à l'analyse.
 - Aucun constat medium ou high : seuls `entree_pseudonymisee` et la sortie avant ré-identification partent (passerelle, outils et réponse d'Agent), l'échec de l'observateur est avalé à deux niveaux sans contenu journalisé, `langfuse` n'est importé qu'à la demande dans la couche `adaptateurs`, le balayage SM-7 est appliqué aux données envoyées avec témoin de fuite.
+
+## Intégration du 18/10/2026
+
+Branche `a/6-13` fusionnée dans `integ/bonus` sans conflit, sans adaptation de code : `langfuse` reste dans le groupe optionnel `bonus` (version exacte 4.17.0), `uv.lock` inchangé. L'import est paresseux (`importlib`, à l'activation seulement) et les tests utilisent un module `langfuse` simulé : ils passent avec et sans le groupe `bonus`, sans aucun envoi réseau. `src/usine/contrats/` et `src/usine/ports/` inchangés. Désactivé par défaut (`USINE_LANGFUSE`).

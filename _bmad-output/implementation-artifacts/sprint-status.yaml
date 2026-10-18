@@ -134,7 +134,7 @@ development_status:
   6-10-recette-palier-2: done
   6-11-bonus-détection-de-doublons: backlog  # BONUS — après tous les indispensables
   6-12-bonus-mode-llm-local: done  # BONUS — après tous les indispensables
-  6-13-bonus-observabilité-externe: backlog  # BONUS — après tous les indispensables
+  6-13-bonus-observabilité-externe: done  # BONUS
   epic-6-retrospective: optional
 
   epic-7: in-progress  # lane L7 Agent et UI (après L5 ; Palier 2 après L6)
