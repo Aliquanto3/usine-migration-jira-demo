@@ -203,3 +203,9 @@ Règles propres au run :
   - Fredoka : le dépôt officiel (google/fonts) ne fournit que le TTF variable, converti en woff2 avec fonttools (licence OFL jointe) ;
   - contrainte `pyarrow < 26` : sa raison (Streamlit) a disparu, montée de version à évaluer hors de ce lot ;
   - ménage : la branche `lane/7-ui-web` n'a jamais été poussée (contrôle des lanes) ; elle est entièrement dans `main` et peut être supprimée avec son worktree.
+
+### Correctif 7.17-b (18/10/2026, après la v0.10.0, décisions d'Anaël)
+
+- `6e3343c` (contrats 1.10.0 `ba4fd9f`), ~360 k tokens (dev Opus, second avis, revue Opus). Heure de Paris à l'affichage partout où un humain lit une heure : UI, Excel, PowerPoint, journaux de la CLI, messages d'erreur ; données stockées toujours en UTC, rejeu inchangé. Jour courant du `Classificateur` pris à Paris. Badge « hors périmètre » de l'Agent par comparaison normalisée (`ui.agent.est_hors_perimetre`). Script de démo et tests manuels : ne pas relancer ni interrompre `usine ui` pendant une Chaîne (Ctrl+C l'arrête aussi).
+- Reste à vérifier à la main : Ctrl+C pendant une vraie Chaîne arrête `usine rapport` et libère le verrou.
+- Ménage : worktrees et branches locales des lanes et des bancs supprimés ; `lane/6-llm` et `lane/7-agent-ui` supprimées aussi sur GitHub. Les branches des bonus non fusionnés (`a/*`, `banc/*`, `t1/*` : 4.6, 4.7, 6.11, 6.12, 6.13) restent sur GitHub seulement.
