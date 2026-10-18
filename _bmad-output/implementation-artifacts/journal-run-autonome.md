@@ -222,3 +222,27 @@ Variantes déjà relues le 13/10 fusionnées par `git merge --no-ff` dans `integ
 | 6.11 Détection de doublons | `banc/6-11-m1` | `919219f` | Contrats 1.10.0 → 1.11.0 (`Tache.doublons`, `PaireDoublon`, `SortieDoublons`), CLI seulement. |
 
 Version 0.11.0 publiée après la CI. Branches `a/*`, `banc/*`, `t1/*` supprimées de GitHub après fusion (variantes non retenues du banc d'essai comprises).
+
+## Run autonome 8.3 + préparation 7.12 (18/10/2026, plafond 800 k tokens)
+
+Lane `../usine-lanes/lane-8-portage`, branche `lane/8-portage` (non poussée), créée depuis `main` v0.11.0 (`e930409`). Par story : `dev-story` (Sonnet), `second-avis` (Haiku), `reviewer` (Opus). Docker et hadolint absents du poste : Dockerfile non construit localement.
+
+Décision technique (orchestrateur) : dans un conteneur, un serveur lié à 127.0.0.1 n'est pas joignable par la publication de port. `usine ui` reste sur 127.0.0.1 par défaut ; l'image seule l'ouvre sur l'interface du conteneur, et le port est publié sur `127.0.0.1` de l'hôte uniquement (`-p 127.0.0.1:8000:8000`).
+
+| Étape | Statut | Commit | Coût (agents) | Résumé |
+|---|---|---|---|---|
+| 8.3 | done | `1fd8210`, `a241eef`, `c1c7f2c` | ~245 k (dev 98 k, second avis 71 k, revue 75 k) | `Dockerfile` (image uv épinglée par digest, `uv sync --locked --no-dev --no-default-groups`, `ARG AVEC_BONUS`, utilisateur non root, `.env` jamais copié), `.dockerignore`, `docs/portage-detaille.md` (Dataiku, Power Platform, conteneur). `USINE_UI_HOTE=0.0.0.0` accepté seulement dans un conteneur (`/.dockerenv`, `/run/.containerenv`). Revue : image de base inexistante (404 sur ghcr.io) remplacée, fausse affirmation de la doc sur le port de l'hôte corrigée, `.dockerignore` en `**/`. Intégration : fiche outillage repassée sous 750 mots. |
+| 7.12 (préparation) | review (répétitions humaines) | `918beb7`, `db3a261` | ~275 k (dev 97 k, second avis 89 k, revue Sonnet 87 k) | `outils/controle_repetition.py` : `usine ui` en Mode repli, sept écrans dans Edge headless (blocs visibles, ni bandeau d'erreur ni « Chargement… »), livrables téléchargés, serveur arrêté par `taskkill /T`. Exécution réelle : 7 écrans et 2 livrables OK. `demo/fiche-chronometrage.md` : tests manuels ouverts, étapes et temps cibles, trois colonnes de répétition. |
+| v0.12.0 | publiée | `f14b7a9` | orchestration | `pyproject.toml`, `uv.lock`, README, `docs/notes-de-version/v0.12.0.md`, tag annoté, release GitHub. |
+| GIF du README | fait (autorisation d'Anaël en cours de run) | voir ci-dessous | orchestration | `docs/media/demo-agent.gif` (25 s, 1,5 Mo) : carte météo, puis l'Agent en Mode repli, avec une réponse vérifiée et un refus hors périmètre. Capturé dans Edge headless par CDP, défilement progressif. L'extension Chrome n'affichait pas `127.0.0.1`. Ancien `demo-ui.gif` et `demo-ui.mp4` retirés. |
+
+### Bilan du run (18/10/2026)
+
+- **Livré** : 8.3 (done), préparation outillée de la 7.12, v0.12.0, nouveau GIF du README. Aucune story bloquée, pas de reprise sur Opus, `contrats/` et `ports/` inchangés. CI verte sous Windows et Linux après chaque push.
+- **Coût** : ~520 k tokens d'agents, plus l'orchestration (~150 k estimés). Le plafond de 800 k est respecté.
+- **File humaine (Anaël)** :
+  - 7.12 : lancer `uv run python outils/controle_repetition.py` depuis la racine qui porte le `.env` (code 0 attendu), puis les trois répétitions chronométrées de `demo/fiche-chronometrage.md`, dont une en Mode repli. Ensuite seulement, passer la 7.12 en done ;
+  - tests manuels de `docs/tests-manuels.md` (§ 3.1 à 3.9, liste en tête de la fiche), dont la vraie Chaîne sur Jira et une vraie question à l'Agent (appel LLM payant) ;
+  - 8.2 : validation M7 par le responsable de mission ;
+  - 8.3 : build non vérifié localement (Docker et hadolint absents). Sur un poste avec Docker : `docker build -t usine .`, `docker run -p 127.0.0.1:8000:8000 --env-file .env -v ./donnees:/app/donnees usine`, puis `usine rapport` en Palier 1, et `hadolint Dockerfile` ;
+  - `docs/fiche-outillage.md` dit encore « aucun mode LLM local n'est livré », alors que la 6.12 est intégrée depuis la v0.11.0 : texte à mettre à jour, dans la limite de 750 mots.
