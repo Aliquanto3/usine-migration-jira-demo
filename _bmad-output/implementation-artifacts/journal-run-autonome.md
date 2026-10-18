@@ -209,3 +209,16 @@ Règles propres au run :
 - `6e3343c` (contrats 1.10.0 `ba4fd9f`), ~360 k tokens (dev Opus, second avis, revue Opus). Heure de Paris à l'affichage partout où un humain lit une heure : UI, Excel, PowerPoint, journaux de la CLI, messages d'erreur ; données stockées toujours en UTC, rejeu inchangé. Jour courant du `Classificateur` pris à Paris. Badge « hors périmètre » de l'Agent par comparaison normalisée (`ui.agent.est_hors_perimetre`). Script de démo et tests manuels : ne pas relancer ni interrompre `usine ui` pendant une Chaîne (Ctrl+C l'arrête aussi).
 - Reste à vérifier à la main : Ctrl+C pendant une vraie Chaîne arrête `usine rapport` et libère le verrou.
 - Ménage : worktrees et branches locales des lanes et des bancs supprimés ; `lane/6-llm` et `lane/7-agent-ui` supprimées aussi sur GitHub. Les branches des bonus non fusionnés (`a/*`, `banc/*`, `t1/*` : 4.6, 4.7, 6.11, 6.12, 6.13) restent sur GitHub seulement.
+
+### Intégration des stories bonus (18/10/2026, décision d'Anaël : fusion directe)
+
+Variantes déjà relues le 13/10 fusionnées par `git merge --no-ff` dans `integ/bonus`, contrôles complets en environnement CI (sans le groupe optionnel `bonus`), puis avance rapide de `main`, CI verte à chaque étape. ~190 k tokens au total.
+
+| Story | Branche source | Commit sur `main` | Remarques |
+|---|---|---|---|
+| 6.12 Mode LLM local | `a/6-12` | `fe2665d` | Aucun conflit ; désactivé par défaut. |
+| 4.6 + 4.7 Modèle ML et facteurs explicatifs | `a/4-7` | `72ef458` | `importorskip("lightgbm")` ; override mypy pour le groupe `bonus` (sinon la CI échouait sur `lightgbm`). |
+| 6.13 Observabilité Langfuse | `a/6-13` | `22305e6` | Import paresseux, activé par `USINE_LANGFUSE` seulement. |
+| 6.11 Détection de doublons | `banc/6-11-m1` | `919219f` | Contrats 1.10.0 → 1.11.0 (`Tache.doublons`, `PaireDoublon`, `SortieDoublons`), CLI seulement. |
+
+Version 0.11.0 publiée après la CI. Branches `a/*`, `banc/*`, `t1/*` supprimées de GitHub après fusion (variantes non retenues du banc d'essai comprises).

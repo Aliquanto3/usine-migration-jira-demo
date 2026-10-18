@@ -1,6 +1,6 @@
 [project]
 name = "usine-migration-jira-demo"
-version = "0.10.1"
+version = "0.11.0"
 description = "Copilote de pilotage d'une usine de migration : reporting Jira, météo par règles, couche LLM."
 readme = "README.md"
 license = "MIT"
