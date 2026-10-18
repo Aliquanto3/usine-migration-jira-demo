@@ -2,7 +2,7 @@
 title: "Story 6.11 : [BONUS] Détection de doublons"
 type: 'feature'
 created: '2026-10-13'
-status: 'review'
+status: 'done'
 baseline_revision: '38201b9'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -61,3 +61,10 @@ Similarité lexicale locale plutôt qu'appel LLM ou plongements : zéro coût et
 - Low, rejeté : le score arrondi à 4 décimales peut passer sous un seuil à plus de 4 décimales ; effet négligeable.
 - Low, rejeté : stock vide ou une seule Anomalie rendent `paires=()` (aucune combinaison) ; textes vides donnent un score 0 écarté par `score > 0`.
 - Aucun constat medium ou high : critères d'acceptation couverts (aperçu pseudonymisé, aucune écriture, contrats 1.9 dans un commit dédié avant le code), tri déterministe (score, puis rang des clés), plafond et paramètres validés.
+
+## Intégration du 18/10/2026
+
+- Fusion de `origin/banc/6-11-m1` dans `integ/bonus` (après 6.12, 4.6, 4.7 et 6.13). Conflits : uniquement les versions de contrats (source et tests figeant la version), résolus en faveur de `main` puis portés à 1.11.0.
+- Contrats : l'ajout de `contrats/llm.py` (`Tache.doublons`, `PaireDoublon`, `SortieDoublons`), additif et sans collision de nom, passe `CONTRATS_VERSION` de 1.10.0 à **1.11.0** (la branche visait 1.9.0, déjà prise par `Consultation.livrable`, 1.10.0 par l'heure de Paris). `ports/` inchangé.
+- Aucune adaptation de code nécessaire à `main` : lint, format, mypy, import-linter et suite complète verts sans le groupe `bonus`.
+- Détection laissée hors UI (CLI `usine` seulement) : aucune vue FastAPI ajoutée.
