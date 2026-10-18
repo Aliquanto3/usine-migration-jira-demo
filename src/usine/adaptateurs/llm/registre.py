@@ -65,8 +65,17 @@ REGISTRE: dict[str, TarifModele] = {
 """Tarifs par `version_modele` (`fournisseur:modele`)."""
 
 
+LOCAL = TarifModele(Decimal(0), Decimal(0), 600, 10_000_000, gratuit=True)
+"""Modèle servi par `llama-server` sur le poste (`local:<modele>`) : aucun prix ni quota."""
+
+
 def tarif(version_modele: str) -> TarifModele:
-    """Tarif de `version_modele` ; un modèle absent du registre lève une `UsineErreur`."""
+    """Tarif de `version_modele` ; un modèle absent du registre lève une `UsineErreur`.
+
+    Tout modèle `local:<modele>` (fichier GGUF du poste) a le tarif nul `LOCAL`.
+    """
+    if version_modele.startswith("local:") and version_modele not in REGISTRE:
+        return LOCAL
     try:
         return REGISTRE[version_modele]
     except KeyError:
