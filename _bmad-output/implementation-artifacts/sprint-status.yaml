@@ -153,7 +153,7 @@ development_status:
   7-13-socle-web-fastapi-et-cadre-commun: done
   7-14-carte-météo-détail-d-une-entité-et-livrables: done  # contrats 1.9.0 (Consultation.livrable)
   7-15-lancement-de-la-chaîne-et-bouton-de-mode: done
-  7-16-agent-avant-après-pseudonymisation-et-outillage: backlog
+  7-16-agent-avant-après-pseudonymisation-et-outillage: done
   7-17-retrait-de-streamlit: backlog
   7-12-répétitions-chronométrées-de-la-démo: review  # bloquée par 7.17 : répétitions sur la nouvelle UI
   epic-7-retrospective: optional
