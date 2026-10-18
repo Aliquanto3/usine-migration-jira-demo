@@ -20,6 +20,17 @@ from usine.ui.chaine import GestionChaine
 from usine.ui.cli import application_web, lecture_consultation, lecture_manifeste, services_ecrans
 from usine.ui.serveur import HOTE, creer_application
 
+VARIABLES_EXTERNES = (
+    "JIRA_EMAIL",
+    "JIRA_TOKEN_LECTURE",
+    "JIRA_TOKEN_INJECTION",
+    "JIRA_DC_PAT",
+    "ANTHROPIC_API_KEY",
+    "MISTRAL_API_KEY",
+    "USINE_CLE_PSEUDO",
+    "USINE_MODE_REPLI",
+    "USINE_RACINE",
+)
 DELAI_MAX = 60.0  # secondes
 PAUSE = 0.5  # secondes entre deux sondages
 
@@ -31,6 +42,9 @@ def _popen_date_fixee(commande: list[str], **options: Any) -> "subprocess.Popen[
 def test_vrai_rapport_depuis_l_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     racine = preparer_racine(tmp_path)
     monkeypatch.chdir(racine)
+    # le sous-processus hérite de l'environnement : ni Jira ni LLM, Palier 1 (config/chaine.yaml)
+    for variable in VARIABLES_EXTERNES:
+        monkeypatch.delenv(variable, raising=False)
     application = creer_application(
         repli=False,
         lire_manifeste=lecture_manifeste(racine),

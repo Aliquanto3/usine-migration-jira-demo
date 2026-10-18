@@ -1,6 +1,6 @@
 """Sous-application `usine ui` et services de l'interface web (racine de composition, AD-1).
 
-Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
+Module `cli` de la lane L7 : il démarre le serveur web et lui fournit la racine (`USINE_RACINE`), le
 Mode repli, la `Consultation` du dernier Passage publié ou du Passage enregistré du Mode repli
 (`demo/repli/passage/`), la configuration de la démo (`config/demo.yaml`), les manifestes
 mesurés par l'avant / après, l'aperçu de la Pseudonymisation (vue côte à côte) et la session

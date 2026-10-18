@@ -21,11 +21,10 @@ def test_aide() -> None:
     resultat = CliRunner().invoke(app, ["ui", "--help"])
     assert resultat.exit_code == 0, resultat.output
     assert "--port" in resultat.output
-    assert "--streamlit" not in resultat.output
 
 
-def test_option_streamlit_retiree() -> None:
-    resultat = CliRunner().invoke(app, ["ui", "--streamlit"])
+def test_option_inconnue_refusee() -> None:
+    resultat = CliRunner().invoke(app, ["ui", "--option-inconnue"])
     assert resultat.exit_code == 2
 
 

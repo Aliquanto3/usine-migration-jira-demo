@@ -1,6 +1,6 @@
 """Écrans de la démo et navigation en étoile autour de la carte météo."""
 
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping
 from enum import StrEnum
 from types import MappingProxyType
 
@@ -23,32 +23,3 @@ ECRAN_PAR_DEFAUT = Ecran.carte
 STORY_A_VENIR: Mapping[Ecran, str] = MappingProxyType({})
 """Story qui livre le contenu complet de chaque écran encore à l'état d'emplacement (aucun :
 l'écran Agent est livré par la Story 7.9)."""
-
-CLE_ECRAN = "ecran"
-"""Clé de `session_state` du sélecteur d'écran."""
-CLE_ENTITE = "entite"
-"""Clé de `session_state` du sélecteur d'Entité de l'écran Détail."""
-CLE_REPLI = "mode_repli"
-"""Clé de `session_state` de la bascule manuelle du Mode repli (barre latérale)."""
-CLE_PALIER = "palier"
-"""Clé de `session_state` du sélecteur de Palier du détail (Passage Palier 2 seulement)."""
-CLE_TICKET_APERCU = "ticket_apercu"
-"""Clé de `session_state` du ticket choisi sur l'écran Pseudonymisation."""
-CLE_QUESTION_AGENT = "question_agent"
-"""Clé de `session_state` de la question saisie sur l'écran Agent."""
-CLE_SESSION_AGENT = "session_agent"
-"""Clé de `session_state` de la session de l'Agent, gardée d'une question à l'autre."""
-CLE_CHOIX_AGENT = "choix_agent"
-"""Clé de `session_state` de la question enregistrée choisie en Mode repli (écran Agent)."""
-
-
-def libelles_ecrans() -> list[str]:
-    """Libellés de la navigation latérale ; le premier est l'écran par défaut."""
-    ecrans = [ECRAN_PAR_DEFAUT, *(ecran for ecran in Ecran if ecran is not ECRAN_PAR_DEFAUT)]
-    return [ecran.value for ecran in ecrans]
-
-
-def ouvrir_detail(etat: MutableMapping[str, object], entite: str) -> None:
-    """Rappel du bouton `Détail ENT-x` : écran Détail sur l'Entité, en un seul clic."""
-    etat[CLE_ECRAN] = Ecran.detail.value
-    etat[CLE_ENTITE] = entite

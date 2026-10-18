@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from tests.unit.ui.test_avant_apres import manifeste, publier
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.format import ESPACE_INSECABLE
 from usine.contrats.llm import ReponseAgent, StatutControle
 from usine.ia.agent.repli import QUESTIONS_DEMO, REPERTOIRE_REPONSES
 from usine.ia.agent.session import SANS_REPONSE
@@ -649,3 +650,23 @@ def test_services_reels_de_la_composition(racine_publiee: Path) -> None:
     fiche = services.lire_fiche()
     assert fiche is not None and fiche.startswith("# ")
     assert vue_reponse_agent(reponse(), SANS_REPONSE).texte == "ENT-B est rouge."
+
+
+def test_avant_apres_milliers_et_arrondi(tmp_path: Path) -> None:
+    racine = racine_mesuree(tmp_path, secondes=12.34)
+    (racine / "config" / "demo.yaml").write_text(
+        "temps_manuel_minutes_par_rapport: 240\n", encoding="utf-8"
+    )
+    vue = application(racine).get("/api/avant-apres").json()
+    assert vue["tableau"]["lignes"] == [
+        ["Par Rapport quotidien", "240 min", "12,3 s"],
+        ["Cumulé sur 5 Rapports", f"1{ESPACE_INSECABLE}200 min", "61,7 s"],
+    ]
+
+
+def test_ui_sans_acces_interdit() -> None:
+    """AD-11 : aucun module de `ui/` ne cite l'entrepôt DuckDB ni son verrou."""
+    interdits = ("entrepot.duckdb", ".en-cours", "duckdb")
+    for chemin in sorted(Path(cli.__file__).parent.glob("*.py")):
+        texte = chemin.read_text(encoding="utf-8")
+        assert [m for m in interdits if m in texte] == [], chemin.name

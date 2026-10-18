@@ -1,9 +1,11 @@
 """Détail d'une Entité : blocs en fonctions pures, alignement sur `Consultation`."""
 
 import inspect
+import re
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -22,9 +24,17 @@ from usine.contrats.prevision import (
 from usine.ports.consultation import Consultation
 from usine.ui.cli import consultation_dernier_passage
 from usine.ui.detail import (
+    EXPLICATION_ABSENTE,
+    EXPLICATION_PALIER_1,
     KPI_CLES,
+    NARRATION_CONTROLEE,
+    PAS_DE_SORTIE,
     LectureDetail,
+    _morceaux,
     previsions_calculees,
+    section_explication,
+    section_prevision,
+    section_risque,
     valeur_kpi,
 )
 
@@ -231,3 +241,130 @@ def _narration(statut: StatutControle, entite: str = "ENT-A") -> SortieNarration
         texte="La sortie du rouge est attendue sous deux semaines.",
         statut_controle=statut,
     )
+
+
+def _url_ticket(cle: str) -> str:
+    return _url(cle)
+
+
+def _blocs(section: Any) -> list[dict[str, Any]]:
+    return [bloc.model_dump() for bloc in section.blocs]
+
+
+# Prévision (sections structurées)
+
+
+def test_pas_de_sortie_projetee() -> None:
+    section = section_prevision(ROUGE, (_prevision(StatutPrevision.pas_de_sortie_projetee),), True)
+    (bloc,) = _blocs(section)
+    assert bloc["titre"] == PAS_DE_SORTIE
+    assert formater_pourcentage(Fraction(3, 4)) in bloc["items"][0]
+    assert bloc["items"][1] == "Horizon : 10 jours ouvrés"
+    assert not any(re.search(r"\d{2}/\d{2}/\d{4}", texte) for texte in bloc["items"])
+
+
+def test_regle_non_projetable() -> None:
+    section = section_prevision(ROUGE, (_prevision(StatutPrevision.regle_non_projetable),), True)
+    (bloc,) = _blocs(section)
+    assert bloc["titre"] == "pas de sortie projetée : règle non projetable (IND-2)"
+
+
+def test_narration_controlee_remplace_la_prevision_brute() -> None:
+    prevision = (_prevision(StatutPrevision.sortie_projetee),)
+    for statut in (StatutControle.conforme, StatutControle.corrige):
+        section = section_prevision(ROUGE, prevision, True, (_narration(statut),))
+        (bloc,) = _blocs(section)
+        assert bloc["texte"] == "La sortie du rouge est attendue sous deux semaines."
+        assert bloc["note"].startswith(NARRATION_CONTROLEE)
+        assert "20/10/2026" not in str(bloc)
+    corrigee = section_prevision(ROUGE, prevision, True, (_narration(StatutControle.corrige),))
+    assert "corrigée" in _blocs(corrigee)[0]["note"]
+
+
+def test_narration_rejetee_ou_absente() -> None:
+    prevision = (_prevision(StatutPrevision.sortie_projetee),)
+    brute = section_prevision(ROUGE, prevision, True)
+    assert "20/10/2026" in str(_blocs(brute))
+    for narrations in (
+        (_narration(StatutControle.rejete),),
+        (_narration(StatutControle.non_controle),),
+        (_narration(StatutControle.conforme, entite="ENT-B"),),
+    ):
+        assert section_prevision(ROUGE, prevision, True, narrations) == brute
+
+
+# Risque : valeur projetée
+
+
+def test_valeur_projetee() -> None:
+    projete = _risque().model_copy(
+        update={"valeur_projetee_numerateur": 23, "valeur_projetee_denominateur": 2}
+    )
+    tableau = section_risque(VERTE, (projete,), True).tableau
+    assert tableau is not None
+    assert tableau.colonnes[-1] == "Valeur projetée"
+    assert tableau.lignes[0][-1] == "11,5"
+    sans = section_risque(VERTE, (_risque(),), True).tableau
+    assert sans is not None
+    assert "Valeur projetée" not in sans.colonnes
+    mixte = section_risque(VERTE, (projete, _risque()), True).tableau
+    assert mixte is not None
+    assert [ligne[-1] for ligne in mixte.lignes] == ["11,5", "—"]
+
+
+# Explication
+
+
+def test_explication_palier_1_et_absente() -> None:
+    p1 = section_explication(1, (_explication(),), _url_ticket)
+    assert p1.message == EXPLICATION_PALIER_1
+    assert p1.explications == []  # même transmise, la sortie LLM n'est jamais affichée
+    assert section_explication(2, (), _url_ticket).message == EXPLICATION_ABSENTE
+
+
+def test_explication_liens_citations_phrases_retirees() -> None:
+    (vue,) = section_explication(2, (_explication(),), _url_ticket).explications
+    assert "".join(s.texte for s in vue.segments) == (
+        "ENT-A est rouge : DEMO-12 et DEMO-1 bloquent la recette (DEMO-1)."
+    )
+    liees = [s.ticket.cle for s in vue.segments if s.ticket is not None]
+    assert liees == ["DEMO-12", "DEMO-1", "DEMO-1"]
+    assert all(s.ticket.url == _url(s.ticket.cle) for s in vue.segments if s.ticket)
+    assert [t.cle for t in vue.citations] == ["DEMO-1", "DEMO-12"]
+    assert vue.phrases_retirees == "Phrases retirées au contrôle : 1"
+    assert "corrigée" in vue.statut
+    assert vue.statut_code == "corrige"
+
+
+def test_explication_citation_absente_du_texte_reste_visible() -> None:
+    (vue,) = section_explication(
+        2, (_explication("Aucune clé ici.", ("DEMO-7",), 0),), _url_ticket
+    ).explications
+    assert [s.ticket for s in vue.segments] == [None]
+    assert [t.cle for t in vue.citations] == ["DEMO-7"]
+    assert vue.phrases_retirees == "Phrases retirées au contrôle : 0"
+
+
+def test_explication_en_mode_repli() -> None:
+    (vue,) = section_explication(2, (_explication(),), lambda _cle: None).explications
+    assert all(t.url is None for t in vue.citations)
+    assert all(s.ticket.url is None for s in vue.segments if s.ticket)
+
+
+def test_explication_rejetee() -> None:
+    remplacement = "explication indisponible (contrôle des citations)"
+    rejetee = _explication(remplacement, (), 0, StatutControle.rejete)
+    (vue,) = section_explication(2, (rejetee,), _url_ticket).explications
+    assert [s.texte for s in vue.segments] == [remplacement]  # affiché tel quel
+    assert vue.citations == []
+    assert vue.phrases_retirees is None
+    assert "rejetée" in vue.statut
+
+
+def test_citations_bornees() -> None:
+    # `DEMO-1` n'est pas reconnu dans `DEMO-12`, `XDEMO-1` ni `DEMO-1-2`.
+    morceaux = _morceaux("DEMO-12 XDEMO-1 DEMO-1-2 DEMO-1.", ("DEMO-1",))
+    assert [m for m, cite in morceaux if cite] == ["DEMO-1"]
+    assert "".join(m for m, _ in morceaux) == "DEMO-12 XDEMO-1 DEMO-1-2 DEMO-1."
+    assert morceaux[-1] == (".", False)
+    assert _morceaux("a_b", ()) == [("a_b", False)]
