@@ -1,5 +1,6 @@
 """Textes de l'écran Agent : badge « hors périmètre » robuste, date de la mention de repli."""
 
+import unicodedata
 from datetime import UTC, datetime
 
 import pytest
@@ -28,6 +29,9 @@ NNBSP = " "
         "'Les données ne permettent pas de répondre.'",
         "Les  données\tne permettent pas\nde répondre...",
         f"Les{NBSP}données ne{NNBSP}permettent pas de répondre…",
+        unicodedata.normalize("NFD", SANS_REPONSE),  # « é » décomposé
+        "﻿Les données ne permettent pas de ré­pondre.​",
+        "Les​ données ne permettent⁠ pas de répondre.",
     ],
 )
 def test_variantes_de_la_phrase_acceptees(texte: str) -> None:
@@ -42,6 +46,9 @@ def test_variantes_de_la_phrase_acceptees(texte: str) -> None:
         "ENT-A est Rouge. Les données ne permettent pas de répondre.",
         "Les données ne permettent pas de conclure.",
         "",
+        "Les données ne permettent pas de répondre :",
+        "Les données ne permettent pas de répondre ;",
+        "Les données ne permettent pas de répondre,",
     ],
 )
 def test_autre_phrase_refusee(texte: str) -> None:

@@ -141,7 +141,9 @@ def test_horodatage_decroissant(tmp_path: Path, generation: Generation) -> None:
     dernier = json.loads(lignes[-1])
     dernier["horodatage"] = datetime(2000, 1, 3, tzinfo=UTC).isoformat()
     lignes[-1] = json.dumps(dernier)
-    with pytest.raises(UsineErreur, match=f"ligne {len(lignes)} : horodatage"):
+    # 03/01/2000 00:00 UTC lu par un humain : 01:00 à Paris (heure d'hiver).
+    attendu = f"ligne {len(lignes)} : horodatage 03/01/2000 01:00:00 (heure de Paris) antérieur"
+    with pytest.raises(UsineErreur, match=re.escape(attendu)):
         SourceJournal(_ecrire(tmp_path, lignes))
 
 

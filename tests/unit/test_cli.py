@@ -71,6 +71,7 @@ def test_configurer_console_ecrit_en_utf8(monkeypatch: pytest.MonkeyPatch) -> No
     assert isinstance(gestionnaire, logging.StreamHandler)
     assert gestionnaire.stream is flux["err"]
     assert isinstance(gestionnaire.formatter, cli.FormateurJournal)
+    assert gestionnaire.formatter._fmt == cli.FORMAT_JOURNAL
     assert logging.getLogger("usine").level == logging.INFO
 
 

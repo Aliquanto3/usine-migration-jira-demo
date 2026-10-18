@@ -99,9 +99,9 @@ l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors 
   calcule les indicateurs, la météo par règles, la prévision, puis écrit l'Excel et le
   PowerPoint du jour. Aucun LLM dans ce calcul : tout est déterministe et rejouable. »
 - **Fin :** la carte du nouveau Passage s'affiche sous la progression.
-- **Ne pas relancer `usine ui` pendant une Chaîne :** le suivi à l'écran serait perdu. La
-  Chaîne continue sans lui et son Passage s'affiche au chargement suivant d'une page, une fois
-  terminée.
+- **Ne pas arrêter ni relancer `usine ui` pendant une Chaîne :** la Chaîne tourne dans la
+  même console. Ctrl+C ou la fermeture du terminal l'arrêtent aussi, sans publier de Passage
+  (le précédent reste affiché) : la relancer depuis l'écran une fois `usine ui` redémarré.
 - **Plan B (repli) :** le bouton est bloqué et l'écran dit pourquoi. Ne pas attendre : dire
   « En Mode repli, le lancement est coupé. En direct, ce Passage a tourné en 20 s sur 3 547
   tickets » et passer à la carte (gagne 45 s).

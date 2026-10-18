@@ -105,7 +105,7 @@ from usine.chaine.execution import executer_passage
 from usine.chaine.verrou import verrou_exclusif
 from usine.config import Secrets, charger_secrets, charger_yaml, verifier_modele_corpus
 from usine.consultation.passage import ConsultationPassage
-from usine.contrats.calendrier import est_jour_ouvre
+from usine.contrats.calendrier import est_jour_ouvre, jour_local
 from usine.contrats.config import (
     ConfigChaine,
     ConfigJira,
@@ -580,9 +580,9 @@ class Classificateur:
     ) -> tuple[tuple[SortieClassification, ...], tuple[EntreeTrace, ...]]:
         """Cause racine proposée de chaque Anomalie de `textes` par la vraie tâche `classer`.
 
-        `date_arrete` n'est que tracée (ni prompt ni clé de cache) ; défaut : aujourd'hui.
+        `date_arrete` n'est que tracée (ni prompt ni clé de cache) ; défaut : aujourd'hui à Paris.
         """
-        jour = date_arrete if date_arrete is not None else _maintenant().date()
+        jour = date_arrete if date_arrete is not None else jour_local(_maintenant())
         # Sans tolérance : la suite gère elle-même les échecs (rejeu strict, mode réel
         # Anomalie par Anomalie avec `erreurs_fournisseur`).
         return classer(self.passerelle, textes, jour, self.contexte, tolerer_echecs=False)

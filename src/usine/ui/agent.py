@@ -1,5 +1,6 @@
 """Écran Agent : libellés et mise en forme d'une réponse contrôlée (FR-39, FR-40)."""
 
+import unicodedata
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Protocol
@@ -72,11 +73,18 @@ def texte_statut(reponse: ReponseAgent) -> str:
 
 
 _GUILLEMETS = "«»\"'“”‘’„‚‹›`"
-_PONCTUATION_FINALE = ".!…;:,"
+_PONCTUATION_FINALE = ".!…"
+_INVISIBLES = dict.fromkeys(map(ord, "​­﻿⁠"))
+"""Espace sans chasse, trait d'union conditionnel, BOM et gluon de mots : retirés."""
 
 
 def _normaliser(texte: str) -> str:
-    """Casse, guillemets, ponctuation finale et espaces (insécables compris) neutralisés."""
+    """Casse, guillemets, ponctuation finale, espaces et caractères invisibles neutralisés.
+
+    Forme NFC d'abord (un « é » décomposé égale un « é » composé) ; seuls `.`, `!` et `…`
+    finaux sont retirés : un « : » ou un « ; » annonce une suite, la phrase diffère.
+    """
+    texte = unicodedata.normalize("NFC", texte).translate(_INVISIBLES)
     sans_guillemets = "".join(" " if c in _GUILLEMETS else c for c in texte)
     mots = sans_guillemets.split()  # tout espace Unicode : insécable, fine, tabulation…
     return " ".join(mots).rstrip(_PONCTUATION_FINALE + " ").casefold()

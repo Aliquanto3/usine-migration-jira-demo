@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from usine.adaptateurs.journal.manifeste import CHEMIN_MANIFESTE_INJECTION, charger_manifeste
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import EnteteJournal, Evenement, ManifesteInjection
+from usine.contrats.format import formater_horodatage
 
 __all__ = ["CHEMIN_MANIFESTE_INJECTION", "SourceJournal", "charger_manifeste"]
 
@@ -71,8 +72,8 @@ class SourceJournal:
             if evenements and evenement.horodatage < evenements[-1].horodatage:
                 raise UsineErreur(
                     f"{chemin} : ligne {numero} : horodatage"
-                    f" {evenement.horodatage.isoformat()} antérieur à celui de la ligne"
-                    f" précédente (ordre croissant attendu)"
+                    f" {formater_horodatage(evenement.horodatage)} (heure de Paris) antérieur"
+                    f" à celui de la ligne précédente (ordre croissant attendu)"
                 )
             vus.add(evenement.id_evenement)
             if correspondance is not None:

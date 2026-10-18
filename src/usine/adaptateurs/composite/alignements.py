@@ -21,6 +21,7 @@ from usine.adaptateurs.composite.source import SourceComposite
 from usine.adaptateurs.journal import SourceJournal
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement, SourceEvenement
+from usine.contrats.format import formater_horodatage
 from usine.contrats.tickets import CHAMPS_PAR_TYPE, Champ, TypeTicket, rang_cle
 
 CHAMPS_ETAT: tuple[Champ, ...] = (
@@ -163,8 +164,9 @@ class DetecteurAlignements:
         instant = _instant_utc(instant, "instant de détection des alignements")
         if instant <= self._fin:
             raise UsineErreur(
-                f"instant de détection des alignements {instant.isoformat()} antérieur ou égal"
-                f" à la fin d'injection {self._fin.isoformat()} : relancer après l'injection"
+                f"instant de détection des alignements {formater_horodatage(instant)} antérieur ou"
+                f" égal à la fin d'injection {formater_horodatage(self._fin)} (heure de Paris) :"
+                f" relancer après l'injection"
             )
         jira = tuple(evenements_jira)
         rejoues = etats_tickets(SourceComposite(self._journal, lambda: jira).evenements())

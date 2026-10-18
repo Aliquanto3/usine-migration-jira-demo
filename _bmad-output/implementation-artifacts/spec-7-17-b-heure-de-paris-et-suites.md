@@ -2,7 +2,7 @@
 title: "Story 7.17-b : Heure de Paris à l'affichage, badge hors périmètre robuste, reprise de Chaîne"
 type: 'feature'
 created: '2026-10-18'
-status: 'review'
+status: 'done'
 baseline_revision: '8c43854'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -33,7 +33,9 @@ deferred: []
 | `cli.configurer_console` (horodatage des journaux) | heure locale du poste, `AAAA-MM-JJ` | `FormateurJournal` : heure de Paris `JJ/MM/AAAA HH:MM:SS` quel que soit le poste |
 | `rendu/commun.horodatage_fixe` (`docProps/core.xml`, horodatages zip) | minuit UTC de la Date d'arrêté | inchangé : métadonnées de fichier (W3CDTF en `Z`), pas un texte affiché ; garant du rejeu octet pour octet |
 | `passage_id`, noms de répertoires, manifestes, JSONL, `empreinte_*`, entrepôt | UTC | inchangés (données) |
-| Messages d'erreur citant un instant brut (`alignements`, `journal`, `entrepot`, `contrats.passage`) | ISO 8601 avec décalage, ou `repr` | inchangés : citation de la donnée fautive, non ambiguë |
+| Messages d'erreur citant un instant valide (`alignements` détection trop tôt, `journal` ordre des horodatages) | ISO 8601 UTC | heure de Paris + « (heure de Paris) » (revue) ; le numéro de ligne situe la donnée |
+| Messages d'erreur citant un instant sans fuseau ou illisible (`repr`) | `repr` | inchangés : rien à convertir |
+| Jour courant par défaut du `Classificateur` (suite d'évaluation) | date UTC | jour de Paris, `calendrier.jour_local` (revue) |
 | Agent, narration, explication, prompts | aucune heure formatée | sans objet |
 
 ## Code Map
@@ -54,3 +56,18 @@ Le rejeu idempotent (Story 5.5) n'est pas affecté : l'horodatage d'extraction e
 ## Reports
 
 Aucun.
+
+## Revue
+
+Revue unique (Opus) du diff `8c43854..40e44ad`, avec la liste du second avis (Haiku).
+
+- medium, second avis 1 : corrigé. `alignements` (détection avant la fin d'injection) et `journal` (horodatage décroissant) citent l'heure de Paris via `formater_horodatage`, suivie de « (heure de Paris) » ; tests sur la valeur littérale (`03/01/2000 01:00:00`). Les `date_injection` du `journal` sont des dates sans heure (restent ISO) ; les `repr` d'instants sans fuseau ou illisibles n'ont rien à convertir.
+- medium, second avis 2 : corrigé (texte). `lancement.lancer_chaine` lance `Popen` sans nouveau groupe ni détachement : la Chaîne partage la console, Ctrl+C ou la fermeture du terminal l'arrêtent aussi. Le script de démo (§ 3) et les tests manuels (§ 3.8 point 11) l'écrivent désormais : aucun Passage publié, relancer après redémarrage, verrou à supprimer après une fermeture brutale. Mode de lancement inchangé (un détachement change le cycle de vie et le Job Object de `uv run` ; hors périmètre).
+- medium, second avis 3 : corrigé en partie, le reste écarté. `chaine/cli` (défaut de `usine rapport`, donc de l'UI) et `generateur/cli` utilisent déjà `jour_local` (Paris). Seul `Classificateur.__call__` (`composition`, date tracée de la suite d'évaluation) prenait la date UTC : passé à `jour_local(_maintenant())`, test lundi 00:30 Paris (dimanche 22:30 UTC) → lundi. `passage_id` et horodatages restent en UTC (données).
+- low, second avis 4 : écarté. La décision fixe « sans mention de fuseau » ; la pastille de l'UI n'en porte pas, l'Excel et le PowerPoint restent cohérents avec elle.
+- low, second avis 5 : corrigé. Ponctuation finale retirée limitée à `.`, `!`, `…` ; « …répondre : », « ; », « , » refusés (tests).
+- low, second avis 6 : corrigé. Forme NFC et retrait de U+200B, U+00AD, U+FEFF, U+2060 avant comparaison ; tests (NFD, BOM, trait d'union conditionnel, espace sans chasse).
+- low, second avis 7 : corrigé. `test_configurer_console_ecrit_en_utf8` vérifie aussi que le formateur installé utilise `FORMAT_JOURNAL`.
+- low, second avis 8 : écarté. Le journal de la Chaîne est un suivi en direct de quelques minutes, déjà ordonné ; la date n'y apporte rien.
+
+Report : vérifier à la main (Windows, `uv run usine ui`) qu'un Ctrl+C pendant une vraie Chaîne arrête bien `python -m usine rapport` et rend le verrou (point 11 des tests manuels).

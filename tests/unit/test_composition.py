@@ -3,9 +3,9 @@
 Source composite, alignements et `version_donnees` (Story 2.6).
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import polars as pl
@@ -581,3 +581,24 @@ def test_version_donnees_trois_empreintes(
     rapport = composition.construire_rapport(racine_journal, horloge=horloge_figee())
     assert rapport.donnees.version_donnees == version_donnees(octets, INSTANT)
     assert len({sans_manifeste, avec_manifeste, rapport.donnees.version_donnees}) == 3
+
+
+def test_classificateur_date_par_defaut_jour_de_paris(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Lundi 00:30 à Paris = dimanche 22:30 UTC : le jour tracé est le lundi."""
+    vus: list[date] = []
+
+    def classer_factice(_passerelle: Any, _textes: Any, jour: date, *_: Any, **__: Any) -> Any:
+        vus.append(jour)
+        return (), ()
+
+    monkeypatch.setattr(composition, "classer", classer_factice)
+    monkeypatch.setattr(
+        composition, "_maintenant", lambda: datetime(2026, 10, 11, 22, 30, tzinfo=UTC)
+    )
+    classificateur = composition.Classificateur(
+        passerelle=cast(Any, object()),
+        contexte=cast(Any, object()),
+        version_modele="m",
+    )
+    classificateur(pl.DataFrame())
+    assert vus == [date(2026, 10, 12)]

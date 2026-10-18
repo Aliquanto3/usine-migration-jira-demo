@@ -27,6 +27,7 @@ from usine.adaptateurs.composite import (
 from usine.adaptateurs.journal import SourceJournal
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement, SourceEvenement
+from usine.contrats.format import formater_horodatage
 from usine.contrats.tickets import Champ, TypeTicket
 from usine.domaine.instantanes import CHAMPS_ETAT as CHAMPS_ETAT_DOMAINE
 from usine.generateur.journal import Generation
@@ -202,8 +203,10 @@ def test_detection_trop_tot_refusee(journal: SourceJournal, decalage: timedelta)
     with pytest.raises(UsineErreur) as erreur:
         DetecteurAlignements(journal)(injection_simulee(journal), instant)
     message = str(erreur.value)
-    assert instant.isoformat() in message
-    assert _fin(journal).isoformat() in message
+    # Heure de Paris pour le lecteur (format vérifié dans `test_format`), sans ISO UTC.
+    assert formater_horodatage(instant) in message
+    assert f"{formater_horodatage(_fin(journal))} (heure de Paris)" in message
+    assert instant.isoformat() not in message
 
 
 def test_detection_sans_fuseau_refusee(journal: SourceJournal) -> None:
