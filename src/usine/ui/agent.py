@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Protocol
 
-from usine.contrats.format import formater_date
+from usine.contrats.format import formater_date, heure_de_paris
 from usine.contrats.llm import ReponseAgent, ReponseAgentEnregistree, StatutControle
 
 
@@ -48,8 +48,9 @@ REFUS_REPLI = "Mode repli : réponses enregistrées de l'Agent refusées"
 
 def mention_repli(enregistree: ReponseAgentEnregistree) -> str:
     """Mention « Mode repli » d'une réponse rejouée : date d'enregistrement et Passage."""
+    jour = heure_de_paris(enregistree.horodatage).date()
     return (
-        f"Mode repli : réponse enregistrée le {formater_date(enregistree.horodatage.date())}"
+        f"Mode repli : réponse enregistrée le {formater_date(jour)}"
         f" sur le Passage {enregistree.passage_id}, rejouée sans LLM"
     )
 
@@ -68,3 +69,25 @@ LIBELLES_STATUT: Mapping[StatutControle, str] = MappingProxyType(
 def texte_statut(reponse: ReponseAgent) -> str:
     """Statut de contrôle de la réponse, en français."""
     return f"Contrôle : {LIBELLES_STATUT[reponse.statut_controle]}"
+
+
+_GUILLEMETS = "«»\"'“”‘’„‚‹›`"
+_PONCTUATION_FINALE = ".!…;:,"
+
+
+def _normaliser(texte: str) -> str:
+    """Casse, guillemets, ponctuation finale et espaces (insécables compris) neutralisés."""
+    sans_guillemets = "".join(" " if c in _GUILLEMETS else c for c in texte)
+    mots = sans_guillemets.split()  # tout espace Unicode : insécable, fine, tabulation…
+    return " ".join(mots).rstrip(_PONCTUATION_FINALE + " ").casefold()
+
+
+def est_hors_perimetre(texte: str, phrase_hors_perimetre: str) -> bool:
+    """Réponse recopiant la phrase « hors périmètre » de l'Agent, aux variantes de forme près.
+
+    Le LLM recopie `SANS_REPONSE` : casse, ponctuation finale, guillemets droits, typographiques
+    ou français et espaces multiples ou insécables ne changent pas le verdict ; une autre phrase,
+    ou la phrase suivie d'un autre texte, n'est pas hors périmètre.
+    """
+    attendu = _normaliser(phrase_hors_perimetre)
+    return bool(attendu) and _normaliser(texte) == attendu

@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 import pytest
 
 from tests.unit.rendu.conftest import GRILLE
+from usine.contrats.format import formater_horodatage
 from usine.contrats.meteo import CodeIndicateur
 from usine.contrats.prevision import (
     FacteurExplicatif,
@@ -17,7 +18,6 @@ from usine.domaine.kpi import CODES_TENDANCE
 from usine.rendu.commun import (
     LIBELLES_KPI,
     NatureMesure,
-    formater_horodatage,
     formater_jours_ouvres,
     formater_kpi,
     formater_mesure,
@@ -76,11 +76,9 @@ def test_formater_seuils() -> None:
 def test_formater_horodatage() -> None:
     paris = timezone(timedelta(hours=2))
     assert formater_horodatage(datetime(2026, 10, 12, 9, 30, tzinfo=paris)) == (
-        "12/10/2026 07:30:00 UTC"
+        "12/10/2026 09:30:00"
     )
-    assert formater_horodatage(datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)) == (
-        "02/01/2026 03:04:05 UTC"
-    )
+    assert formater_horodatage(datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)) == ("02/01/2026 04:04:05")
 
 
 def test_formater_jours_ouvres() -> None:

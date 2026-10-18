@@ -10,12 +10,11 @@ aucun fichier ne reste ouvert entre deux sondages. Elle ne touche ni Passage ni 
 
 import subprocess
 import threading
-from datetime import UTC
 from pathlib import Path
 from typing import IO
 
 from usine.contrats.erreurs import UsineErreur
-from usine.contrats.format import formater_date, formater_entier
+from usine.contrats.format import formater_date, formater_entier, formater_heure
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
 from usine.ui import lancement, progression
 from usine.ui.lancement import Lanceur
@@ -282,13 +281,13 @@ def _lieu_echec(evenements: tuple[EvenementProgression, ...]) -> str:
 
 
 def _journal(evenements: tuple[EvenementProgression, ...]) -> list[VueLigneJournal]:
-    """Lignes horodatées (UTC), la plus récente en premier."""
+    """Lignes horodatées (heure de Paris), la plus récente en premier."""
     lignes: list[VueLigneJournal] = []
     for evenement in reversed(evenements):
         texte = f"{evenement.etape.value} : {progression.LIBELLES_ETATS[evenement.statut]}"
         if evenement.message:
             texte += f" · {evenement.message}"
-        horodatage = f"{evenement.horodatage.astimezone(UTC):%H:%M:%S}"
+        horodatage = formater_heure(evenement.horodatage)
         lignes.append(VueLigneJournal(horodatage=horodatage, texte=texte))
     return lignes
 

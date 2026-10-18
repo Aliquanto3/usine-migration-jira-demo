@@ -47,6 +47,7 @@ from usine.contrats.calendrier import TAILLE_FENETRE_GLISSANTE
 from usine.contrats.config import ConfigJira, ConfigProgramme
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.evenements import Evenement, NatureEvenement
+from usine.contrats.format import formater_horodatage
 from usine.contrats.meteo import Couleur
 from usine.contrats.passage import Etape
 from usine.contrats.tickets import Champ
@@ -55,7 +56,7 @@ from usine.domaine.meteo import DECALAGE_IND8
 from usine.domaine.prevision.baseline import ParametresBaseline
 from usine.domaine.prevision.risque import ParametresRisque
 from usine.ports.etape import Etape as PortEtape
-from usine.rendu.commun import depuis_manifeste, formater_horodatage
+from usine.rendu.commun import depuis_manifeste
 from usine.rendu.etape import EtapeRendu
 
 _VARIABLES_JIRA = ("USINE_MODE_REPLI", "JIRA_EMAIL", "JIRA_TOKEN_LECTURE", "JIRA_DC_PAT")

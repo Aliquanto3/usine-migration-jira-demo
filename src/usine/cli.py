@@ -2,12 +2,14 @@
 
 import logging
 import sys
+from datetime import UTC, datetime
 
 import typer
 
 from usine.adaptateurs.cli import app as app_extraction
 from usine.chaine.cli import app as app_rapport
 from usine.contrats.erreurs import UsineErreur
+from usine.contrats.format import formater_horodatage
 from usine.generateur.cli import app as app_donnees
 from usine.ia.agent.cli import app as app_agent
 from usine.ia.cli import app as app_ia
@@ -26,6 +28,13 @@ FORMAT_JOURNAL = "%(asctime)s %(levelname)s %(name)s : %(message)s"
 """Format sobre des journaux de la CLI (stderr, niveau INFO)."""
 
 
+class FormateurJournal(logging.Formatter):
+    """Journaux horodatés en heure de Paris (`contrats.format`), quel que soit le poste."""
+
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+        return formater_horodatage(datetime.fromtimestamp(record.created, UTC))
+
+
 def configurer_console() -> None:
     """Sorties standard en UTF-8 (console Windows en cp1252) et journaux sur stderr.
 
@@ -37,12 +46,9 @@ def configurer_console() -> None:
         reconfigurer = getattr(flux, "reconfigure", None)
         if reconfigurer is not None:
             reconfigurer(encoding="utf-8", errors="replace")
-    logging.basicConfig(
-        level=logging.WARNING,
-        format=FORMAT_JOURNAL,
-        datefmt="%Y-%m-%d %H:%M:%S",
-        stream=sys.stderr,
-    )
+    gestionnaire = logging.StreamHandler(sys.stderr)
+    gestionnaire.setFormatter(FormateurJournal(FORMAT_JOURNAL))
+    logging.basicConfig(level=logging.WARNING, handlers=[gestionnaire])
     logging.getLogger("usine").setLevel(logging.INFO)
 
 

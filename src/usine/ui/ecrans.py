@@ -140,7 +140,7 @@ def vue_reponse_agent(
 ) -> VueReponseAgent:
     """Réponse avec son badge de contrôle et ses outils ; le texte d'un rejet n'est pas envoyé."""
     rejetee = reponse.statut_controle is StatutControle.rejete
-    hors_perimetre = not rejetee and reponse.texte.strip() == texte_hors_perimetre
+    hors_perimetre = not rejetee and agent.est_hors_perimetre(reponse.texte, texte_hors_perimetre)
     code: CodeBadge = "hors_perimetre" if hors_perimetre else reponse.statut_controle.value
     return VueReponseAgent(
         question=reponse.question,

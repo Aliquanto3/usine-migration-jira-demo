@@ -91,7 +91,7 @@ Vérifier que l'interface s'ouvre et que la carte, le détail des Entités et l'
 uv run usine ui
 ```
 
-1. Sur chaque page : l'en-tête montre le logo, « Usine de migration », la pastille « Passage publié · JJ/MM/AAAA HH:MM UTC » (absente s'il n'y a aucun Passage), la pastille « Mode réel » et le bouton « Lancer la Chaîne » (absent sur `/chaine`) ; la navigation latérale a sept liens dont un seul actif ; l'onglet s'intitule « {Écran} · Usine de migration » ; il n'y a ni « Chargement… » ni bandeau d'erreur.
+1. Sur chaque page : l'en-tête montre le logo, « Usine de migration », la pastille « Passage publié · JJ/MM/AAAA HH:MM » (heure de Paris, sans mention « UTC ») (absente s'il n'y a aucun Passage), la pastille « Mode réel » et le bouton « Lancer la Chaîne » (absent sur `/chaine`) ; la navigation latérale a sept liens dont un seul actif ; l'onglet s'intitule « {Écran} · Usine de migration » ; il n'y a ni « Chargement… » ni bandeau d'erreur.
 2. Au clavier : la première touche Tab fait apparaître « Aller au contenu » ; Entrée amène le focus sur le titre ; l'anneau de focus reste visible partout.
 3. Hors réseau (couper le Wi-Fi ou débrancher le câble, recharger) : les polices (Fredoka, Atkinson Hyperlegible, JetBrains Mono), la feuille et le script se chargent ; dans l'onglet Réseau des outils du navigateur, aucune requête ne sort de `127.0.0.1`.
 4. Mode repli : relancer avec `$env:USINE_MODE_REPLI = "1"; uv run usine ui`. La pastille « Mode repli » et le bandeau « Mode repli : la démo lit le Passage enregistré `demo/repli/passage/` … » s'affichent sur toutes les pages. Sans la variable (la remettre à vide), le mode est « Mode réel ». Le mode ne change jamais seul.
@@ -127,6 +127,7 @@ Lancer `uv run usine ui` en Mode réel, depuis une racine configurée (`.env`, s
 8. Vraie Chaîne (pour Anaël, quelques minutes, Jira réel, hors Mode repli) : cliquer sur « Lancer la Chaîne ». À la fin, le bandeau « Chaîne terminée : Passage publié. » et le lien « Voir la carte météo » s'affichent, le bouton devient « Relancer la Chaîne », la pastille de l'en-tête prend l'heure du nouveau Passage et la carte montre la nouvelle Date d'arrêté.
 9. Échec : couper le réseau ou invalider le jeton Jira (`.env`) puis lancer la Chaîne. L'étape fautive affiche « Échec », le bandeau d'erreur nomme l'étape, le code de sortie et au plus 20 lignes d'erreur, avec « Aucun rapport publié par ce lancement… » ; la pastille de l'en-tête et la carte restent sur le Passage précédent. Remettre la configuration.
 10. Serveur arrêté pendant le suivi (Ctrl+C) : le bandeau « L'interface ne joint plus le serveur. » apparaît une seule fois ; après un redémarrage, le serveur ne retrouve pas une Chaîne lancée par l'ancien processus (l'écran affiche « En attente »).
+11. Ne pas relancer `usine ui` pendant une Chaîne : le suivi à l'écran serait perdu (le nouveau serveur ne connaît pas la Chaîne lancée par l'ancien). La Chaîne continue et son Passage s'affiche au chargement suivant d'une page, une fois terminée.
 
 ### 3.9 Agent, Avant / après, Pseudonymisation et Outillage (Story 7.16)
 

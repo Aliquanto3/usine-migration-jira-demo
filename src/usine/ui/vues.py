@@ -5,13 +5,12 @@ arrivent déjà écrits. Les vues des écrans (carte, détail, …) s'ajoutent i
 7.14 à 7.16.
 """
 
-from datetime import UTC
 from typing import Literal
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from usine.contrats.format import formater_date
+from usine.contrats.format import formater_horodatage
 from usine.contrats.passage import ManifestePassage
 from usine.ui.textes import BANDEAU_REPLI
 
@@ -31,15 +30,14 @@ class VueCadre(BaseModel):
     bandeau_repli_html: str | None
     """`textes.BANDEAU_REPLI` rendu en HTML en ligne (`<strong>`, `<code>`), texte constant."""
     passage_publie: str | None
-    """« Passage publié · JJ/MM/AAAA HH:MM UTC », ou `None` s'il n'y a pas de Passage affiché."""
+    """« Passage publié · JJ/MM/AAAA HH:MM » (heure de Paris), ou `None` sans Passage affiché."""
     erreur: str | None
     """Lecture impossible (manifeste, racine) : détail affiché dans le bandeau d'erreur."""
 
 
 def libelle_passage(manifeste: ManifestePassage) -> str:
-    """« Passage publié · JJ/MM/AAAA HH:MM UTC », fin du Passage (convention de `rendu.commun`)."""
-    fin = manifeste.horodatage_fin.astimezone(UTC)
-    return f"Passage publié · {formater_date(fin.date())} {fin:%H:%M} UTC"
+    """« Passage publié · JJ/MM/AAAA HH:MM », fin du Passage en heure de Paris (AD-11)."""
+    return f"Passage publié · {formater_horodatage(manifeste.horodatage_fin, secondes=False)}"
 
 
 def vue_cadre(*, repli: bool, manifeste: ManifestePassage | None, erreur: str | None) -> VueCadre:

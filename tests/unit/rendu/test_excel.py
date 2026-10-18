@@ -384,7 +384,7 @@ def test_horodatage_d_extraction(consultation: ConsultationPassage) -> None:
     )  # fmt: skip
     lignes = _valeurs(_classeur(rendre_excel(consultation, DATE_ARRETE, contexte))["Traçabilité"])
     assert lignes[3] == ["Source", "composite"]
-    assert lignes[4] == ["Horodatage d'extraction", "12/10/2026 07:05:09 UTC"]
+    assert lignes[4] == ["Horodatage d'extraction", "12/10/2026 09:05:09"]
 
 
 def test_palier_1_mentions(passage: Path) -> None:

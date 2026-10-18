@@ -217,7 +217,7 @@ def test_progression_etapes_barre_annonce_et_journal(racine: Path) -> None:
         "extraction : Réussie",
         "extraction : En cours",
     ]
-    assert vue["journal"][0]["horodatage"] == "07:30:00"
+    assert vue["journal"][0]["horodatage"] == "09:30:00"  # 07:30 UTC, heure d'été de Paris
     # Même progression au sondage suivant : même annonce (le script ne la répète pas).
     assert banc.etat()["annonce"] == vue["annonce"]
 

@@ -144,7 +144,7 @@ def test_cadre_mode_reel_avec_passage() -> None:
         "mode": "reel",
         "libelle_mode": "Mode réel",
         "bandeau_repli_html": None,
-        "passage_publie": "Passage publié · 16/10/2026 19:05 UTC",
+        "passage_publie": "Passage publié · 16/10/2026 21:05",
         "erreur": None,
     }
 
@@ -256,4 +256,4 @@ def test_cadre_heure_convertie_en_utc() -> None:
     paris = datetime(2026, 10, 16, 21, 5, tzinfo=timezone(timedelta(hours=2)))
     passage = manifeste(secondes=0, debut=paris)
     vue = client(passage=passage).get("/api/cadre").json()
-    assert vue["passage_publie"] == "Passage publié · 16/10/2026 19:05 UTC"
+    assert vue["passage_publie"] == "Passage publié · 16/10/2026 21:05"

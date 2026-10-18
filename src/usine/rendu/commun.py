@@ -22,6 +22,7 @@ from usine.contrats.format import (
     formater_date,
     formater_entier,
     formater_fraction,
+    formater_horodatage,
     formater_pourcentage,
 )
 from usine.contrats.meteo import (
@@ -262,12 +263,6 @@ def formater_regle(regle: RegleDeclenchante) -> str:
 def tickets_en_cause(regles: tuple[RegleDeclenchante, ...]) -> tuple[str, ...]:
     """Clés des tickets en cause, sans doublon, dans l'ordre des règles."""
     return tuple(dict.fromkeys(cle for regle in regles for cle in regle.tickets_en_cause))
-
-
-def formater_horodatage(instant: datetime) -> str:
-    """`12/10/2026 07:30:00 UTC`."""
-    utc = instant.astimezone(UTC)
-    return f"{formater_date(utc.date())} {utc:%H:%M:%S} UTC"
 
 
 def formater_jours_ouvres(nombre: int) -> str:

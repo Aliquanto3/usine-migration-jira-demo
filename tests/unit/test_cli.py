@@ -2,6 +2,7 @@ import io
 import logging
 import sys
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -62,15 +63,29 @@ def test_configurer_console_ecrit_en_utf8(monkeypatch: pytest.MonkeyPatch) -> No
         f.write(texte)
         f.flush()
         assert f.buffer.getvalue().decode("utf-8") == texte
-    assert appels == [
-        {
-            "level": logging.WARNING,
-            "format": cli.FORMAT_JOURNAL,
-            "datefmt": "%Y-%m-%d %H:%M:%S",
-            "stream": flux["err"],
-        }
-    ]
+    assert len(appels) == 1
+    assert appels[0]["level"] == logging.WARNING
+    gestionnaires = appels[0]["handlers"]
+    assert isinstance(gestionnaires, list)
+    (gestionnaire,) = gestionnaires
+    assert isinstance(gestionnaire, logging.StreamHandler)
+    assert gestionnaire.stream is flux["err"]
+    assert isinstance(gestionnaire.formatter, cli.FormateurJournal)
     assert logging.getLogger("usine").level == logging.INFO
+
+
+@pytest.mark.parametrize(
+    ("instant", "attendu"),
+    [
+        (datetime(2026, 10, 12, 22, 12, tzinfo=UTC), "13/10/2026 00:12:00 INFO usine : x"),
+        (datetime(2026, 1, 15, 22, 12, tzinfo=UTC), "15/01/2026 23:12:00 INFO usine : x"),
+    ],
+)
+def test_journal_horodate_en_heure_de_paris(instant: datetime, attendu: str) -> None:
+    """Heure d'été puis d'hiver, changement de jour compris, sans mention « UTC »."""
+    enregistrement = logging.LogRecord("usine", logging.INFO, "f", 1, "x", None, None)
+    enregistrement.created = instant.timestamp()
+    assert cli.FormateurJournal(cli.FORMAT_JOURNAL).format(enregistrement) == attendu
 
 
 def test_main_configure_la_console_avant_la_commande(monkeypatch: pytest.MonkeyPatch) -> None:

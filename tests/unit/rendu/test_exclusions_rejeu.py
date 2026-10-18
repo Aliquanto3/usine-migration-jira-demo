@@ -32,7 +32,7 @@ CONTEXTE = ContexteRendu(
     horodatage_extraction=INSTANT,
 )
 AFFICHES = {
-    "Horodatage d'extraction": "12/10/2026 07:05:09 UTC",
+    "Horodatage d'extraction": "12/10/2026 09:05:09",
     "Version des données": "donnees-1",
 }
 
