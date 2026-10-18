@@ -12,7 +12,7 @@ Toutes les données sont **fictives ou publiques**. Aucun nom, libellé, gabarit
 - Artefacts de conception (méthode BMAD) : `_bmad-output/`
 - Conteneur et portage détaillé vers Dataiku et Power Platform : [`docs/portage-detaille.md`](docs/portage-detaille.md)
 
-Version 0.11.0 : chaîne de reporting utilisable et testée (CI verte), exécutée sur le projet Jira Cloud `DEMO`, avec une interface web locale (FastAPI + HTML statique) ; les dernières stories sont en cours. Licence MIT.
+Version 0.12.0 : chaîne de reporting utilisable et testée (CI verte), exécutée sur le projet Jira Cloud `DEMO`, avec une interface web locale (FastAPI + HTML statique) ; les dernières stories sont en cours. Licence MIT.
 
 ## Performance (NFR-2)
 
