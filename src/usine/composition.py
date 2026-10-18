@@ -84,6 +84,7 @@ from usine.adaptateurs.journal import (
     SourceJournal,
     charger_manifeste,
 )
+from usine.adaptateurs.observabilite import construire_observateur
 from usine.adaptateurs.pseudonymisation import (
     MOTIFS_PAR_DEFAUT,
     PseudonymiseurHmac,
@@ -911,6 +912,7 @@ def _assembler_rapport(
                 None if config_llm is None else config_llm.plafond_cout_passage_eur
             ),
             fournisseurs_par_tache=fournisseurs_par_tache,
+            observateur=_observateur_langfuse(secrets_usine),
         )
         plafond = None if config_llm is None else config_llm.plafond_cout_passage_eur
         registre[Etape.classification] = EtapeClassification(
@@ -940,6 +942,18 @@ def _assembler_rapport(
         url_jira=_url_jira(secrets_usine.usine_mode_repli, jira),
         horodatage_extraction=horodatage_extraction,
         fermeture=fermeture,
+    )
+
+
+def _observateur_langfuse(secrets_usine: Secrets) -> Callable[[EntreeTrace], None] | None:
+    """Observateur Langfuse (Story 6.13) si `USINE_LANGFUSE` est vrai ; sinon `None` (défaut)."""
+    if not secrets_usine.usine_langfuse:
+        return None
+    cle = secrets_usine.langfuse_secret_key
+    return construire_observateur(
+        secrets_usine.langfuse_host,
+        secrets_usine.langfuse_public_key,
+        None if cle is None else cle.get_secret_value(),
     )
 
 

@@ -253,7 +253,7 @@ source_modules = ["usine.adaptateurs"]
 forbidden_modules = [
     "usine.domaine", "usine.consultation", "usine.chaine", "usine.ia", "usine.rendu",
     "usine.generateur", "usine.config", "usine.composition", "usine.cli", "usine.ui",
-    "fr_core_news_md", "importlinter", "langfuse", "lightgbm",
+    "fr_core_news_md", "importlinter", "lightgbm",
     "mypy", "numpy", "openpyxl", "pptx",
     "pyarrow", "pydantic_settings", "pytest",
     "ruff", "sklearn", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
