@@ -85,7 +85,7 @@ Vérifier que l'interface s'ouvre et que la carte, le détail des Entités et l'
 
 ### 3.6 Cadre de l'interface web (Story 7.13)
 
-`usine ui` sert l'interface FastAPI sur `http://127.0.0.1:8000/` (option `--port`) ; l'ancienne interface Streamlit reste accessible par `uv run usine ui --streamlit` jusqu'à la Story 7.17. Les contenus d'écran arrivent en 7.14 à 7.16 : ici, on contrôle le cadre commun des sept pages (`/`, `/entites/ENT-B`, `/chaine`, `/agent`, `/avant-apres`, `/pseudonymisation`, `/outillage`).
+`usine ui` sert l'interface web FastAPI sur `http://127.0.0.1:8000/` (option `--port`). Les contenus d'écran arrivent en 7.14 à 7.16 : ici, on contrôle le cadre commun des sept pages (`/`, `/entites/ENT-B`, `/chaine`, `/agent`, `/avant-apres`, `/pseudonymisation`, `/outillage`).
 
 ```powershell
 uv run usine ui

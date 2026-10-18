@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 FICHE = Path(__file__).resolve().parents[3] / "docs" / "fiche-outillage.md"
-MOTS_MAX = 700
+MOTS_MAX = 750  # 700 avant le texte Flask de la ligne UI (SCP 2026-10-17, § 4.5)
 BRIQUES = (
     "Extraction Jira",
     "KPI, météo",
@@ -15,7 +15,7 @@ BRIQUES = (
     "Excel / PPT",
     "Agent conversationnel",
     "Planification",
-    "UI de démo (Streamlit)",
+    "UI de démo (FastAPI + HTML statique)",
 )
 CIBLES = ("VM Python", "Dataiku", "Power Platform", "Poste seul")
 REFERENCES = ("AD-1", "AD-19", "NFR-8")

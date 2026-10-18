@@ -1,20 +1,17 @@
-"""Avant / après : durée mesurée, tableau (par Rapport et cumulé) et légende, sans Streamlit."""
+"""Avant / après : durée mesurée, tableau (par Rapport et cumulé) et légende."""
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from usine.contrats.format import ESPACE_INSECABLE
 from usine.contrats.passage import ManifestePassage
 from usine.ui.avant_apres import (
     AUCUN_PASSAGE,
     CONFIG_ABSENTE,
     MENTION_CUMUL,
     MENTION_FICTIVE,
-    NB_RAPPORTS_CUMUL,
     duree_mesuree,
     legende,
-    tableau_avant_apres,
 )
 
 DEBUT = datetime(2026, 10, 12, 7, 30, tzinfo=UTC)
@@ -57,29 +54,6 @@ def publier(racine: Path, manifeste: ManifestePassage) -> None:
 def test_duree_mesuree() -> None:
     assert duree_mesuree(manifeste(3.4)) == timedelta(seconds=3.4)
     assert duree_mesuree(manifeste(0)) == timedelta(0)
-
-
-def test_tableau_nominal() -> None:
-    assert NB_RAPPORTS_CUMUL == 5
-    assert tableau_avant_apres(120, timedelta(seconds=3.4)).splitlines() == [
-        "| Rapport | Reporting manuel (déclaré) | Chaîne (mesuré) |",
-        "| --- | --- | --- |",
-        "| Par Rapport quotidien | 120 min | 3,4 s |",
-        "| Cumulé sur 5 Rapports | 600 min | 17 s |",
-    ]
-
-
-def test_tableau_milliers_et_arrondi() -> None:
-    lignes = tableau_avant_apres(240, timedelta(seconds=12.34)).splitlines()
-    assert lignes[2] == "| Par Rapport quotidien | 240 min | 12,3 s |"
-    assert lignes[3] == f"| Cumulé sur 5 Rapports | 1{ESPACE_INSECABLE}200 min | 61,7 s |"
-
-
-def test_aucun_gain_ni_ratio() -> None:
-    tableau = tableau_avant_apres(120, timedelta(seconds=3.4))
-    assert "%" not in tableau
-    assert "×" not in tableau
-    assert "gain" not in tableau.lower()
 
 
 def test_legende() -> None:

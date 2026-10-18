@@ -468,7 +468,7 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 | polars | 1.44.2 (2.0 écarté pour l'instant, (décision du 10/10/2026, H-24)) |
 | duckdb | 1.5.6 |
 | numpy | 2.4.6 (presidio exige < 2.5) |
-| pyarrow | 25.0.1 (contrainte < 26 à revérifier en 7.17, sans montée de version dans ce lot) |
+| pyarrow | 25.0.1 (plus aucune contrainte < 26 depuis le retrait de Streamlit ; montée de version hors du lot 7.17) |
 | pyyaml | 6.0.3 |
 | typer | 0.27.3 |
 | httpx | 0.28.1 |
@@ -480,7 +480,7 @@ Vérifiée sur PyPI et GitHub le 2026-10-10. La pile se résout en entier sous P
 | fastapi | 0.143.3 (figée en 7.13 : dernière stable, `starlette>=0.46.0` donc compatible avec le starlette 1.7.0 du lock) |
 | uvicorn | 0.54.0 |
 | markdown-it-py | 4.2.0 |
-| streamlit (tire pandas 3.0.6) | 1.65.0, retiré en 7.17 |
+| tzdata (base IANA de `ZoneInfo` sous Windows ; tirée jusqu'en 7.16 par pandas, via streamlit) | 2026.5 |
 | scikit-learn | 1.9.1 |
 | pymongo (lecture du dump Zenodo, L4) | 4.18.3 |
 | lightgbm (bonus FR-22) | 4.7.0 |

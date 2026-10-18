@@ -20,7 +20,7 @@ Quel outillage demander au client, dans quel ordre, et comment chaque brique se 
 | Excel / PPT | ✅ | ✅ | ✅ | ✅ | NFR-8 : fichiers produits sans service propriétaire (CI Windows et Linux) |
 | Agent conversationnel | ✅ | ✅ (agents Dataiku) | ✅ Copilot Studio | ✅ | AD-1 : l'agent passe par le port LLM (`lint-imports`) |
 | Planification | ✅ cron | ✅ scénarios | ✅ Power Automate | ⚠️ poste allumé | AD-19 : une commande, `usine rapport`, paramétrée par `config/*.yaml` (chargeur de `usine.config`) |
-| UI de démo (Streamlit) | ✅ | ⚠️ webapp Streamlit, à vérifier | ❌ à refaire en Power Apps | ✅ | AD-1 : `usine.ui` n'importe aucun adaptateur (`lint-imports`) |
+| UI de démo (FastAPI + HTML statique) | ✅ | ⚠️ webapp Dataiku « standard » (HTML/JS + backend Python) : l'API FastAPI se réécrit en backend Flask, à vérifier | ❌ à refaire en Power Apps ; les pages statiques ne se portent pas telles quelles | ✅ | AD-1, AD-25 : `usine.ui` n'importe aucun adaptateur (`lint-imports`) |
 
 La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déjà à toutes les briques, y compris celles en cours de construction (extraction Jira, Prévision, adaptateurs LLM, Agent).
 
@@ -42,7 +42,7 @@ La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déj�
 
 - Le connecteur Jira est limité sur le changelog et les volumes : garder l'extraction en Python, adaptateur séparé du domaine (AD-1, `lint-imports`), et ne porter que la publication.
 - Le calcul des KPI et de la Météo y serait peu maintenable ; la Prévision ML n'a pas d'équivalent (tableau de la spec § 8) : le domaine reste en Python (AD-1).
-- L'UI Streamlit ne se porte pas : c'est un écran Power Apps à refaire.
+- L'UI web ne se porte pas sur Power Platform : c'est un écran Power Apps à refaire. Sur Dataiku, seule l'API FastAPI est à réécrire en Flask : les pages HTML se reprennent.
 
 ### Poste seul
 

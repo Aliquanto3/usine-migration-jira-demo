@@ -26,14 +26,10 @@ from usine.rendu.commun import formater_regle as formater_regle_rendu
 from usine.ui.carte import (
     LEGENDE,
     LectureCarte,
-    date_carte,
     fleche,
     formater_regle,
-    lignes_carte,
     regle_principale,
-    tableau_markdown,
     tendance,
-    tickets_principaux,
 )
 from usine.ui.cli import consultation_dernier_passage, mode_repli
 
@@ -93,54 +89,6 @@ def _evolution(
 
 
 # Passage publié (graine 42, 09/10/2026)
-
-
-def test_carte_du_passage_publie(racine_publiee: Path) -> None:
-    consultation = consultation_dernier_passage(racine_publiee)
-    assert consultation is not None
-    lignes = lignes_carte(consultation)
-    assert [ligne["Entité"] for ligne in lignes] == ["ENT-A", "ENT-B"]
-    for ligne, meteo in zip(lignes, consultation.meteo(), strict=True):
-        assert ligne["Météo"].endswith(LIBELLES_COULEURS[meteo.couleur])
-    # Attendus tirés du Passage lui-même : le jeu d'essai peut être recalé (Epic 1).
-    evolutions = {e.entite: e for e in consultation.evolution_meteo()}
-    for ligne, meteo in zip(lignes, consultation.meteo(), strict=True):
-        evolution = evolutions[meteo.entite]
-        assert ligne["Tendance"] == (
-            f"J-1 {fleche(evolution.couleur_j1, meteo.couleur)}"
-            f" · J-5 {fleche(evolution.couleur_j5, meteo.couleur)}"
-        )
-        if not meteo.regles:
-            assert ligne["Règle principale"] == "—"
-            continue
-        principale, *autres = meteo.regles
-        assert ligne["Règle principale"].startswith(f"{principale.code.value} : ")
-        assert ligne["Règle principale"].endswith(f"(+{len(autres)})") == bool(autres)
-        attendus = min(len(principale.tickets_en_cause), 3)
-        assert len(LIEN.findall(ligne["Tickets en cause"])) == attendus
-    assert date_carte(consultation) == "09/10/2026"
-
-
-def test_liens_egaux_a_url_ticket(racine_publiee: Path) -> None:
-    consultation = consultation_dernier_passage(racine_publiee)
-    assert consultation is not None
-    tableau = tableau_markdown(lignes_carte(consultation))
-    liens = LIEN.findall(tableau)
-    assert liens
-    for cle, url in liens:
-        assert url == consultation.url_ticket(cle)
-        assert url.endswith(f"/browse/{cle}")
-    principales = {m.regles[0].tickets_en_cause[0] for m in consultation.meteo() if m.regles}
-    assert principales <= {cle for cle, _ in liens}
-
-
-def test_carte_en_mode_repli(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("USINE_MODE_REPLI", "1")
-    consultation = consultation_dernier_passage(racine_publiee)
-    assert consultation is not None
-    tableau = tableau_markdown(lignes_carte(consultation))
-    assert "](http" not in tableau
-    assert "DEMO-" in tableau
 
 
 def test_url_jira(racine_publiee: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -229,52 +177,11 @@ def test_formater_regle_identique_au_rendu(regle: RegleDeclenchante) -> None:
     assert formater_regle(regle) == formater_regle_rendu(regle)
 
 
-def test_entite_echappee() -> None:
-    class _Speciale(_ConsultationFigee):
-        def meteo(
-            self, date_arrete: date | None = None, entite: str | None = None
-        ) -> tuple[MeteoEntite, ...]:
-            return (_meteo("ENT_*A$"),)
-
-    (ligne,) = lignes_carte(_Speciale())
-    assert ligne["Entité"] == r"ENT\_\*A\$"
-
-
 def test_regle_principale() -> None:
     assert regle_principale(_meteo()) == "—"
     assert regle_principale(_meteo(regles=(_regle(),))) == "IND-2 : 11 (seuil > 10)"
     trois = (_regle(code=CodeIndicateur.ind_1), _regle(), _regle(code=CodeIndicateur.ind_5))
     assert regle_principale(_meteo(regles=trois)) == "IND-1 : 11 (seuil > 10) (+2)"
-
-
-def test_tickets_principaux() -> None:
-    assert tickets_principaux(_meteo(), _url) == "—"
-    assert tickets_principaux(_meteo(regles=(_regle(tickets=()),)), _url) == "—"
-    cinq = tuple(f"DEMO-{n}" for n in range(1, 6))
-    texte = tickets_principaux(_meteo(regles=(_regle(tickets=cinq),)), _url)
-    assert LIEN.findall(texte) == [(c, _url(c)) for c in cinq[:3]]
-    assert texte.endswith(" +2")
-    autre = (_regle(tickets=("DEMO-1",)), _regle(code=CodeIndicateur.ind_3, tickets=("DEMO-9",)))
-    assert "DEMO-9" not in tickets_principaux(_meteo(regles=autre), _url)
-
-
-def test_tickets_en_mode_repli() -> None:
-    texte = tickets_principaux(_meteo(regles=(_regle(tickets=("DEMO-1", "DEMO-2")),)), _sans_url)
-    assert texte == "DEMO-1, DEMO-2"
-
-
-def test_cle_avec_caracteres_markdown() -> None:
-    meteo = _meteo(regles=(_regle(tickets=("A]B", "C|D")),))
-    texte = tickets_principaux(meteo, _url)
-    assert LIEN.findall(texte) == [(r"A\]B", _url("A]B")), (r"C\|D", _url("C%7CD"))]
-    tableau = tableau_markdown([{"Entité": "ENT-A", "Tickets en cause": texte}])
-    derniere = tableau.splitlines()[-1]
-    assert re.split(r"(?<!\\)\|", derniere)[1:-1] == [" ENT-A ", f" {texte} "]
-
-
-def test_barre_brute_echappee_dans_le_tableau() -> None:
-    tableau = tableau_markdown([{"Colonne": "a|b\nc"}])
-    assert tableau.splitlines()[-1] == r"| a\|b c |"
 
 
 class _ConsultationFigee:
@@ -308,34 +215,6 @@ class _ConsultationFigee:
 
     def url_ticket(self, cle: str) -> str | None:
         return _url(cle)
-
-
-def test_lignes_carte_et_tableau() -> None:
-    evolution = _evolution(Couleur.rouge, Couleur.rouge, Couleur.jaune, entite="ENT-B")
-    consultation = _ConsultationFigee((evolution,))
-    lignes = lignes_carte(consultation)
-    assert lignes == [
-        {
-            "Entité": "ENT-A",
-            "Météo": "🟢 Vert",
-            "Tendance": "J-1 — · J-5 —",  # Entité absente de evolution_meteo()
-            "Règle principale": "—",
-            "Tickets en cause": "—",
-        },
-        {
-            "Entité": "ENT-B",
-            "Météo": "🔴 Rouge",
-            "Tendance": "J-1 → · J-5 ↗",
-            "Règle principale": "IND-2 : 11 (seuil > 10)",
-            "Tickets en cause": f"[DEMO-1]({_url('DEMO-1')})",
-        },
-    ]
-    assert date_carte(consultation) == "09/10/2026"
-    tableau = tableau_markdown(lignes).splitlines()
-    assert tableau[0] == "| Entité | Météo | Tendance | Règle principale | Tickets en cause |"
-    assert tableau[1] == "| --- | --- | --- | --- | --- |"
-    assert len(tableau) == 4
-    assert tableau_markdown([]) == ""
 
 
 def test_libelles_francais() -> None:

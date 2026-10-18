@@ -13,10 +13,8 @@ from usine.ui.progression import (
     LIBELLES_ETATS,
     SuiviEtape,
     etape_en_echec,
-    etat_des_etapes,
     fichier_nouveau,
     fichiers_progression,
-    ligne_suivi,
     lire_progression,
     suivi_des_etapes,
     texte_duree,
@@ -61,23 +59,6 @@ def test_le_nouveau_fichier_est_suivi(tmp_path: Path) -> None:
     assert fichier_nouveau(avant, tmp_path) == nouveau
 
 
-def test_progression_par_etape(tmp_path: Path) -> None:
-    chemin = _repertoire(tmp_path) / f"{PASSAGE}.jsonl"
-    chemin.write_text(
-        _ligne(Etape.extraction, StatutEtape.en_cours)
-        + _ligne(Etape.extraction, StatutEtape.reussie)
-        + _ligne(Etape.instantanes, StatutEtape.en_cours),
-        encoding="utf-8",
-    )
-    etats = dict(etat_des_etapes(lire_progression(chemin)))
-    assert list(etats) == list(Etape)
-    assert etats[Etape.extraction] == StatutEtape.reussie
-    assert etats[Etape.instantanes] == StatutEtape.en_cours
-    assert all(etats[e] == EN_ATTENTE for e in list(Etape)[2:])
-    assert LIBELLES_ETATS[etats[Etape.extraction]] == "Réussie"
-    assert LIBELLES_ETATS[etats[Etape.kpi]] == "En attente"
-
-
 def test_ligne_partielle_ignoree(tmp_path: Path) -> None:
     chemin = tmp_path / f"{PASSAGE}.jsonl"
     complete = _ligne(Etape.extraction, StatutEtape.reussie)
@@ -87,17 +68,6 @@ def test_ligne_partielle_ignoree(tmp_path: Path) -> None:
     with chemin.open("a", encoding="utf-8") as fichier:
         fichier.write(suivante[25:])
     assert len(lire_progression(chemin)) == 2
-
-
-def test_echec_affiche(tmp_path: Path) -> None:
-    chemin = tmp_path / f"{PASSAGE}.jsonl"
-    chemin.write_text(
-        _ligne(Etape.kpi, StatutEtape.en_cours) + _ligne(Etape.kpi, StatutEtape.echouee),
-        encoding="utf-8",
-    )
-    etats = dict(etat_des_etapes(lire_progression(chemin)))
-    assert etats[Etape.kpi] == StatutEtape.echouee
-    assert LIBELLES_ETATS[etats[Etape.kpi]] == "Échec"
 
 
 def test_fichier_absent_et_ligne_invalide(tmp_path: Path) -> None:
@@ -118,36 +88,6 @@ def _suivis(*evenements: EvenementProgression) -> dict[Etape, SuiviEtape]:
     return {suivi.etape: suivi for suivi in suivis}
 
 
-def test_suivi_en_cours() -> None:
-    suivis = _suivis(
-        _evenement(Etape.extraction, StatutEtape.en_cours, 1.0),
-        _evenement(Etape.extraction, StatutEtape.reussie, 1.5),
-        _evenement(Etape.instantanes, StatutEtape.en_cours, 1.5),
-    )
-    assert suivis[Etape.extraction] == SuiviEtape(
-        Etape.extraction, StatutEtape.reussie, timedelta(seconds=0.5)
-    )
-    assert ligne_suivi(suivis[Etape.extraction]) == "- **extraction** : Réussie (0,5 s)"
-    assert suivis[Etape.instantanes].duree is None
-    assert ligne_suivi(suivis[Etape.instantanes]) == "- **instantanes** : En cours"
-    assert ligne_suivi(suivis[Etape.kpi]) == "- **kpi** : En attente"
-
-
-def test_suivi_sautee_meme_instant() -> None:
-    suivis = _suivis(
-        _evenement(Etape.classification, StatutEtape.en_cours, 2.0),
-        _evenement(Etape.classification, StatutEtape.sautee, 2.0),
-    )
-    # `formater_nombre` retire les zéros non significatifs : « 0 s » (et non « 0,0 s »)
-    assert ligne_suivi(suivis[Etape.classification]) == "- **classification** : Sautée (0 s)"
-
-
-def test_suivi_final_sans_en_cours() -> None:
-    suivis = _suivis(_evenement(Etape.kpi, StatutEtape.reussie, 3.0))
-    assert suivis[Etape.kpi].duree is None
-    assert ligne_suivi(suivis[Etape.kpi]) == "- **kpi** : Réussie"
-
-
 def test_suivi_derniers_evenements_et_incoherence() -> None:
     suivis = _suivis(
         _evenement(Etape.extraction, StatutEtape.en_cours, 0.0),
@@ -161,6 +101,43 @@ def test_suivi_derniers_evenements_et_incoherence() -> None:
     assert suivis[Etape.kpi].duree is None  # fin antérieure au début : aucune durée affichée
 
 
+def test_texte_duree() -> None:
+    assert texte_duree(timedelta(seconds=0.3)) == "0,3 s"
+    assert texte_duree(timedelta(seconds=1234.56)) == f"1{ESPACE_INSECABLE}234,6 s"
+    assert texte_duree(timedelta(seconds=2)) == "2 s"
+    assert texte_duree(timedelta(0)) == "0 s"
+
+
+def test_suivi_en_cours() -> None:
+    suivis = _suivis(
+        _evenement(Etape.extraction, StatutEtape.en_cours, 1.0),
+        _evenement(Etape.extraction, StatutEtape.reussie, 1.5),
+        _evenement(Etape.instantanes, StatutEtape.en_cours, 1.5),
+    )
+    assert list(suivis) == list(Etape)
+    assert suivis[Etape.extraction] == SuiviEtape(
+        Etape.extraction, StatutEtape.reussie, timedelta(seconds=0.5)
+    )
+    assert suivis[Etape.instantanes].etat == StatutEtape.en_cours
+    assert suivis[Etape.instantanes].duree is None
+    assert suivis[Etape.kpi].etat == EN_ATTENTE
+    assert LIBELLES_ETATS[suivis[Etape.extraction].etat] == "Réussie"
+    assert LIBELLES_ETATS[suivis[Etape.kpi].etat] == "En attente"
+
+
+def test_suivi_sautee_meme_instant() -> None:
+    suivis = _suivis(
+        _evenement(Etape.classification, StatutEtape.en_cours, 2.0),
+        _evenement(Etape.classification, StatutEtape.sautee, 2.0),
+    )
+    assert suivis[Etape.classification].duree == timedelta(0)
+
+
+def test_suivi_final_sans_en_cours() -> None:
+    suivis = _suivis(_evenement(Etape.kpi, StatutEtape.reussie, 3.0))
+    assert suivis[Etape.kpi].duree is None
+
+
 def test_etape_en_echec() -> None:
     assert etape_en_echec(()) is None
     reussie = _evenement(Etape.extraction, StatutEtape.reussie)
@@ -171,11 +148,6 @@ def test_etape_en_echec() -> None:
         _evenement(Etape.kpi, StatutEtape.echouee, 1.3),
     ]
     assert etape_en_echec(evenements) is Etape.kpi
-    assert ligne_suivi(_suivis(*evenements)[Etape.kpi]) == "- **kpi** : Échec (0,3 s)"
-
-
-def test_texte_duree() -> None:
-    assert texte_duree(timedelta(seconds=0.3)) == "0,3 s"
-    assert texte_duree(timedelta(seconds=1234.56)) == f"1{ESPACE_INSECABLE}234,6 s"
-    assert texte_duree(timedelta(seconds=2)) == "2 s"
-    assert texte_duree(timedelta(0)) == "0 s"
+    suivi = _suivis(*evenements)[Etape.kpi]
+    assert suivi.etat == StatutEtape.echouee
+    assert suivi.duree == timedelta(seconds=0.3)

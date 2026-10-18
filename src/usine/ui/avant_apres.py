@@ -1,4 +1,4 @@
-"""Écran « Avant / après » : reporting manuel déclaré contre Chaîne mesurée (sans Streamlit).
+"""Écran « Avant / après » : reporting manuel déclaré contre Chaîne mesurée.
 
 Le temps manuel vient de `config/demo.yaml` (valeur déclarative fictive, Q-5) ; le temps de la
 Chaîne vient des horodatages du manifeste du dernier Passage publié sans classification
@@ -8,10 +8,8 @@ ratio n'est calculé.
 
 from datetime import timedelta
 
-from usine.contrats.format import formater_date, formater_entier
+from usine.contrats.format import formater_date
 from usine.contrats.passage import ManifestePassage
-from usine.ui.carte import tableau_markdown
-from usine.ui.progression import texte_duree
 
 NB_RAPPORTS_CUMUL = 5
 """Nombre de Rapports quotidiens du cumul affiché."""
@@ -48,26 +46,6 @@ MENTION_CUMUL = f"Cumul : {NB_RAPPORTS_CUMUL} × le temps d'un Rapport."
 def duree_mesuree(manifeste: ManifestePassage) -> timedelta:
     """Temps mesuré du Passage : `horodatage_fin − horodatage_debut` du manifeste."""
     return manifeste.horodatage_fin - manifeste.horodatage_debut
-
-
-def tableau_avant_apres(minutes_par_rapport: int, duree: timedelta) -> str:
-    """Tableau Markdown : une ligne par Rapport quotidien, une ligne cumulée."""
-    return tableau_markdown(
-        [
-            {
-                "Rapport": "Par Rapport quotidien",
-                "Reporting manuel (déclaré)": f"{formater_entier(minutes_par_rapport)} min",
-                "Chaîne (mesuré)": texte_duree(duree),
-            },
-            {
-                "Rapport": f"Cumulé sur {NB_RAPPORTS_CUMUL} Rapports",
-                "Reporting manuel (déclaré)": (
-                    f"{formater_entier(minutes_par_rapport * NB_RAPPORTS_CUMUL)} min"
-                ),
-                "Chaîne (mesuré)": texte_duree(duree * NB_RAPPORTS_CUMUL),
-            },
-        ]
-    )
 
 
 def legende(manifeste: ManifestePassage) -> str:

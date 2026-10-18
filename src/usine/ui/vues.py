@@ -29,7 +29,7 @@ class VueCadre(BaseModel):
     mode: Literal["reel", "repli"]
     libelle_mode: str
     bandeau_repli_html: str | None
-    """`app.BANDEAU_REPLI` rendu en HTML en ligne (`<strong>`, `<code>`), texte constant."""
+    """`textes.BANDEAU_REPLI` rendu en HTML en ligne (`<strong>`, `<code>`), texte constant."""
     passage_publie: str | None
     """« Passage publié · JJ/MM/AAAA HH:MM UTC », ou `None` s'il n'y a pas de Passage affiché."""
     erreur: str | None

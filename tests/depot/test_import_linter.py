@@ -45,7 +45,6 @@ MODULES_DES_DEPENDANCES: dict[str, tuple[str, ...]] = {
     "fr-core-news-md": ("fr_core_news_md",),
     "openpyxl": ("openpyxl",),
     "python-pptx": ("pptx",),
-    "streamlit": ("streamlit",),
     "fastapi": ("fastapi",),
     "uvicorn": ("uvicorn",),
     "markdown-it-py": ("markdown_it",),
@@ -57,6 +56,7 @@ MODULES_DES_DEPENDANCES: dict[str, tuple[str, ...]] = {
     "import-linter": ("importlinter",),
     "time-machine": ("time_machine",),
     "types-pyyaml": (),  # Stubs de typage seulement : rien à importer.
+    "tzdata": (),  # Données de fuseaux lues par `zoneinfo` : rien à importer.
     "lightgbm": ("lightgbm",),
     "langfuse": ("langfuse",),
 }
@@ -100,7 +100,7 @@ AUTORISATIONS: dict[str, tuple[set[str], set[str] | None]] = {
     "usine.config": ({"contrats"}, {"yaml", "pydantic_settings"}),
     "usine.ui": (
         {"contrats", "consultation", "composition"},
-        {"streamlit", "fastapi", "uvicorn", "markdown_it"},
+        {"fastapi", "uvicorn", "markdown_it"},
     ),
     # Hors produit : aucun interdit externe (None).
     "evaluation": ({"contrats", "ports", "domaine", "composition"}, None),

@@ -1,4 +1,4 @@
-"""Suivi de la progression d'un Passage lancé depuis l'UI, sans Streamlit (fonctions pures).
+"""Suivi de la progression d'un Passage lancé depuis l'UI (fonctions pures).
 
 Le fichier `sorties/progression/<passage_id>.jsonl` est lu en ouvrir-lire-fermer à chaque
 sondage ; une dernière ligne incomplète (sans saut de ligne) attend le sondage suivant.
@@ -78,14 +78,6 @@ def lire_progression(chemin: Path) -> tuple[EvenementProgression, ...]:
     return tuple(evenements)
 
 
-def etat_des_etapes(evenements: Iterable[EvenementProgression]) -> list[tuple[Etape, str]]:
-    """Pour chaque `Etape` dans l'ordre d'AD-8, son dernier statut ou `en_attente`."""
-    derniers: dict[Etape, str] = {}
-    for evenement in evenements:
-        derniers[evenement.etape] = evenement.statut.value
-    return [(etape, derniers.get(etape, EN_ATTENTE)) for etape in Etape]
-
-
 _FINAUX = frozenset({StatutEtape.reussie, StatutEtape.sautee, StatutEtape.echouee})
 
 
@@ -136,9 +128,3 @@ def etape_en_echec(evenements: Iterable[EvenementProgression]) -> Etape | None:
 def texte_duree(duree: timedelta) -> str:
     """Durée en secondes au format français : `0,3 s`."""
     return f"{formater_nombre(duree.total_seconds(), 1)} s"
-
-
-def ligne_suivi(suivi: SuiviEtape) -> str:
-    """Ligne Markdown d'une étape : `- **kpi** : Réussie (0,3 s)` ou `- **kpi** : En cours`."""
-    ligne = f"- **{suivi.etape.value}** : {LIBELLES_ETATS[suivi.etat]}"
-    return ligne if suivi.duree is None else f"{ligne} ({texte_duree(suivi.duree)})"

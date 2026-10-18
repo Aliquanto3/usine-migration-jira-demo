@@ -112,7 +112,7 @@ def test_aucun_texte_de_la_fiche_dans_ui() -> None:
     unites = _lignes_non_triviales(fiche)
     assert len(unites) >= 10  # la garde porte bien sur la fiche réelle
     sources = _fichiers_ui()
-    assert {"app.py", "outillage.py", "navigation.py"} <= {source.name for source in sources}
+    assert {"serveur.py", "outillage.py", "navigation.py"} <= {source.name for source in sources}
     for source in sources:
         texte = source.read_text(encoding="utf-8", errors="replace")
         copies = sorted(unite for unite in unites if unite in texte)

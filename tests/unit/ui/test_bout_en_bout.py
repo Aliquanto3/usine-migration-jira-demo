@@ -1,75 +1,87 @@
-"""Bout en bout (constat 23 de la rétro E0) : un vrai `usine rapport` lancé depuis la page.
+"""Bout en bout (constat 23 de la rétro E0) : vrai `usine rapport` lancé par l'API de l'UI web.
 
 Le sous-processus est réel (`subprocess.Popen`) ; seule la Date d'arrêté est fixée au
-09/10/2026 pour retrouver le Passage d'essai. La page sonde la progression jusqu'à la fin,
-puis affiche durées et carte du nouveau Passage sur l'écran Lancement (Story 7.3).
+09/10/2026 pour retrouver le Passage d'essai. Le client sonde `/api/chaine` jusqu'à la fin,
+puis lit la carte, le détail d'une Entité et un livrable du nouveau Passage (Story 7.17).
+Un second parcours fait la même lecture en Mode repli, sans Jira ni sous-processus.
 """
 
-import re
+import subprocess
 import time
-from functools import partial
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from fastapi.testclient import TestClient
 
 from tests.unit.chaine.environnement import DATE_ARRETE, preparer_racine
 from usine.contrats.passage import REPERTOIRE_PASSAGES, Etape
-from usine.ui import lancement
-from usine.ui.navigation import Ecran
+from usine.ui.chaine import GestionChaine
+from usine.ui.cli import application_web, lecture_consultation, lecture_manifeste, services_ecrans
+from usine.ui.serveur import HOTE, creer_application
 
-APP = Path(lancement.__file__).with_name("app.py")
 DELAI_MAX = 60.0  # secondes
 PAUSE = 0.5  # secondes entre deux sondages
 
 
-def _fini(page: AppTest) -> bool:
-    return bool(page.success) or any("Échec de la Chaîne" in e.value for e in page.error)
+def _popen_date_fixee(commande: list[str], **options: Any) -> "subprocess.Popen[bytes]":
+    return subprocess.Popen([*commande, "--date-arrete", DATE_ARRETE.isoformat()], **options)
 
 
-def test_vrai_rapport_depuis_la_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_vrai_rapport_depuis_l_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     racine = preparer_racine(tmp_path)
     monkeypatch.chdir(racine)
-    monkeypatch.setattr(
-        lancement, "lancer_chaine", partial(lancement.lancer_chaine, date_arrete=DATE_ARRETE)
+    application = creer_application(
+        repli=False,
+        lire_manifeste=lecture_manifeste(racine),
+        lire_consultation=lecture_consultation(racine),
+        chaine=GestionChaine(racine, popen=cast(Any, _popen_date_fixee)),
+        services=services_ecrans(racine),
     )
-    page = AppTest.from_file(str(APP), default_timeout=60).run()
-    assert "Aucun Passage publié" in page.info[0].value
-    page.sidebar.radio[0].set_value(Ecran.lancement.value).run()
-    page.button[0].click().run()
-    assert not page.exception
+    http = TestClient(application, base_url=f"http://{HOTE}")
+    assert http.get("/api/carte").json()["message"]  # aucun Passage publié
 
+    assert http.post("/api/chaine").status_code == 202
     limite = time.monotonic() + DELAI_MAX
-    while not _fini(page):
+    vue = http.get("/api/chaine").json()
+    while vue["en_cours"]:
         assert time.monotonic() < limite, "usine rapport non terminé en 60 s"
         time.sleep(PAUSE)
-        page.run()
+        vue = http.get("/api/chaine").json()
 
-    assert not page.exception
-    assert not page.error, [e.value for e in page.error]
-    assert "Chaîne terminée" in page.success[0].value
-    # `Etape` n'a pas d'étape `publication` : la publication suit la dernière étape (`rendu`)
-    # et se constate par le répertoire publié du Passage, puis par la carte.
-    etapes = "\n".join(str(m.value) for m in page.markdown)
-    for etape in Etape:
-        # chaque étape terminée porte sa durée, au format français (`0,3 s`, `2 s`)
-        motif = rf"^- \*\*{etape.value}\*\* : (Réussie|Sautée) \(\d[\d ]*(,\d)? s\)$"
-        assert re.search(motif, etapes, re.MULTILINE), (etape, etapes)
-    assert "En attente" not in etapes
-    assert "Échec" not in etapes
-    assert f"**{list(Etape)[-1].value}** : Réussie" in etapes
+    assert vue["statut"] == "terminee", vue["erreur"]
+    assert vue["erreur"] is None
+    assert vue["terminees"] == vue["total"] == len(Etape)
+    assert [etape["nom"] for etape in vue["etapes"]] == [etape.value for etape in Etape]
+    assert {etape["etat"] for etape in vue["etapes"]} <= {"reussie", "sautee"}
     publies = list((racine / REPERTOIRE_PASSAGES / DATE_ARRETE.isoformat()).iterdir())
     assert len(publies) == 1
     assert (publies[0] / "manifeste.json").is_file()
 
-    # la carte du nouveau Passage s'affiche sous le succès, sans changer d'écran
-    assert page.sidebar.radio[0].value == Ecran.lancement.value
-    assert page.subheader[-1].value == "Carte météo du dernier Passage"
-    assert "09/10/2026" in page.caption[0].value
-    assert any(str(m.value).startswith("| Entité |") for m in page.markdown)
+    # la carte du nouveau Passage, le détail d'une Entité et un livrable se lisent ensuite
+    carte = http.get("/api/carte").json()
+    assert carte["lignes"]
+    assert "09/10/2026" in carte["sous_titre"]
+    entite = carte["lignes"][0]["entite"]
+    assert http.get(f"/api/entites/{entite}").json()["entite"] == entite
+    assert http.get("/livrables/rapport_xlsx").content[:2] == b"PK"
 
-    page.sidebar.radio[0].set_value(Ecran.carte.value).run()
-    assert not page.exception
-    assert "09/10/2026" in page.caption[0].value
-    assert any(str(m.value).startswith("| Entité |") for m in page.markdown)
-    assert page.sidebar.success[0].value == "Dernier lancement : Passage publié."
+
+def test_carte_detail_livrable_en_mode_repli(racine_publiee: Path) -> None:
+    http = TestClient(application_web(racine_publiee, False), base_url=f"http://{HOTE}")
+    assert http.post("/api/mode", json={"mode": "repli"}).status_code == 200
+    cadre = http.get("/api/cadre").json()
+    assert cadre["mode"] == "repli"
+    assert cadre["bandeau_repli_html"]
+
+    carte = http.get("/api/carte").json()
+    assert carte["erreur"] is None
+    assert all(t["url"] is None for ligne in carte["lignes"] for t in ligne["tickets"])
+    entite = carte["lignes"][0]["entite"]
+    detail = http.get(f"/api/entites/{entite}").json()
+    assert detail["entite"] == entite
+    assert detail["erreur"] is None
+    livrable = http.get("/livrables/rapport_xlsx")
+    assert livrable.status_code == 200
+    assert livrable.content[:2] == b"PK"
+    assert "attachment" in livrable.headers["content-disposition"]

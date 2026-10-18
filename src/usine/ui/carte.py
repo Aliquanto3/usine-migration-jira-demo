@@ -1,10 +1,9 @@
-"""Carte météo du dernier Passage, sans Streamlit : lignes et tableau Markdown, via `Consultation`.
+"""Carte météo du dernier Passage : vues de la carte, via `Consultation`.
 
 L'UI ne calcule aucun chiffre : elle compare des `Couleur` (ordre de gravité) et formate les
 valeurs de `Consultation` avec `contrats.format`.
 """
 
-import re
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 from fractions import Fraction
@@ -22,7 +21,7 @@ from usine.contrats.meteo import (
     RegleDeclenchante,
 )
 from usine.contrats.passage import ManifestePassage, chemin_fichier_passage
-from usine.ui.liens import echapper_markdown, lien_ticket, vue_ticket
+from usine.ui.liens import vue_ticket
 from usine.ui.vues import (
     NomLivrable,
     VueCarte,
@@ -61,8 +60,6 @@ _SYMBOLES: Mapping[Operateur, str] = MappingProxyType(
     {Operateur.superieur_ou_egal: "≥", Operateur.superieur: ">"}
 )
 
-_BARRE_NON_ECHAPPEE = re.compile(r"(?<!\\)((?:\\\\)*)\|")
-
 
 class LectureCarte(Protocol):
     """Lectures de la `Consultation` dont la carte a besoin (alignées sur elle par un test)."""
@@ -97,11 +94,6 @@ class LectureVueCarte(LectureCarte, Protocol):
 def date_carte(consultation: LectureCarte) -> str:
     """Date d'arrêté du Passage, au format `JJ/MM/AAAA`."""
     return formater_date(consultation.manifeste().date_arrete)
-
-
-def libelle_meteo(couleur: Couleur) -> str:
-    """Pastille et libellé français : `🔴 Rouge`."""
-    return f"{PASTILLES[couleur]} {LIBELLES_COULEURS[couleur]}"
 
 
 def fleche(avant: Couleur | None, maintenant: Couleur) -> str:
@@ -144,49 +136,6 @@ def regle_principale(meteo: MeteoEntite) -> str:
     texte = formater_regle(meteo.regles[0])
     autres = len(meteo.regles) - 1
     return f"{texte} (+{autres})" if autres else texte
-
-
-def tickets_principaux(meteo: MeteoEntite, url_ticket: Callable[[str], str | None]) -> str:
-    """Tickets en cause de la Règle principale : 3 premiers en liens, puis `+N` ; `—` sinon."""
-    if not meteo.regles or not meteo.regles[0].tickets_en_cause:
-        return INCONNUE
-    cles = meteo.regles[0].tickets_en_cause
-    liens = ", ".join(lien_ticket(cle, url_ticket(cle)) for cle in cles[:TICKETS_MAX])
-    reste = len(cles) - TICKETS_MAX
-    return f"{liens} +{reste}" if reste > 0 else liens
-
-
-def lignes_carte(consultation: LectureCarte) -> list[dict[str, str]]:
-    """Une ligne par Entité : Météo, tendance J-1 / J-5, Règle principale et tickets en cause."""
-    evolutions = {evolution.entite: evolution for evolution in consultation.evolution_meteo()}
-    return [
-        {
-            "Entité": echapper_markdown(meteo.entite),
-            "Météo": libelle_meteo(meteo.couleur),
-            "Tendance": tendance(evolutions.get(meteo.entite)),
-            "Règle principale": regle_principale(meteo),
-            "Tickets en cause": tickets_principaux(meteo, consultation.url_ticket),
-        }
-        for meteo in consultation.meteo()
-    ]
-
-
-def _cellule(texte: str) -> str:
-    """Cellule sur une seule ligne, chaque `|` non encore échappé l'étant."""
-    return _BARRE_NON_ECHAPPEE.sub(r"\1\\|", " ".join(texte.splitlines()))
-
-
-def tableau_markdown(lignes: Sequence[Mapping[str, str]]) -> str:
-    """Tableau Markdown des lignes (colonnes de la première) ; chaîne vide sans ligne."""
-    if not lignes:
-        return ""
-    colonnes = list(lignes[0])
-    rangees = [
-        "| " + " | ".join(_cellule(colonne) for colonne in colonnes) + " |",
-        "|" + "|".join(" --- " for _ in colonnes) + "|",
-    ]
-    rangees += ["| " + " | ".join(_cellule(ligne[c]) for c in colonnes) + " |" for ligne in lignes]
-    return "\n".join(rangees)
 
 
 # --- Vue JSON de l'écran Carte météo (AD-25) : données structurées, sans Markdown ---

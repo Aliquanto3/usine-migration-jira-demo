@@ -44,7 +44,8 @@ def test_python_m_usine(tmp_path: Path) -> None:
         check=False,
     )
     assert resultat.returncode == 0, resultat.stderr
-    assert b"Streamlit" in resultat.stdout
+    assert b"--port" in resultat.stdout
+    assert b"treamlit" not in resultat.stdout
 
 
 def test_erreurs_dans_un_fichier_temporaire(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-"""Écran « Ce qu'il faut pour le faire en vrai » : fiche outillage de la Story 8.1 (sans Streamlit).
+"""Écran « Ce qu'il faut pour le faire en vrai » : fiche outillage de la Story 8.1.
 
 La fiche vit dans `docs/fiche-outillage.md`, sous la racine de l'UI ; elle est lue en UTF-8
 (BOM toléré) à chaque affichage et rendue telle quelle, en lecture seule. Aucun texte de la

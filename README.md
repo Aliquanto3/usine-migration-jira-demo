@@ -2,9 +2,9 @@
 
 Démonstrateur personnel : automatiser le reporting d'une usine de migration de SI à partir de Jira (ETL, KPI, météo calculée par règles, Excel et PowerPoint générés), puis l'enrichir par un LLM (explication sourcée des météos rouges, prévision de sortie du rouge narrée, agent conversationnel en lecture seule).
 
-![Démo de l'interface : carte météo des Entités, détail de ENT-A avec sa prévision de sortie du rouge, gain de temps avant / après, puis réponse contrôlée de l'Agent](docs/media/demo-ui.gif)
+![Aperçu d'une version précédente de l'interface : carte météo des Entités, détail de ENT-A avec sa prévision de sortie du rouge, gain de temps avant / après, puis réponse contrôlée de l'Agent](docs/media/demo-ui.gif)
 
-*L'interface de démo (`uv run usine ui`) en 30 secondes : la météo de chaque Entité calculée par règles depuis Jira, le détail d'une Entité rouge (tickets en cause, KPI, prévision de sortie du rouge), le temps du reporting manuel face à celui de la Chaîne, puis l'Agent dont chaque chiffre et chaque ticket cité est vérifié. Enregistrée en Mode repli, sur le Passage fictif de `demo/repli/`. Vidéo source : [`docs/media/demo-ui.mp4`](docs/media/demo-ui.mp4).*
+*Aperçu d'une version précédente de l'interface de démo, à réenregistrer sur l'interface web actuelle (`uv run usine ui`, Story 7.12). Ce qu'il montre en 30 secondes : la météo de chaque Entité calculée par règles depuis Jira, le détail d'une Entité rouge (tickets en cause, KPI, prévision de sortie du rouge), le temps du reporting manuel face à celui de la Chaîne, puis l'Agent dont chaque chiffre et chaque ticket cité est vérifié. Enregistrée en Mode repli, sur le Passage fictif de `demo/repli/`. Vidéo source : [`docs/media/demo-ui.mp4`](docs/media/demo-ui.mp4).*
 
 Toutes les données sont **fictives ou publiques**. Aucun nom, libellé, gabarit ni règle d'une organisation réelle.
 

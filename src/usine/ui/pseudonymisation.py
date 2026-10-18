@@ -1,4 +1,4 @@
-"""Écran Pseudonymisation, sans Streamlit : descriptions à comparer et messages (FR-31, AD-15).
+"""Écran Pseudonymisation : descriptions à comparer et messages (FR-31, AD-15).
 
 La page montre côte à côte une description de ticket et sa version pseudonymisée par
 `Pseudonymiseur.apercu`, que la composition expose seul (`ui/cli.apercu_pseudonymisation`) :

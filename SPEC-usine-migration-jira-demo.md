@@ -106,7 +106,7 @@ Conséquences : temps consommé chaque semaine, risque d'erreur, et justificatio
 | LLM | Interface unique (LiteLLM ou équivalent) + sorties structurées Pydantic |
 | Pseudonymisation | Microsoft Presidio (open source), adapté aux identifiants bancaires fictifs |
 | Agent | LangGraph ou Pydantic AI, outils en lecture seule |
-| Restitution | openpyxl, python-pptx, Streamlit pour l'agent et la démo |
+| Restitution | openpyxl, python-pptx, FastAPI + HTML statique pour l'agent et la démo |
 | Observabilité, évaluations | Langfuse auto-hébergé, pytest, Inspect AI ou promptfoo |
 
 ## 5. Évaluation
@@ -168,7 +168,7 @@ Comme pour le projet précédent : jalons courts, critères d'acceptation vérif
 | **M3 — Reporting automatique (palier 1)** | Excel multi-onglets + PPT (gabarit neutre : synthèse, météo par entité, tendances, top anomalies) | Rapport hebdomadaire complet en < 5 min, une commande ; **démo palier 1 possible** |
 | **M4 — Couche LLM** | Pseudonymisation, classification des causes, doublons, explication du rouge sourcée, brouillon des commentaires PPT, suite d'évaluation | Cibles du § 5 ; zéro donnée identifiante dans les traces Langfuse |
 | **M5 — Prévision** | Baseline, modèle validé sur le Public Jira Dataset puis appliqué aux scénarios, SHAP, narration LLM | Meilleur que la baseline ; A et B correctement anticipés |
-| **M6 — Agent et démo** | Agent conversationnel (outils en lecture seule) dans Streamlit, script de démo du § 6 | 13/15 aux questions types ; démo de 10 min répétée sans accroc |
+| **M6 — Agent et démo** | Agent conversationnel (outils en lecture seule) dans l'interface web, script de démo du § 6 | 13/15 aux questions types ; démo de 10 min répétée sans accroc |
 | **M7 — Portage** | Dockerfile, note de portage Dataiku / Power Platform, fiche « outillage demandé » d'une page | Note validée par le responsable de mission |
 
 **Modalités Claude Code** : reprendre les règles du `CLAUDE.md` du projet précédent (jalon par jalon, mode plan, `docs/QUESTIONS.md`, journal de fin de jalon, aucun appel LLM réel dans les tests unitaires).

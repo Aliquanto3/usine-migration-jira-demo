@@ -1,8 +1,8 @@
-"""Textes et chemins communs à l'UI Streamlit et à l'UI web, sans dépendance externe.
+"""Textes et chemins communs à l'UI web, sans dépendance externe.
 
 Le Mode repli lit le Passage enregistré `demo/repli/passage/` : son chemin et les deux textes
-qui le nomment vivent ici pour que `app.py` (Streamlit, retiré en Story 7.17) et `serveur.py`
-(FastAPI) citent la même constante.
+qui le nomment vivent ici pour que `serveur.py`
+(FastAPI) et ses modules citent la même constante.
 """
 
 from pathlib import Path

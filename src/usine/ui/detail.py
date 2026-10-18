@@ -1,4 +1,4 @@
-"""Détail d'une Entité, sans Streamlit : blocs de l'écran, via `Consultation`.
+"""Détail d'une Entité : blocs de l'écran, via `Consultation`.
 
 Règles déclenchantes, KPI clés, Prévision de sortie du rouge (ou sa narration contrôlée en
 Palier 2), Risque d'entrée en rouge et Explication sourcée (FR-43, FR-17, FR-20, FR-21, FR-24,
@@ -26,12 +26,10 @@ from usine.ui.carte import (
     entites_triees,
     formater_regle,
     libelle_suite,
-    tableau_markdown,
     url_detail,
     vue_meteo,
     vues_tickets,
 )
-from usine.ui.liens import echapper_markdown, lien_ticket
 from usine.ui.vues import (
     VueBloc,
     VueDetail,
@@ -141,22 +139,6 @@ class LectureDetail(Protocol):
         ...
 
 
-def lignes_regles(
-    meteo: MeteoEntite, url_ticket: Callable[[str], str | None]
-) -> list[dict[str, str]]:
-    """Une ligne par Règle déclenchante (ordre de la Grille), avec tous ses tickets en cause."""
-    return [
-        {
-            "Règle": formater_regle(regle),
-            "Tickets en cause": ", ".join(
-                lien_ticket(cle, url_ticket(cle)) for cle in regle.tickets_en_cause
-            )
-            or INCONNUE,
-        }
-        for regle in meteo.regles
-    ]
-
-
 def valeur_kpi(code: str, numerateur: int, denominateur: int) -> str:
     """Fraction formatée (`%` pour `taux_*`) ; `∞` si `n/0` avec `n > 0`, `—` si `0/0`."""
     if denominateur == 0:
@@ -185,15 +167,6 @@ def _kpi_cles(table: pl.DataFrame, mise_en_forme: Callable[[str], str]) -> list[
     return lignes
 
 
-def lignes_kpi(table: pl.DataFrame) -> list[dict[str, str]]:
-    """KPI clés de la table `SCHEMA_KPI` d'une Entité, dans l'ordre de `KPI_CLES`.
-
-    Une ligne par dimension présente ; un KPI ventilé ajoute ` (dimension)` à son libellé
-    (dimension échappée pour le Markdown).
-    """
-    return _kpi_cles(table, echapper_markdown)
-
-
 def previsions_calculees(manifeste: ManifestePassage) -> bool:
     """Vrai si l'étape `prevision` du Passage a réussi.
 
@@ -205,16 +178,6 @@ def previsions_calculees(manifeste: ManifestePassage) -> bool:
         execution.etape is Etape.prevision and execution.statut is StatutEtape.reussie
         for execution in manifeste.etapes
     )
-
-
-def _facteurs(prevision: Prevision) -> list[str]:
-    if not prevision.facteurs:
-        return []
-    return ["", "**Facteurs explicatifs**", ""] + [
-        f"- {echapper_markdown(facteur.libelle)} :"
-        f" {formater_fraction(Fraction(facteur.numerateur, facteur.denominateur))}"
-        for facteur in prevision.facteurs
-    ]
 
 
 def _probabilite_et_horizon(prevision: Prevision) -> list[str]:
@@ -236,81 +199,8 @@ def _fourchette(prevision: Prevision) -> list[str]:
     return []
 
 
-def _texte_une_prevision(prevision: Prevision) -> str:
-    if prevision.statut is StatutPrevision.sortie_projetee:
-        estimee = prevision.date_sortie_estimee
-        lignes = [
-            f"**Sortie du rouge estimée** : {formater_date(estimee) if estimee else INCONNUE}",
-            "",
-            *(f"- {ligne}" for ligne in _fourchette(prevision)),
-            *(f"- {ligne}" for ligne in _probabilite_et_horizon(prevision)),
-            f"- Méthode : {prevision.methode.value}",
-        ]
-    elif prevision.statut is StatutPrevision.pas_de_sortie_projetee:
-        lignes = [
-            f"**{PAS_DE_SORTIE}**",
-            "",
-            *(f"- {ligne}" for ligne in _probabilite_et_horizon(prevision)),
-        ]
-    else:
-        codes = ", ".join(code.value for code in prevision.regles_non_projetables)
-        lignes = [f"**{NON_PROJETABLE} ({codes})**"]
-    return "\n".join([*lignes, *_facteurs(prevision)])
-
-
-def _texte_narration(narration: SortieNarration) -> str:
-    return (
-        f"{echapper_markdown(narration.texte)}\n\n"
-        f"*{NARRATION_CONTROLEE} ({LIBELLES_STATUT[narration.statut_controle]})*"
-    )
-
-
-def texte_prevision(
-    meteo: MeteoEntite,
-    previsions: tuple[Prevision, ...],
-    calculees: bool,
-    narrations: tuple[SortieNarration, ...] = (),
-) -> str:
-    """Bloc Prévision de sortie du rouge de l'Entité (Markdown).
-
-    Une narration de l'Entité remplace la Prévision brute seulement si son contrôle est
-    `conforme` ou `corrige` ; sinon (rejetée, non contrôlée, absente, Palier 1), la Prévision
-    brute reste affichée.
-    """
-    if not calculees:
-        return PREVISION_NON_CALCULEE_PASSAGE
-    if meteo.couleur is not Couleur.rouge:
-        return PREVISION_SANS_OBJET
-    propres = [p for p in previsions if p.entite == meteo.entite]
-    if not propres:
-        return PREVISION_NON_CALCULEE_ENTITE
-    controlees = [
-        n for n in narrations if n.entite == meteo.entite and n.statut_controle in STATUTS_ACCEPTES
-    ]
-    if controlees:
-        return "\n\n".join(_texte_narration(narration) for narration in controlees)
-    return "\n\n".join(_texte_une_prevision(prevision) for prevision in propres)
-
-
 def _valeur(numerateur: int, denominateur: int) -> str:
     return formater_fraction(Fraction(numerateur, denominateur))
-
-
-def texte_risques(
-    meteo: MeteoEntite, risques: tuple[RisqueEntreeRouge, ...], calculees: bool
-) -> str:
-    """Bloc Risque d'entrée en rouge de l'Entité (Markdown : message ou tableau).
-
-    La colonne « Valeur projetée » (contrats 1.1.0) n'apparaît que si un Risque la porte.
-    """
-    if not calculees:
-        return RISQUE_NON_CALCULE_PASSAGE
-    if meteo.couleur is Couleur.rouge:
-        return RISQUE_SANS_OBJET
-    propres = [r for r in risques if r.entite == meteo.entite]
-    if not propres:
-        return AUCUN_RISQUE
-    return tableau_markdown(_lignes_risques(propres))
 
 
 def _lignes_risques(propres: list[RisqueEntreeRouge]) -> list[dict[str, str]]:
@@ -347,57 +237,6 @@ def _morceaux(texte: str, citations: tuple[str, ...]) -> list[tuple[str, bool]]:
     motif = re.compile(rf"(?<![\w-])({'|'.join(re.escape(c) for c in cles)})(?![\w-])")
     morceaux = motif.split(texte)  # hors clé aux rangs pairs, clés aux rangs impairs
     return [(morceau, rang % 2 == 1) for rang, morceau in enumerate(morceaux)]
-
-
-def texte_avec_liens(
-    texte: str, citations: tuple[str, ...], url_ticket: Callable[[str], str | None]
-) -> str:
-    """`texte` en Markdown, chaque clé citée en lien Jira (texte simple en Mode repli).
-
-    Les morceaux hors clé sont échappés.
-    """
-    return "".join(
-        lien_ticket(morceau, url_ticket(morceau)) if est_cle else echapper_markdown(morceau)
-        for morceau, est_cle in _morceaux(texte, citations)
-    )
-
-
-def _texte_une_explication(
-    explication: SortieExplication, url_ticket: Callable[[str], str | None]
-) -> str:
-    statut = f"{STATUT_CONTROLE} : {LIBELLES_STATUT[explication.statut_controle]}"
-    if explication.statut_controle is StatutControle.rejete:
-        return f"{echapper_markdown(explication.texte)}\n\n*{statut}*"
-    lignes = [texte_avec_liens(explication.texte, explication.citations, url_ticket), ""]
-    if explication.citations:
-        lignes += [f"**{CITATIONS}**", ""]
-        lignes += [f"- {lien_ticket(cle, url_ticket(cle))}" for cle in explication.citations]
-        lignes.append("")
-    lignes += [f"- {PHRASES_RETIREES} : {explication.phrases_retirees}", f"- {statut}"]
-    return "\n".join(lignes)
-
-
-def _sans_lien(_cle: str) -> None:
-    return None
-
-
-def texte_explication(
-    palier: Palier,
-    explications: tuple[SortieExplication, ...] = (),
-    url_ticket: Callable[[str], str | None] = _sans_lien,
-) -> str:
-    """Zone Explication de l'Entité (Markdown).
-
-    En Palier 1, aucun commentaire n'est généré (`EXPLICATION_PALIER_1`). En Palier 2 : le
-    texte avec ses clés citées en liens, la liste des Citations (une clé absente du texte
-    reste visible), le nombre de phrases retirées au contrôle et le statut ; une Explication
-    rejetée affiche son texte de remplacement tel quel, avec son statut.
-    """
-    if palier == 1:
-        return EXPLICATION_PALIER_1
-    if not explications:
-        return EXPLICATION_ABSENTE
-    return "\n\n".join(_texte_une_explication(e, url_ticket) for e in explications)
 
 
 # --- Vue JSON de l'écran Détail d'une Entité (AD-25) : données structurées, sans Markdown ---
@@ -445,7 +284,7 @@ def section_prevision(
     calculees: bool,
     narrations: tuple[SortieNarration, ...] = (),
 ) -> VueSection:
-    """Bloc Prévision en blocs structurés (mêmes cas que `texte_prevision`)."""
+    """Bloc Prévision en blocs structurés."""
 
     def message(texte: str) -> VueSection:
         return VueSection(titre=TITRE_PREVISION, message=texte, blocs=[], tableau=None)
@@ -476,7 +315,7 @@ def section_prevision(
 def section_risque(
     meteo: MeteoEntite, risques: tuple[RisqueEntreeRouge, ...], calculees: bool
 ) -> VueSection:
-    """Bloc Risque d'entrée en rouge : message ou tableau (mêmes cas que `texte_risques`)."""
+    """Bloc Risque d'entrée en rouge : message ou tableau."""
 
     def message(texte: str) -> VueSection:
         return VueSection(titre=TITRE_RISQUE, message=texte, blocs=[], tableau=None)
@@ -534,7 +373,7 @@ def section_explication(
     explications: tuple[SortieExplication, ...],
     url_ticket: Callable[[str], str | None],
 ) -> VueExplications:
-    """Zone Explication en données (mêmes cas que `texte_explication`)."""
+    """Zone Explication en données."""
     if palier == 1:
         return VueExplications(
             titre=TITRE_EXPLICATION, message=EXPLICATION_PALIER_1, explications=[]

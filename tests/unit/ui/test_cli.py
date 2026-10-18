@@ -1,7 +1,5 @@
 """Commande `usine ui` et services de la page : configuration de la démo, manifestes mesurés."""
 
-import subprocess
-import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -22,38 +20,13 @@ from usine.ui.serveur import HOTE
 def test_aide() -> None:
     resultat = CliRunner().invoke(app, ["ui", "--help"])
     assert resultat.exit_code == 0, resultat.output
+    assert "--port" in resultat.output
+    assert "--streamlit" not in resultat.output
 
 
-def test_lance_streamlit(monkeypatch: pytest.MonkeyPatch) -> None:
-    appels: list[list[str]] = []
-
-    def executer(commande: list[str], **_options: Any) -> subprocess.CompletedProcess[bytes]:
-        appels.append(commande)
-        return subprocess.CompletedProcess(commande, 3)
-
-    monkeypatch.setattr(subprocess, "run", executer)
+def test_option_streamlit_retiree() -> None:
     resultat = CliRunner().invoke(app, ["ui", "--streamlit"])
-    assert resultat.exit_code == 3
-    assert appels == [[sys.executable, "-m", "streamlit", "run", str(cli_ui.CHEMIN_APP)]]
-    assert cli_ui.CHEMIN_APP.is_file()
-
-
-def test_interruption(monkeypatch: pytest.MonkeyPatch) -> None:
-    def interrompre(commande: list[str], **_options: Any) -> subprocess.CompletedProcess[bytes]:
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(subprocess, "run", interrompre)
-    assert CliRunner().invoke(app, ["ui", "--streamlit"]).exit_code == 0
-
-
-def test_streamlit_introuvable(monkeypatch: pytest.MonkeyPatch) -> None:
-    def echouer(commande: list[str], **_options: Any) -> subprocess.CompletedProcess[bytes]:
-        raise FileNotFoundError(2, "introuvable", commande[0])
-
-    monkeypatch.setattr(subprocess, "run", echouer)
-    resultat = CliRunner().invoke(app, ["ui", "--streamlit"])
-    assert resultat.exit_code == 1
-    assert "lancement de Streamlit impossible" in resultat.stderr
+    assert resultat.exit_code == 2
 
 
 def _capter_uvicorn(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:

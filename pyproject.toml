@@ -23,10 +23,10 @@ dependencies = [
     "fr_core_news_md @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl",
     "openpyxl==3.1.5",
     "python-pptx==1.0.2",
-    "streamlit==1.65.0",
     "fastapi==0.143.3",
     "uvicorn==0.54.0",
     "markdown-it-py==4.2.0",
+    "tzdata==2026.5",  # base IANA pour ZoneInfo sous Windows (tirée avant par pandas)
     "scikit-learn==1.9.1",
 ]
 
@@ -126,7 +126,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 allow_indirect_imports = true
 
@@ -141,7 +141,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 allow_indirect_imports = true
 
@@ -156,7 +156,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
     "io", "os", "pathlib", "random", "secrets", "shutil", "socket", "sqlite3", "subprocess",
     "tempfile", "time", "urllib", "uuid",
 ]
@@ -172,7 +172,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
 unmatched_ignore_imports_alerting = "none"
@@ -188,7 +188,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
 unmatched_ignore_imports_alerting = "none"
@@ -204,7 +204,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = [
     "usine.*.cli -> usine.**", "usine.*.*.cli -> usine.**",
@@ -235,7 +235,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
 unmatched_ignore_imports_alerting = "none"
@@ -251,7 +251,7 @@ forbidden_modules = [
     "fr_core_news_md", "importlinter", "langfuse", "lightgbm",
     "mypy", "numpy", "openpyxl", "pptx",
     "pyarrow", "pydantic_settings", "pytest",
-    "ruff", "sklearn", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = ["usine.*.cli -> usine.**", "usine.*.cli -> typer"]
 unmatched_ignore_imports_alerting = "none"
@@ -281,7 +281,7 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pydantic_settings", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer", "yaml",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer", "yaml",
 ]
 ignore_imports = [
     "usine.*.cli -> usine.**", "usine.generateur.injecteur.cli -> usine.**",
@@ -301,12 +301,12 @@ forbidden_modules = [
     "anthropic", "duckdb", "fr_core_news_md", "httpx", "importlinter", "langfuse", "lightgbm",
     "mistralai", "mypy", "numpy", "openpyxl", "pptx", "presidio_analyzer",
     "presidio_anonymizer", "pyarrow", "pydantic_ai", "pymongo", "pytest",
-    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "streamlit", "uvicorn", "time_machine", "typer",
+    "ruff", "sklearn", "spacy", "fastapi", "markdown_it", "uvicorn", "time_machine", "typer",
 ]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "ui : contrats, consultation, composition ; streamlit"
+name = "ui : contrats, consultation, composition ; fastapi, uvicorn, markdown_it"
 type = "forbidden"
 source_modules = ["usine.ui"]
 forbidden_modules = [

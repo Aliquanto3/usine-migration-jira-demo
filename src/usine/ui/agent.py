@@ -31,7 +31,6 @@ QUESTION_DEMO = "Quelle Entité risque de passer au rouge, et pourquoi ?"
 """Question de la démo, proposée dans le champ de saisie."""
 
 LIBELLE_QUESTION = "Question à l'Agent"
-LIBELLE_ENVOYER = "Poser la question"
 
 LEGENDE = (
     "L'Agent ne lit que le dernier Passage publié, par des outils en lecture seule ; chaque"
@@ -44,7 +43,6 @@ MESSAGE_REPLI = (
 )
 
 LIBELLE_CHOIX = "Question enregistrée"
-LIBELLE_REJOUER = "Rejouer la réponse"
 REFUS_REPLI = "Mode repli : réponses enregistrées de l'Agent refusées"
 
 
@@ -70,10 +68,3 @@ LIBELLES_STATUT: Mapping[StatutControle, str] = MappingProxyType(
 def texte_statut(reponse: ReponseAgent) -> str:
     """Statut de contrôle de la réponse, en français."""
     return f"Contrôle : {LIBELLES_STATUT[reponse.statut_controle]}"
-
-
-def texte_outils(reponse: ReponseAgent) -> str:
-    """Outils appelés, dans l'ordre, ou mention explicite d'aucun appel."""
-    if not reponse.outils_appeles:
-        return "Outils appelés : aucun"
-    return f"Outils appelés : {', '.join(reponse.outils_appeles)}"

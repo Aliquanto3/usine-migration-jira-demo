@@ -1,4 +1,4 @@
-"""Écrans de la démo et navigation en étoile autour de la carte météo, sans Streamlit."""
+"""Écrans de la démo et navigation en étoile autour de la carte météo."""
 
 from collections.abc import Mapping, MutableMapping
 from enum import StrEnum

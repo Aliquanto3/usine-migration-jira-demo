@@ -1,4 +1,4 @@
-"""Sous-application `usine ui` et services de la page Streamlit (racine de composition, AD-1).
+"""Sous-application `usine ui` et services de l'interface web (racine de composition, AD-1).
 
 Module `cli` de la lane L7 : il démarre la page et lui fournit la racine (`USINE_RACINE`), le
 Mode repli, la `Consultation` du dernier Passage publié ou du Passage enregistré du Mode repli
@@ -8,8 +8,6 @@ de l'Agent (`session_agent`) ou ses réponses enregistrées du Mode repli (`repo
 La page n'importe ni `ports`, ni `config`, ni `adaptateurs` : elle passe par ces services.
 """
 
-import subprocess
-import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, cast
@@ -35,9 +33,6 @@ from usine.ui.outillage import lire_fiche
 from usine.ui.serveur import HOTE, LireConsultation, LireManifeste, creer_application
 from usine.ui.textes import REPERTOIRE_REPLI as REPERTOIRE_REPLI
 from usine.ui.textes import REPLI_ABSENT
-
-CHEMIN_APP = Path(__file__).resolve().with_name("app.py")
-"""Page Streamlit lancée par `usine ui`."""
 
 app = typer.Typer(help="Interface web de la démo (FastAPI, 127.0.0.1).")
 
@@ -161,11 +156,6 @@ def reponses_repli(racine: Path, passage_id: str) -> tuple[ReponseAgentEnregistr
     return charger_reponses(racine / REPERTOIRE_REPONSES, passage_id)
 
 
-def commande_streamlit() -> list[str]:
-    """`python -m streamlit run <usine/ui/app.py>` avec l'interpréteur courant."""
-    return [sys.executable, "-m", "streamlit", "run", str(CHEMIN_APP)]
-
-
 def lecture_manifeste(racine: Path) -> LireManifeste:
     """Service du serveur : manifeste du Passage affiché (dernier Passage publié ou repli).
 
@@ -233,26 +223,11 @@ def application_web(racine: Path, repli: bool) -> FastAPI:
     )
 
 
-def _lancer_streamlit() -> int:
-    try:
-        return subprocess.run(commande_streamlit(), check=False).returncode
-    except KeyboardInterrupt:
-        return 0
-    except OSError as exc:
-        typer.echo(f"Erreur : lancement de Streamlit impossible ({exc})", err=True)
-        return 1
-
-
 @app.callback(invoke_without_command=True)
 def ui(
-    streamlit: Annotated[
-        bool, typer.Option("--streamlit", help="Ancienne interface Streamlit (retirée en 7.17).")
-    ] = False,
     port: Annotated[int, typer.Option("--port", help="Port local de l'interface web.")] = PORT,
 ) -> None:
     """Démarre l'interface web sur 127.0.0.1 ; racine : `USINE_RACINE` ou répertoire courant."""
-    if streamlit:
-        raise typer.Exit(_lancer_streamlit())
     try:
         racine = racine_ui()
         repli = mode_repli(racine)

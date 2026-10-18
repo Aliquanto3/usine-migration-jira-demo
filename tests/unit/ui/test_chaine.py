@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from tests.unit.ui.test_avant_apres import manifeste
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
-from usine.ui import app, progression, textes
+from usine.ui import progression, textes
 from usine.ui.chaine import (
     MOTIF_LANCEMENT_EN_COURS,
     MOTIF_MODE_EN_COURS,
@@ -552,10 +552,3 @@ def test_script_sans_innerhtml_ni_ressource_externe() -> None:
     assert "innerHTML" not in script
     assert "http://" not in script and "https://" not in script
     assert "aria-describedby" in script and "aria-disabled" in script
-
-
-def test_constantes_communes_avec_streamlit() -> None:
-    assert app.INTERVALLE_SONDAGE is textes.INTERVALLE_SONDAGE
-    assert app.LIGNES_ERREUR_MAX is textes.LIGNES_ERREUR_MAX
-    assert app.LANCEMENT_REPLI is textes.LANCEMENT_REPLI
-    assert app.REPLI_ABSENT is textes.REPLI_ABSENT

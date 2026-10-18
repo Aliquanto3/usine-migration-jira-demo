@@ -1,15 +1,15 @@
 # Script de la démo de 10 minutes (UJ-4)
 
-Démo de l'usine de migration au Sponsor, écran par écran de l'UI Streamlit (`uv run usine ui`).
+Démo de l'usine de migration au Sponsor, écran par écran de l'interface web (`uv run usine ui`, puis http://127.0.0.1:8000).
 Story 7.12. Les répétitions se consignent dans [`repetitions.md`](repetitions.md).
 
 **Durée prévue : 9 min 40 s**, soit 20 s de marge sur les 10 minutes.
 **Règle :** on suit le script. Tout geste hors script (commande tapée, page rechargée, fichier
 ouvert) compte comme une intervention hors script (SM-5).
 
-Les écrans s'ouvrent depuis la barre latérale (radio « Écran ») : Carte météo, Détail d'une
-Entité, Lancement de la Chaîne, Avant / après, Pseudonymisation, Agent, Ce qu'il faut pour le
-faire en vrai. Le bouton « Détail ENT-x » de la carte ouvre le Détail sur l'Entité en un clic.
+Les écrans s'ouvrent depuis la navigation latérale : Carte météo, Détail d'une Entité,
+Lancement de la Chaîne (`/chaine`), Avant / après, Pseudonymisation, Agent, Ce qu'il faut pour
+le faire en vrai. Un clic sur une Entité de la carte ouvre son Détail.
 
 ## Chiffres de référence
 
@@ -50,7 +50,7 @@ ENT-B aucune sortie projetée ; Risque ENT-C d'entrée en rouge sur IND-4 vers l
 2. Lancer l'UI :
    - mode normal : `uv run usine ui` ;
    - Mode repli imposé (réseau douteux) : `$env:USINE_MODE_REPLI = "1"; uv run usine ui`.
-     La bascule « Mode repli » de la barre latérale est alors cochée et grisée.
+     La pastille d'en-tête affiche alors « Mode repli ».
 3. Le navigateur s'ouvre sur « Carte météo ». Vérifier le bandeau : absent en mode normal,
    « **Mode repli** : la démo lit le Passage enregistré… » en Mode repli.
 4. Préchauffer : ouvrir une fois chaque écran dans l'ordre du script, dont Pseudonymisation
@@ -63,8 +63,8 @@ ENT-B aucune sortie projetée ; Risque ENT-C d'entrée en rouge sur IND-4 vers l
 
 ### Basculer en Mode repli pendant la démo
 
-Si Jira ou le LLM ne répond pas : cocher **« Mode repli »** dans la barre latérale (un clic).
-Le bandeau apparaît sur tous les écrans, et la démo continue au même écran. Phrase à dire :
+Si Jira ou le LLM ne répond pas : ouvrir `/chaine` et cliquer sur **« Passer en Mode repli »** (un clic).
+Le bandeau apparaît sur tous les écrans, et la démo continue sur le nouveau Passage. Phrase à dire :
 « Le réseau me lâche : je bascule sur le dernier Passage enregistré, signalé comme tel à
 l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors script.
 
@@ -81,7 +81,7 @@ l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors 
 
 ### 2. Avant / après : 0:30 → 1:30 (60 s)
 
-- **Écran :** Avant / après (barre latérale).
+- **Écran :** Avant / après (navigation latérale).
 - **Montrer :** le temps manuel déclaré (120 min par Rapport) à côté du temps mesuré du dernier
   Passage, par Rapport et cumulé sur 5 Rapports.
 - **Dire :** « À gauche, le temps manuel déclaré : deux heures par rapport, c'est une valeur
@@ -99,10 +99,10 @@ l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors 
   calcule les indicateurs, la météo par règles, la prévision, puis écrit l'Excel et le
   PowerPoint du jour. Aucun LLM dans ce calcul : tout est déterministe et rejouable. »
 - **Fin :** la carte du nouveau Passage s'affiche sous la progression.
-- **Plan B (repli) :** le bouton est grisé et l'écran dit pourquoi. Ne pas attendre : dire
+- **Plan B (repli) :** le bouton est bloqué et l'écran dit pourquoi. Ne pas attendre : dire
   « En Mode repli, le lancement est coupé. En direct, ce Passage a tourné en 20 s sur 3 547
   tickets » et passer à la carte (gagne 45 s).
-- **Si la Chaîne échoue :** l'écran nomme l'étape en échec ; cocher « Mode repli », dire la
+- **Si la Chaîne échoue :** l'écran nomme l'étape en échec ; ouvrir `/chaine`, cliquer sur « Passer en Mode repli », dire la
   phrase de bascule et continuer.
 
 ### 4. Carte météo, Scénarios A, B et C : 2:45 → 3:45 (60 s)
@@ -117,7 +117,7 @@ l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors 
 
 ### 5. Détail de ENT-A, Prévision : 3:45 → 5:00 (75 s)
 
-- **Clic :** bouton **« Détail ENT-A »** sur la carte.
+- **Clic :** l'Entité **ENT-A** sur la carte.
 - **Montrer :** Règles déclenchantes (IND-1 : 4 Anomalies bloquantes pour un seuil de 3, avec
   les tickets en cause), KPI clés, bloc « Prévision de sortie du rouge » et ses facteurs
   explicatifs (stock 4, 6 entrées et 15 sorties sur 10 Jours ouvrés).
@@ -187,7 +187,7 @@ l'écran. » Ce clic fait partie du script : ce n'est pas une intervention hors 
   Autres questions disponibles : « Quelles entités sont rouges à la Date d'arrêté ? »
   (`02.json`), « Pourquoi ENT-B est-elle rouge ? » (`03.json`), « Combien d'Anomalies sont
   ouvertes chez ENT-C ? » (`04.json`).
-- **Si le LLM ne répond pas (mode normal) :** cocher « Mode repli » et suivre le plan B.
+- **Si le LLM ne répond pas (mode normal) :** ouvrir `/chaine`, passer en Mode repli et suivre le plan B.
 
 ### 10. Ce qu'il faut pour le faire en vrai : 8:30 → 9:15 (45 s)
 
