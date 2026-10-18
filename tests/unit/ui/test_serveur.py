@@ -170,7 +170,10 @@ def test_cadre_lecture_impossible() -> None:
         raise UsineErreur("manifeste illisible")
 
     vue = (
-        TestClient(creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune))
+        TestClient(
+            creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune),
+            base_url=f"http://{HOTE}",
+        )
         .get("/api/cadre")
         .json()
     )
@@ -187,7 +190,8 @@ def test_le_mode_ne_change_jamais_seul() -> None:
         raise UsineErreur("illisible")
 
     http = TestClient(
-        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune)
+        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune),
+        base_url=f"http://{HOTE}",
     )
     assert http.get("/api/cadre").json()["mode"] == "reel"
     assert http.get("/api/cadre").json()["mode"] == "reel"
@@ -229,7 +233,7 @@ def test_lecture_repli_absent(tmp_path: Path) -> None:
     application = creer_application(
         repli=True, lire_manifeste=lecture_manifeste(tmp_path), lire_consultation=_aucune
     )
-    vue = TestClient(application).get("/api/cadre").json()
+    vue = TestClient(application, base_url=f"http://{HOTE}").get("/api/cadre").json()
     assert vue["erreur"] == REPLI_ABSENT
     assert vue["mode"] == "repli"
 
@@ -239,7 +243,8 @@ def test_cadre_repertoire_illisible() -> None:
         raise PermissionError(13, "accès refusé", "sorties/passages")
 
     reponse = TestClient(
-        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune)
+        creer_application(repli=False, lire_manifeste=lire, lire_consultation=_aucune),
+        base_url=f"http://{HOTE}",
     ).get("/api/cadre")
     assert reponse.status_code == 200
     assert reponse.json()["erreur"].startswith("Lecture du Passage impossible")

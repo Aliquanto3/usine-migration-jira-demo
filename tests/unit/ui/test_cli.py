@@ -16,6 +16,7 @@ from tests.unit.ui.test_avant_apres import manifeste, publier
 from usine.cli import app
 from usine.contrats.erreurs import UsineErreur
 from usine.ui import cli as cli_ui
+from usine.ui.serveur import HOTE
 
 
 def test_aide() -> None:
@@ -86,7 +87,7 @@ def test_ui_port_et_mode_repli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert resultat.exit_code == 0, resultat.output
     assert appels[0]["port"] == 8123
     assert "(Mode repli)" in resultat.output
-    vue = TestClient(appels[0]["application"]).get("/api/cadre").json()
+    vue = TestClient(appels[0]["application"], base_url=f"http://{HOTE}").get("/api/cadre").json()
     assert vue["mode"] == "repli"
 
 

@@ -58,6 +58,7 @@ MESSAGE_SUCCES = "Chaîne terminée : Passage publié."
 JOURNAL_ATTENTE = "En attente d'un lancement."
 JOURNAL_VIDE = "Aucun événement de progression pour l'instant."
 AUCUN_PASSAGE_LANCE = "Aucun Passage affiché : lancer la Chaîne pour en publier un."
+AUCUN_PASSAGE_REPLI = "Aucun Passage enregistré à afficher en Mode repli."
 
 _TERMINES = frozenset(
     {StatutEtape.reussie.value, StatutEtape.sautee.value, StatutEtape.echouee.value}
@@ -127,12 +128,12 @@ class GestionChaine:
             if self._erreurs is not None:
                 self._erreurs.close()
                 self._erreurs = None
-            self._avant = progression.fichiers_progression(self._racine)
             self._fichier = None
             self._texte_erreur = None
             self._echec_lancement = None
             erreurs: IO[bytes] | None = None
             try:
+                self._avant = progression.fichiers_progression(self._racine)
                 erreurs = lancement.fichier_erreurs()
                 self._processus = lancement.lancer_chaine(
                     self._racine, popen=self._popen, erreurs=erreurs
@@ -172,7 +173,7 @@ class GestionChaine:
         erreur = self._echec_lancement
         try:
             evenements = self._evenements()
-        except UsineErreur as exc:  # progression illisible : signalée, sondage maintenu
+        except (UsineErreur, OSError) as exc:  # progression illisible : signalée, sondage maintenu
             erreur = str(exc)
             evenements = ()
         suivis = progression.suivi_des_etapes(evenements)
@@ -221,7 +222,7 @@ class GestionChaine:
             bandeau=self._bandeau(code, evenements),
             erreur=erreur,
             dernier_passage=None if manifeste is None else vue_dernier_passage(manifeste),
-            message_dernier_passage=AUCUN_PASSAGE_LANCE,
+            message_dernier_passage=AUCUN_PASSAGE_REPLI if repli else AUCUN_PASSAGE_LANCE,
         )
 
     def _bandeau(

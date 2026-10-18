@@ -78,7 +78,11 @@
     barre.setAttribute("aria-valuemax", String(vue.total));
     el("barre-remplissage").style.width = (100 * vue.terminees) / vue.total + "%";
     // La région status n'annonce que ce qui change : étape, fin, échec (jamais chaque sondage).
-    if (vue.annonce && vue.annonce !== derniereAnnonce) {
+    // Fin et échec : le bandeau (status ou alert) les annonce déjà, la région se tait.
+    if (vue.bandeau) {
+      derniereAnnonce = vue.annonce;
+      el("annonce").textContent = "";
+    } else if (vue.annonce && vue.annonce !== derniereAnnonce) {
       el("annonce").textContent = vue.annonce;
       derniereAnnonce = vue.annonce;
     }
@@ -181,6 +185,9 @@
 
   // Un sondage ; il se reprogramme tant que la Chaîne tourne (ou que le serveur ne répond plus).
   function charger() {
+    if (minuteur !== null) {
+      window.clearTimeout(minuteur); // un seul sondage programmé, même après visibilitychange
+    }
     minuteur = null;
     return u.appeler("/api/chaine").then(function (vue) {
       if (vue) {
@@ -194,6 +201,13 @@
         }
       }
     });
+  }
+
+  // Serveur muet : les boutons reprennent l'état de la dernière vue (le cadre signale la panne).
+  function restaurer() {
+    if (vueCourante) {
+      afficher(vueCourante);
+    }
   }
 
   function refusSansEffet(bouton) {
@@ -212,7 +226,11 @@
         programmer(reponse.donnees.intervalle_ms);
         return;
       }
-      charger(); // refus (409) ou serveur muet : on relit l'état réel
+      if (reponse === null) {
+        restaurer();
+        return;
+      }
+      charger(); // refus (409) : on relit l'état réel
     });
   }
 
@@ -222,7 +240,11 @@
       return;
     }
     bouton.setAttribute("aria-disabled", "true");
-    u.envoyer("/api/mode", { mode: vueCourante.mode_cible }).then(function () {
+    u.envoyer("/api/mode", { mode: vueCourante.mode_cible }).then(function (reponse) {
+      if (reponse === null) {
+        restaurer();
+        return;
+      }
       u.rafraichirCadre();
       charger();
     });

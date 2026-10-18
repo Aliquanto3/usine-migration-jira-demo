@@ -255,7 +255,10 @@ def test_carte_sans_passage_et_erreurs() -> None:
     def aucun(_repli: bool) -> None:
         return None
 
-    http = TestClient(creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun))
+    http = TestClient(
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun),
+        base_url=f"http://{HOTE}",
+    )
     vue = http.get("/api/carte").json()
     assert vue["message"] == carte.AUCUN_PASSAGE
     assert vue["lien_message"] == {"libelle": "Lancer la Chaîne", "url": "/chaine"}
@@ -268,7 +271,7 @@ def test_carte_sans_passage_et_erreurs() -> None:
 
     for lire, attendu in ((casse, "manifeste illisible"), (illisible, "Lecture du Passage")):
         application = creer_application(repli=False, lire_manifeste=aucun, lire_consultation=lire)
-        reponse = TestClient(application).get("/api/carte")
+        reponse = TestClient(application, base_url=f"http://{HOTE}").get("/api/carte")
         assert reponse.status_code == 200
         assert attendu in reponse.json()["erreur"]
         assert reponse.json()["message"] is None
@@ -402,7 +405,10 @@ def test_detail_sans_passage_ni_meteo_et_erreur() -> None:
     def aucun(_repli: bool) -> None:
         return None
 
-    http = TestClient(creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun))
+    http = TestClient(
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun),
+        base_url=f"http://{HOTE}",
+    )
     vue = http.get("/api/entites/ENT-A").json()
     assert vue["message"] == carte.AUCUN_PASSAGE
     assert vue["lien_message"]["url"] == "/chaine"
@@ -413,7 +419,8 @@ def test_detail_sans_passage_ni_meteo_et_erreur() -> None:
         raise UsineErreur("manifeste illisible")
 
     erreur = TestClient(
-        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=casse)
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=casse),
+        base_url=f"http://{HOTE}",
     ).get("/api/entites/ENT-A")
     assert erreur.json()["erreur"] == "manifeste illisible"
 
@@ -437,14 +444,18 @@ def test_navigation_detail_sans_passage_retourne_a_la_carte() -> None:
     def aucun(_repli: bool) -> None:
         return None
 
-    http = TestClient(creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun))
+    http = TestClient(
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun),
+        base_url=f"http://{HOTE}",
+    )
     assert http.get("/entites", follow_redirects=False).headers["location"] == "/"
 
     def casse(_repli: bool) -> LectureEcrans:
         raise UsineErreur("illisible")
 
     cassee = TestClient(
-        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=casse)
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=casse),
+        base_url=f"http://{HOTE}",
     )
     assert cassee.get("/entites", follow_redirects=False).headers["location"] == "/"
 
@@ -490,7 +501,10 @@ def test_livrable_sans_passage_et_lecture_impossible() -> None:
     def aucun(_repli: bool) -> None:
         return None
 
-    http = TestClient(creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun))
+    http = TestClient(
+        creer_application(repli=False, lire_manifeste=aucun, lire_consultation=aucun),
+        base_url=f"http://{HOTE}",
+    )
     reponse = http.get("/livrables/rapport_xlsx")
     assert reponse.status_code == 404
     assert "rapport_xlsx" in reponse.text

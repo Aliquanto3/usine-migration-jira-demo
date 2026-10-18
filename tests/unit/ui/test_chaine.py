@@ -6,6 +6,7 @@ progression un fichier synthétique de `sorties/progression/`.
 
 import re
 import sys
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -15,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from tests.unit.ui.test_avant_apres import manifeste
 from usine.contrats.passage import Etape, EvenementProgression, ManifestePassage, StatutEtape
-from usine.ui import app, textes
+from usine.ui import app, progression, textes
 from usine.ui.chaine import (
     MOTIF_LANCEMENT_EN_COURS,
     MOTIF_MODE_EN_COURS,
@@ -86,6 +87,7 @@ class Banc:
         repli: bool = False,
         passage: ManifestePassage | None = None,
         lecteur: Any = None,
+        gestion: type[GestionChaine] = GestionChaine,
     ) -> None:
         self.lanceur = Lanceur()
         self.lectures: list[bool] = []
@@ -98,7 +100,7 @@ class Banc:
             repli=repli,
             lire_manifeste=lire_manifeste,
             lire_consultation=lambda _repli: None,
-            chaine=GestionChaine(racine, popen=cast(Any, self.lanceur)),
+            chaine=gestion(racine, popen=cast(Any, self.lanceur)),
         )
         self.http = TestClient(self.application, base_url=f"http://{HOTE}")
 
@@ -433,6 +435,86 @@ def test_ecritures_refusees_depuis_une_autre_origine(racine: Path) -> None:
     local = {"Origin": f"http://{HOTE}"}
     assert banc.http.post("/api/mode", json={"mode": "repli"}, headers=local).status_code == 200
     assert banc.lanceur.appels == []
+
+
+def test_host_etranger_refuse_partout(racine: Path) -> None:
+    """DNS rebinding : un nom tiers résolu en 127.0.0.1 ne passe sur aucune route."""
+    banc = Banc(racine)
+    tiers = {"Host": "evil.test:8765", "Origin": "http://evil.test:8765"}
+    assert banc.http.post("/api/mode", json={"mode": "repli"}, headers=tiers).status_code == 400
+    assert banc.http.post("/api/chaine", headers=tiers).status_code == 400
+    assert banc.http.get("/api/chaine", headers={"Host": "evil.test"}).status_code == 400
+    assert banc.http.get("/api/cadre", headers={"Host": "localhost:8765"}).status_code == 200
+    assert banc.lanceur.appels == []
+    assert banc.etat()["mode_cible"] == "repli"  # le mode n'a pas bougé
+
+
+@pytest.mark.parametrize(
+    "origine", ["null", f"http://{HOTE}:9999", "http://localhost", f"https://{HOTE}.evil.test"]
+)
+def test_origine_autre_port_ou_opaque_refusee(racine: Path, origine: str) -> None:
+    banc = Banc(racine)
+    reponse = banc.http.post("/api/mode", json={"mode": "repli"}, headers={"Origin": origine})
+    assert reponse.status_code == 403
+
+
+def test_ecriture_sans_origin_acceptee(racine: Path) -> None:
+    banc = Banc(racine)
+    assert "origin" not in {cle.lower() for cle in banc.http.headers}
+    assert banc.mode("repli").status_code == 200
+
+
+def test_bascule_attend_un_lancement_en_cours(racine: Path) -> None:
+    """Bascule reçue entre la lecture du mode et le démarrage : 409, jamais un mode changé."""
+    dans_lancer, reprendre = threading.Event(), threading.Event()
+
+    class GestionLente(GestionChaine):
+        def lancer(self, repli: bool) -> None:  # fenêtre avant le verrou de `GestionChaine`
+            dans_lancer.set()
+            assert reprendre.wait(5)
+            super().lancer(repli)
+
+    banc = Banc(racine, gestion=GestionLente)
+    autre = TestClient(banc.application, base_url=f"http://{HOTE}")
+    resultats: dict[str, int] = {}
+
+    def lancer() -> None:
+        resultats["chaine"] = banc.lancer().status_code
+
+    def basculer() -> None:
+        resultats["mode"] = autre.post("/api/mode", json={"mode": "repli"}).status_code
+
+    fil_lancement = threading.Thread(target=lancer)
+    fil_lancement.start()
+    assert dans_lancer.wait(5)
+    fil_mode = threading.Thread(target=basculer)
+    fil_mode.start()
+    fil_mode.join(0.3)
+    assert fil_mode.is_alive()  # la bascule attend la fin du lancement
+    reprendre.set()
+    fil_lancement.join(5)
+    fil_mode.join(5)
+    assert resultats == {"chaine": 202, "mode": 409}
+    assert banc.etat()["mode_cible"] == "repli"  # toujours en Mode réel
+
+
+def test_progression_inaccessible_sans_erreur_500(
+    racine: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    banc = Banc(racine)
+    banc.lancer()
+
+    def refus(_racine: Path) -> frozenset[Path]:
+        raise PermissionError("accès refusé")
+
+    monkeypatch.setattr(progression, "fichiers_progression", refus)
+    vue = banc.etat()
+    assert vue["en_cours"] is True
+    assert "accès refusé" in vue["erreur"]
+
+
+def test_repli_sans_passage_n_invite_pas_a_lancer(racine: Path) -> None:
+    assert "Mode repli" in Banc(racine, repli=True).etat()["message_dernier_passage"]
 
 
 def test_seules_deux_routes_post_changent_un_etat(racine: Path) -> None:

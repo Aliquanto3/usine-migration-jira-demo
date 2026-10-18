@@ -12,11 +12,14 @@ Seules deux routes `POST` changent un état (Chaîne, mode) ; aucune ne touche u
 """
 
 import html
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, get_args
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -51,6 +54,10 @@ REPERTOIRE_STATIQUE = Path(__file__).resolve().with_name("statique")
 
 HOTE = "127.0.0.1"
 """Seule adresse d'écoute : l'interface n'est jamais joignable depuis le réseau (AD-25)."""
+
+HOTES_AUTORISES = (HOTE, "localhost")
+"""Seuls en-têtes `Host` acceptés (quel que soit le port) : une page tierce qui ferait pointer
+son nom de domaine sur `127.0.0.1` (DNS rebinding) reçoit 400 sur toutes les routes."""
 
 PAGES: dict[str, str] = {
     "/": "carte-meteo.html",
@@ -88,9 +95,16 @@ class _Mode:
 
 
 def _meme_origine(request: Request) -> None:
-    """Refuse une écriture venue d'une autre origine (une page web tierce ouverte sur le poste)."""
+    """Refuse une écriture venue d'une autre origine (une page web tierce ouverte sur le poste).
+
+    Le `Host` est déjà limité à `HOTES_AUTORISES` ; un `Origin` présent doit nommer ce même
+    hôte et ce même port (`null`, autre port ou autre nom : 403).
+    """
     origine = request.headers.get("origin")
-    if origine is not None and origine.split("://", 1)[-1] != request.headers.get("host"):
+    if origine is None:
+        return
+    parties = urlsplit(origine)
+    if parties.hostname not in HOTES_AUTORISES or parties.netloc != request.headers.get("host"):
         raise HTTPException(status_code=403, detail="Origine refusée.")
 
 
@@ -109,8 +123,10 @@ def creer_application(
     application = FastAPI(
         title="Usine de migration", docs_url=None, redoc_url=None, openapi_url=None
     )
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=list(HOTES_AUTORISES))
     application.mount("/statique", StaticFiles(directory=REPERTOIRE_STATIQUE), name="statique")
     mode = _Mode(repli)
+    ecriture = threading.Lock()  # bascule du mode et lancement : jamais l'un pendant l'autre
     gestion = chaine if chaine is not None else GestionChaine(None)
 
     def cadre() -> VueCadre:
@@ -128,9 +144,10 @@ def creer_application(
     def changer_mode(demande: DemandeMode, request: Request) -> VueCadre:
         """Bascule explicite du mode (AD-19) ; refusée tant qu'une Chaîne tourne."""
         _meme_origine(request)
-        if gestion.en_cours():
-            raise HTTPException(status_code=409, detail=MOTIF_MODE_EN_COURS)
-        mode.repli = demande.mode == "repli"
+        with ecriture:
+            if gestion.en_cours():
+                raise HTTPException(status_code=409, detail=MOTIF_MODE_EN_COURS)
+            mode.repli = demande.mode == "repli"
         return cadre()
 
     application.add_api_route("/api/mode", changer_mode, methods=["POST"], response_model=VueCadre)
@@ -147,10 +164,11 @@ def creer_application(
     def lancer_chaine(request: Request) -> VueChaine:
         """Démarre `usine rapport` ; une Chaîne à la fois (409 sinon)."""
         _meme_origine(request)
-        try:
-            gestion.lancer(mode.repli)
-        except LancementRefuse as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        with ecriture:
+            try:
+                gestion.lancer(mode.repli)
+            except LancementRefuse as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
         return vue_chaine()
 
     application.add_api_route(
