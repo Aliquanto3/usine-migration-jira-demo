@@ -15,7 +15,7 @@ tous les tests ci-dessous sont **non joués**. Ceux de la démo d'abord.
 | 3.5 | Interface de démo | carte, détail, Avant / après s'affichent |
 | 3.6 | Cadre de l'interface web (7.13) | points 2 (clavier), 3 (hors réseau), 5 (serveur arrêté), 6 (320 px, zoom 200 %), 7 (`--port`) ; 1 et 4 sont couverts en partie par le contrôle ci-dessous |
 | 3.7 | Carte, détail, livrables (7.14) | points 1 à 9, dont ouverture des deux livrables dans Excel et PowerPoint (9) |
-| 3.8 | Lancement de la Chaîne et mode (7.15) | points 1 à 7 sans Jira ; 8 (vraie Chaîne) et 9 (échec) pour Anaël |
+| 3.8 | Lancement de la Chaîne et mode (7.15) | points 1 à 5 et 10 sans Jira ; 8 (vraie Chaîne, Jira réel) et 9 (échec) pour Anaël, avec 6 et 7 (une seule Chaîne, suivi) pendant la Chaîne du 8 ; 11 : ne pas arrêter ni relancer `usine ui` pendant une Chaîne |
 | 3.9 | Agent, Avant / après, Pseudonymisation, Outillage (7.16) | points 1, 2, 4 à 7 sans coût ; 3 (vraie question LLM, quelques centimes) pour Anaël |
 | 3.1 | Rapport de bout en bout (Palier 1) | commande et ouverture des fichiers |
 | 3.2 | Balayage SM-7 des traces | code de sortie 0 attendu (un 1 est bloquant) |

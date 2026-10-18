@@ -20,12 +20,18 @@ from outils.controle_repetition import (
 DEPOT = Path(__file__).resolve().parents[3]
 
 
+CARTE = "<div id='bloc-carte'><table><tr data-meteo='vert'><th>ENT-A</th></tr></table></div>"
+
+
 def _page(corps: str) -> str:
     return f"<html><body><h1>Titre</h1><div id='bandeaux'>{corps}</div></body></html>"
 
 
 def test_dom_complet() -> None:
-    dom = _page("<div id='bloc-carte'>Carte</div><section id='bloc-message' hidden>x</section>")
+    dom = _page(
+        "<div id='bloc-carte'><table><tbody><tr data-meteo='vert'><th>ENT-A</th></tr></tbody>"
+        "</table></div><section id='bloc-message' hidden>x</section>"
+    )
     assert analyser_dom("/", dom) == []
 
 
@@ -37,19 +43,19 @@ def test_dom_chargement_encore_affiche() -> None:
 def test_dom_bandeau_erreur_visible_nomme_le_texte() -> None:
     dom = _page(
         "<p class='bandeau bandeau--erreur' id='bandeau-erreur'>Lecture <b>impossible</b></p>"
-        "<div id='bloc-carte'>Carte</div>"
+        + CARTE
     )
     anomalies = analyser_dom("/", dom)
     assert anomalies == ["bandeau d'erreur : Lecture impossible"]
 
 
 def test_dom_bandeau_erreur_masque_ignore() -> None:
-    dom = _page("<p class='bandeau bandeau--erreur' hidden>x</p><div id='bloc-carte'>C</div>")
+    dom = _page("<p class='bandeau bandeau--erreur' hidden>x</p>" + CARTE)
     assert analyser_dom("/", dom) == []
 
 
 def test_dom_bandeau_repli_n_est_pas_une_erreur() -> None:
-    dom = _page("<p class='bandeau bandeau--repli'>Mode repli</p><div id='bloc-carte'>C</div>")
+    dom = _page("<p class='bandeau bandeau--repli'>Mode repli</p>" + CARTE)
     assert analyser_dom("/", dom) == []
 
 
@@ -60,8 +66,40 @@ def test_dom_message_d_absence_et_bloc_masque() -> None:
     assert any("bloc principal masqué" in a for a in anomalies)
 
 
+def test_dom_carte_sans_ligne_d_entite() -> None:
+    dom = _page("<div id='bloc-carte'><table><tbody></tbody></table></div>")
+    assert analyser_dom("/", dom) == ["carte sans aucune ligne d'Entité"]
+
+
+def test_dom_avant_apres_exige_la_duree_de_chaine() -> None:
+    sans = _page("<div id='bloc-avant-apres'><section id='carte-chaine'><p id='valeur-chaine'>")
+    avec = _page(
+        "<div id='bloc-avant-apres'><section id='carte-chaine'>"
+        "<p id='valeur-chaine'>4 min</p></section></div>"
+    )
+    assert analyser_dom("/avant-apres", sans) == ["Avant / après sans durée de la Chaîne"]
+    assert analyser_dom("/avant-apres", avec) == []
+
+
+def test_dom_pseudonymisation_exige_les_panneaux() -> None:
+    sans = _page("<div id='bloc-pseudo'><div id='panneaux' hidden>x</div></div>")
+    avec = _page("<div id='bloc-pseudo'><div id='panneaux'>x</div></div>")
+    assert any("masqué" in a for a in analyser_dom("/pseudonymisation", sans))
+    assert analyser_dom("/pseudonymisation", avec) == []
+
+
+def test_fin_journal() -> None:
+    import io
+
+    assert controle.fin_journal(io.BytesIO(b"")) == ""
+    texte = controle.fin_journal(io.BytesIO(b"un\ndeux\ntrois\n"), lignes=2)
+    assert "deux" in texte
+    assert "trois" in texte
+    assert "un" not in texte.split("deux")[0].replace("usine", "")
+
+
 def test_dom_script_ignore() -> None:
-    dom = _page("<script>var t='Chargement…'</script><div id='bloc-carte'>C</div>")
+    dom = _page("<script>var t='Chargement…'</script>" + CARTE)
     assert analyser_dom("/", dom) == []
 
 
@@ -159,7 +197,7 @@ def test_serveur_arrete_meme_en_cas_d_erreur(monkeypatch: pytest.MonkeyPatch) ->
     arretes: list[object] = []
     processus = object()
     monkeypatch.setattr(controle, "trouver_msedge", lambda chemin=None: "msedge")
-    monkeypatch.setattr(controle, "demarrer_serveur", lambda racine, port: processus)
+    monkeypatch.setattr(controle, "demarrer_serveur", lambda racine, port, journal: processus)
 
     def echec(base: str, proc: object) -> None:
         raise ControleImpossible("muet")

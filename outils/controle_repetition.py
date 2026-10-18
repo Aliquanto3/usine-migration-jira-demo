@@ -5,9 +5,11 @@ ici on démarre `usine ui` en Mode repli (sous-processus, 127.0.0.1, port libre)
 chacun des sept écrans dans Edge sans fenêtre (`msedge --headless --dump-dom`, temps virtuel de
 5 s pour laisser le script de la page appeler l'API) et on vérifie sur le DOM rendu :
 
-- aucun texte « Chargement… » ;
+- aucun texte « Chargement… » (garde de sécurité : les pages statiques ne l'écrivent pas, un
+  écran sans données reste plutôt masqué, ce que le point suivant attrape) ;
 - aucun bandeau d'erreur visible (`bandeau--erreur` sans attribut `hidden`) ;
-- le contenu de l'écran est affiché (bloc principal visible, pas de message d'absence).
+- le contenu de l'écran est affiché (blocs démasqués par le script, pas de message d'absence),
+  avec au moins une ligne d'Entité sur la carte et une durée de Chaîne sur Avant / après.
 
 Enfin il télécharge chaque livrable annoncé par `/api/carte` pour le Passage de repli (HTTP 200,
 en-tête `Content-Disposition: attachment`, corps non vide). Le serveur est arrêté dans un
@@ -37,6 +39,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import IO
 
 HOTE = "127.0.0.1"
 DELAI_VIRTUEL_MS = 5000
@@ -60,11 +63,11 @@ ECRANS: tuple[tuple[str, str], ...] = (
 BLOCS_CONTENU: Mapping[str, tuple[str, ...]] = {
     "/": ("bloc-carte",),
     "/entites/ENT-A": ("bloc-detail",),
-    "/avant-apres": ("bloc-avant-apres",),
-    "/pseudonymisation": ("bloc-pseudo",),
+    "/avant-apres": ("bloc-avant-apres", "carte-chaine"),
+    "/pseudonymisation": ("bloc-pseudo", "panneaux"),
     "/agent": ("bloc-agent",),
 }
-"""Bloc principal rempli par le script de chaque écran (masqué par `hidden` tant qu'il est vide)."""
+"""Blocs que le script de chaque écran démasque (`hidden`) avec ses données : tous requis."""
 
 TEXTE_CHARGEMENT = "chargement…"
 BLOC_MESSAGE = "bloc-message"
@@ -99,6 +102,8 @@ class _AnalyseurDom(HTMLParser):
         self.messages: dict[str, str] = {}
         self.bandeaux: list[str] = []
         self.fiche: list[str] = []
+        self.lignes_entites = 0
+        self.valeur_chaine: list[str] = []
         self._pile: list[tuple[str, str]] = []  # (balise, rôle) des éléments suivis
         self._profondeur_ignoree = 0
 
@@ -110,6 +115,8 @@ class _AnalyseurDom(HTMLParser):
             self._profondeur_ignoree += 1
         if identifiant and not masque:
             self.visibles.add(identifiant)
+        if tag == "tr" and "data-meteo" in a:  # ligne d'Entité posée par carte.js
+            self.lignes_entites += 1
         if "bandeau--erreur" in (a.get("class") or "").split() and not masque:
             self._pile.append((tag, "bandeau"))
             self.bandeaux.append("")
@@ -118,6 +125,8 @@ class _AnalyseurDom(HTMLParser):
             self.messages[identifiant] = ""
         elif identifiant == ID_FICHE:
             self._pile.append((tag, "fiche"))
+        elif identifiant == "valeur-chaine":
+            self._pile.append((tag, "valeur"))
         elif self._pile and tag == self._pile[-1][0]:
             self._pile.append((tag, "imbrique"))
 
@@ -138,6 +147,8 @@ class _AnalyseurDom(HTMLParser):
                 self.messages[BLOC_MESSAGE] += data
             elif role == "fiche":
                 self.fiche.append(data)
+            elif role == "valeur":
+                self.valeur_chaine.append(data)
 
 
 def analyser_dom(route: str, dom: str) -> list[str]:
@@ -154,8 +165,12 @@ def analyser_dom(route: str, dom: str) -> list[str]:
     if BLOC_MESSAGE in analyseur.visibles:
         anomalies.append(f"message à la place du contenu : {message[:160] or '(vide)'}")
     blocs = BLOCS_CONTENU.get(route)
-    if blocs and not any(bloc in analyseur.visibles for bloc in blocs):
+    if blocs and not all(bloc in analyseur.visibles for bloc in blocs):
         anomalies.append("contenu non affiché (bloc principal masqué)")
+    elif route == "/" and not analyseur.lignes_entites:
+        anomalies.append("carte sans aucune ligne d'Entité")
+    elif route == "/avant-apres" and not "".join(analyseur.valeur_chaine).strip():
+        anomalies.append("Avant / après sans durée de la Chaîne")
     if route == "/outillage" and not "".join(analyseur.fiche).strip():
         anomalies.append("fiche vide")
     if not "".join(analyseur.texte).strip():
@@ -213,7 +228,7 @@ def commande_edge(msedge: str, url: str, profil: Path) -> list[str]:
 
 def charger_dom(msedge: str, url: str) -> str:
     """DOM de `url` après exécution des scripts, par Edge sans fenêtre."""
-    with tempfile.TemporaryDirectory(prefix="controle-edge-") as profil:
+    with tempfile.TemporaryDirectory(prefix="controle-edge-", ignore_cleanup_errors=True) as profil:
         try:
             termine = subprocess.run(
                 commande_edge(msedge, url, Path(profil)),
@@ -296,8 +311,8 @@ def attendre_serveur(base: str, processus: subprocess.Popen[bytes]) -> None:
     raise ControleImpossible(f"`usine ui` ne répond pas après {DELAI_DEMARRAGE_S:.0f} s")
 
 
-def demarrer_serveur(racine: Path, port: int) -> subprocess.Popen[bytes]:
-    """`usine ui` en Mode repli, dans la racine donnée."""
+def demarrer_serveur(racine: Path, port: int, journal: IO[bytes]) -> subprocess.Popen[bytes]:
+    """`usine ui` en Mode repli, dans la racine donnée ; stderr va dans `journal`."""
     environnement = dict(os.environ)
     environnement["USINE_MODE_REPLI"] = "1"
     environnement["USINE_RACINE"] = str(racine)
@@ -306,15 +321,34 @@ def demarrer_serveur(racine: Path, port: int) -> subprocess.Popen[bytes]:
         cwd=racine,
         env=environnement,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=journal,
     )
+
+
+def fin_journal(journal: IO[bytes], lignes: int = 8) -> str:
+    """Dernières lignes d'erreur du serveur (cause d'un échec de démarrage), ou chaîne vide."""
+    journal.flush()
+    journal.seek(0)
+    texte = journal.read().decode("utf-8", errors="replace").strip()
+    if not texte:
+        return ""
+    fin = (chr(10) + "    ").join(texte.splitlines()[-lignes:])
+    return f"{chr(10)}  stderr de `usine ui` :{chr(10)}    {fin}"
 
 
 def arreter_serveur(processus: subprocess.Popen[bytes]) -> None:
     """Arrêt propre, puis forcé si le serveur ne rend pas la main."""
     if processus.poll() is not None:
         return
-    processus.terminate()
+    if sys.platform == "win32":
+        # Le python.exe d'un venv peut être un lanceur : on arrête tout l'arbre de processus.
+        subprocess.run(
+            ["taskkill", "/PID", str(processus.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        processus.terminate()
     try:
         processus.wait(timeout=10)
     except subprocess.TimeoutExpired:
@@ -338,14 +372,18 @@ def controler(racine: Path, port: int | None, msedge: str | None) -> list[Result
     edge = trouver_msedge(msedge)
     numero = port or port_libre()
     base = f"http://{HOTE}:{numero}"
-    processus = demarrer_serveur(racine, numero)
-    try:
-        attendre_serveur(base, processus)
-        resultats = verifier_ecrans(base, lambda url: charger_dom(edge, url))
-        resultats += verifier_livrables(base, ouvrir_http)
-        return resultats
-    finally:
-        arreter_serveur(processus)
+    with tempfile.TemporaryFile() as journal:
+        processus = demarrer_serveur(racine, numero, journal)
+        try:
+            try:
+                attendre_serveur(base, processus)
+            except ControleImpossible as exc:
+                raise ControleImpossible(f"{exc}{fin_journal(journal)}") from exc
+            resultats = verifier_ecrans(base, lambda url: charger_dom(edge, url))
+            resultats += verifier_livrables(base, ouvrir_http)
+            return resultats
+        finally:
+            arreter_serveur(processus)
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
