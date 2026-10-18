@@ -48,16 +48,33 @@ HOTE_CONTENEUR = "0.0.0.0"
 127.0.0.1 du conteneur. Le contrôle du `Host` et de l'`Origin` reste celui de `HOTE`."""
 
 
+MARQUEURS_CONTENEUR = (Path("/.dockerenv"), Path("/run/.containerenv"))
+"""Fichiers posés par Docker et Podman à la racine du conteneur : `0.0.0.0` n'est permis qu'en
+leur présence."""
+
+
+def dans_un_conteneur() -> bool:
+    """Vrai si le processus tourne dans un conteneur Docker ou Podman (un marqueur existe)."""
+    return any(marqueur.exists() for marqueur in MARQUEURS_CONTENEUR)
+
+
 def hote_ecoute() -> str:
     """Adresse d'écoute : `HOTE` (127.0.0.1) sauf `USINE_UI_HOTE=0.0.0.0` (conteneur seulement).
 
-    Lue dans l'environnement du processus, jamais dans `.env`. Toute autre valeur lève une
-    `UsineErreur` qui nomme la variable.
+    Lue dans l'environnement du processus, jamais dans `.env`. Toute autre valeur, ou `0.0.0.0`
+    hors d'un conteneur, lève une `UsineErreur` qui nomme la variable.
     """
     valeur = os.environ.get(VARIABLE_HOTE, "").strip()
     if valeur in ("", HOTE):
         return HOTE
     if valeur == HOTE_CONTENEUR:
+        if not dans_un_conteneur():
+            # Hors conteneur, 0.0.0.0 ouvrirait l'interface (sans authentification) au réseau :
+            # le contrôle du `Host` ne protège pas d'un client qui forge `Host: 127.0.0.1`.
+            raise UsineErreur(
+                f"{VARIABLE_HOTE}={HOTE_CONTENEUR} refusée hors d'un conteneur (aucun de"
+                f" {', '.join(m.as_posix() for m in MARQUEURS_CONTENEUR)} trouvé)"
+            )
         return HOTE_CONTENEUR
     raise UsineErreur(
         f"{VARIABLE_HOTE}={valeur!r} refusée (valeurs permises : {HOTE} ou {HOTE_CONTENEUR})"

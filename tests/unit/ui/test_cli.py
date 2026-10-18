@@ -185,6 +185,9 @@ def test_hote_conteneur_ecoute_sur_toutes_les_interfaces(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("USINE_UI_HOTE", "0.0.0.0")
+    marqueur = tmp_path / ".dockerenv"
+    marqueur.touch()
+    monkeypatch.setattr(cli_ui, "MARQUEURS_CONTENEUR", (tmp_path / "absent", marqueur))
     appels = _capter_uvicorn(monkeypatch)
     resultat = CliRunner().invoke(app, ["ui"])
     assert resultat.exit_code == 0, resultat.output
@@ -214,4 +217,17 @@ def test_hote_refuse_toute_autre_valeur(tmp_path: Path, monkeypatch: pytest.Monk
     resultat = CliRunner().invoke(app, ["ui"])
     assert resultat.exit_code == 1
     assert "USINE_UI_HOTE" in resultat.stderr
+    assert appels == []
+
+
+def test_hote_toutes_interfaces_refuse_hors_conteneur(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("USINE_UI_HOTE", "0.0.0.0")
+    monkeypatch.setattr(cli_ui, "MARQUEURS_CONTENEUR", (tmp_path / ".dockerenv",))
+    appels = _capter_uvicorn(monkeypatch)
+    resultat = CliRunner().invoke(app, ["ui"])
+    assert resultat.exit_code == 1
+    assert "hors d'un conteneur" in resultat.stderr
     assert appels == []

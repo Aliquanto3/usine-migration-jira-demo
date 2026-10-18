@@ -105,9 +105,10 @@ docker run --rm -p 127.0.0.1:8000:8000 \
 Puis ouvrir `http://127.0.0.1:8000/`. Dans le conteneur, `usine ui` écoute sur `0.0.0.0` (variable `USINE_UI_HOTE`, posée par le `Dockerfile` seulement) parce qu'un serveur lié à `127.0.0.1` n'est pas joignable par la publication de port. La protection reste celle de l'interface locale (AD-25) :
 
 - publier **toujours** avec `-p 127.0.0.1:8000:8000`, avec le même port des deux côtés ; `-p 8000:8000` ouvrirait l'interface au réseau de l'hôte ;
-- l'interface refuse tout en-tête `Host` autre que `127.0.0.1` ou `localhost` et tout `Origin` étranger : un autre port d'hôte (`-p 127.0.0.1:9000:8000`) est donc refusé.
+- l'interface refuse tout en-tête `Host` autre que `127.0.0.1` ou `localhost` (le port n'est pas contrôlé) et tout `Origin` qui ne nomme pas ce même hôte et ce même port : un autre port d'hôte (`-p 127.0.0.1:9000:8000`, ouvert sur `http://127.0.0.1:9000/`) fonctionne donc aussi ;
+- ce contrôle arrête une page web tierce (DNS rebinding), pas un client qui forge l'en-tête `Host` : l'interface n'a pas d'authentification, d'où la publication sur la boucle locale seulement. Les autres conteneurs du même réseau Docker peuvent joindre le port 8000 : ne pas lancer l'image sur un réseau partagé.
 
-`USINE_UI_HOTE` n'accepte que `127.0.0.1` ou `0.0.0.0` ; ne pas la poser hors d'un conteneur.
+`USINE_UI_HOTE` n'accepte que `127.0.0.1` ou `0.0.0.0`, et `0.0.0.0` seulement dans un conteneur (présence de `/.dockerenv` ou de `/run/.containerenv`, posés par Docker et Podman) : hors conteneur, `usine ui` refuse de démarrer.
 
 ### Produire un Passage en Palier 1
 
@@ -123,5 +124,7 @@ Le Journal (`donnees/journal.jsonl`, généré par `usine donnees generer`) est 
 
 - `.env` n'est jamais copié dans l'image (`.dockerignore`) : l'image ne contient aucun secret. Le fournir au lancement avec `--env-file .env`, ou en lecture seule par `-v "$PWD/.env:/app/.env:ro"`.
 - `donnees/`, `sorties/`, `.git`, `.venv` et les caches sont aussi exclus de l'image.
-- Le conteneur tourne avec l'utilisateur non root `usine` (UID 10001) : les dossiers montés doivent être inscriptibles par cet UID (sous Linux, `chown 10001 donnees sorties` ou `--user "$(id -u):$(id -g)"`).
+- Le conteneur tourne avec l'utilisateur non root `usine` (UID 10001) : les dossiers montés doivent exister avant le lancement (sinon Docker les crée au nom de root) et être inscriptibles par cet UID (sous Linux, `mkdir -p donnees sorties && chown 10001 donnees sorties`, ou `--user "$(id -u):$(id -g)"`).
+- `--env-file` transmet les valeurs telles quelles, guillemets compris : écrire `CLE=valeur` sans guillemets dans `.env`, ou monter `.env` en lecture seule. Ne pas y laisser de `USINE_RACINE` propre au poste (chemin Windows par exemple) : dans l'image, la racine est `/app`.
+- `usine agent --enregistrer` (réponses du Mode repli, `demo/repli/agent/`) n'est pas prévu dans l'image : `demo/` y appartient à root.
 - Le mode LLM local (bonus) n'est pas dans l'image : un serveur de modèle sur l'hôte demande une configuration réseau propre.

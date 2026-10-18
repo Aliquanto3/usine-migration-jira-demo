@@ -1,6 +1,6 @@
 # Secrets et configuration locale : jamais dans l'image (AD-19).
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
 
 # Données locales, sorties, environnements et caches.
@@ -9,8 +9,8 @@ sorties/
 .venv/
 .git/
 .github/
-__pycache__/
-*.py[cod]
+**/__pycache__/
+**/*.py[cod]
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -20,8 +20,8 @@ htmlcov/
 dist/
 build/
 *.egg-info/
-*.duckdb
-*.duckdb.wal
+**/*.duckdb
+**/*.duckdb.wal
 
 # Hors exécution : tests, conception, évaluation, outils, médias.
 tests/

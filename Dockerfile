@@ -8,7 +8,8 @@
 #   docker run --rm --env-file .env -v "$PWD/donnees:/app/donnees" -v "$PWD/sorties:/app/sorties" usine-jira-demo rapport
 # Aucun secret dans l'image : `.env` n'est jamais copié (voir `.dockerignore`), il est fourni au lancement.
 
-FROM ghcr.io/astral-sh/uv:0.12.23-python3.12-bookworm-slim
+# Tag vérifié sur ghcr.io le 2026-10-18 (la variante bookworm n'existe pas pour uv 0.12), épinglé par digest.
+FROM ghcr.io/astral-sh/uv:0.12.23-python3.12-trixie-slim@sha256:28d570c06d150303b39adfa731ada20956c63fc86b1277d7ff2ad63185974092
 
 ARG AVEC_BONUS=0
 
@@ -49,8 +50,8 @@ RUN useradd --create-home --uid 10001 usine \
     && chown usine:usine /app/donnees /app/sorties
 USER usine
 
-# Écoute sur toutes les interfaces du conteneur seulement (lu par `usine ui`, AD-25) : l'hôte
-# publie sur 127.0.0.1, et le contrôle du Host / de l'Origin de l'interface reste inchangé.
+# Écoute sur toutes les interfaces du conteneur seulement (lu par `usine ui`, AD-25 ; refusé hors
+# conteneur, sans `/.dockerenv` ni `/run/.containerenv`) : l'hôte publie sur 127.0.0.1.
 ENV USINE_UI_HOTE=0.0.0.0
 EXPOSE 8000
 
