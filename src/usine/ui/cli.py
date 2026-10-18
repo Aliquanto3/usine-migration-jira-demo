@@ -12,7 +12,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
 import uvicorn
@@ -25,11 +25,13 @@ from usine.contrats.config import ConfigDemo
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.llm import ReponseAgentEnregistree
 from usine.contrats.passage import FICHIERS_PASSAGE, REPERTOIRE_PASSAGES, ManifestePassage
-from usine.ia.agent.repli import REPERTOIRE_REPONSES, charger_reponses
-from usine.ia.agent.session import SessionAgent
+from usine.ia.agent.repli import QUESTIONS_DEMO, REPERTOIRE_REPONSES, charger_reponses
+from usine.ia.agent.session import SANS_REPONSE, SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
 from usine.ui.chaine import GestionChaine
+from usine.ui.ecrans import LectureEcransAgent, ServicesEcrans
+from usine.ui.outillage import lire_fiche
 from usine.ui.serveur import HOTE, LireConsultation, LireManifeste, creer_application
 from usine.ui.textes import REPERTOIRE_REPLI as REPERTOIRE_REPLI
 from usine.ui.textes import REPLI_ABSENT
@@ -117,6 +119,23 @@ def manifestes_avant_apres(
     )
 
 
+def manifestes_mesures(
+    racine: Path, repli: bool
+) -> tuple[ManifestePassage | None, ManifestePassage | None]:
+    """Manifestes de l'avant / après dans le mode donné : (mesuré, dernier).
+
+    Mode réel : `manifestes_avant_apres`. Mode repli : le Passage enregistré, mesuré seulement
+    s'il est sans classification initiale ; copie absente : `UsineErreur` (`REPLI_ABSENT`).
+    """
+    if not repli:
+        return manifestes_avant_apres(racine)
+    consultation = consultation_repli(racine)
+    if consultation is None:
+        raise UsineErreur(REPLI_ABSENT)
+    manifeste = consultation.manifeste()
+    return (None if manifeste.classification_initiale else manifeste), manifeste
+
+
 def apercu_pseudonymisation(racine: Path) -> Callable[[str], str]:
     """`Pseudonymiseur.apercu` construit par la composition (AD-15) : local, sans écriture.
 
@@ -185,6 +204,24 @@ def lecture_consultation(racine: Path) -> LireConsultation:
     return lire
 
 
+def services_ecrans(racine: Path) -> ServicesEcrans:
+    """Services des écrans Agent, Avant / après, Pseudonymisation et Outillage sur `racine`."""
+
+    def fabrique(consultation: LectureEcransAgent) -> SessionAgent:
+        return session_agent(racine, cast("Consultation", consultation))
+
+    return ServicesEcrans(
+        session_agent=fabrique,
+        reponses_repli=lambda passage_id: reponses_repli(racine, passage_id),
+        questions_suggerees=QUESTIONS_DEMO,
+        texte_hors_perimetre=SANS_REPONSE,
+        apercu_pseudonymisation=lambda: apercu_pseudonymisation(racine),
+        config_demo=lambda: config_demo(racine),
+        manifestes_avant_apres=lambda repli: manifestes_mesures(racine, repli),
+        lire_fiche=lambda: lire_fiche(racine),
+    )
+
+
 def application_web(racine: Path, repli: bool) -> FastAPI:
     """Application FastAPI de l'UI web sur `racine`, dans le mode imposé au démarrage."""
     return creer_application(
@@ -192,6 +229,7 @@ def application_web(racine: Path, repli: bool) -> FastAPI:
         lire_manifeste=lecture_manifeste(racine),
         lire_consultation=lecture_consultation(racine),
         chaine=GestionChaine(racine),
+        services=services_ecrans(racine),
     )
 
 

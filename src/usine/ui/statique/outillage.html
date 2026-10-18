@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/outillage.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -44,10 +45,11 @@
         <p class="legende">Fiche d'outillage en lecture seule.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
       </section>
+      <p class="legende" id="legende-fiche"></p>
+      <div class="fiche" id="fiche"></div>
     </main>
   </div>
 </body>

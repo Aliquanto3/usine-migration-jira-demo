@@ -517,7 +517,7 @@ def test_repli_sans_passage_n_invite_pas_a_lancer(racine: Path) -> None:
     assert "Mode repli" in Banc(racine, repli=True).etat()["message_dernier_passage"]
 
 
-def test_seules_deux_routes_post_changent_un_etat(racine: Path) -> None:
+def test_seules_trois_routes_post_ecrivent(racine: Path) -> None:
     application = Banc(racine).application
     ecritures = {
         (getattr(route, "path", ""), methode)
@@ -525,7 +525,12 @@ def test_seules_deux_routes_post_changent_un_etat(racine: Path) -> None:
         for methode in getattr(route, "methods", None) or ()
         if methode not in ("GET", "HEAD")
     }
-    assert ecritures == {("/api/chaine", "POST"), ("/api/mode", "POST")}
+    # Chaîne, mode, et la question à l'Agent (trace de session, jamais un Passage ni Jira).
+    assert ecritures == {
+        ("/api/chaine", "POST"),
+        ("/api/mode", "POST"),
+        ("/api/agent/question", "POST"),
+    }
 
 
 # --- page, constantes ---

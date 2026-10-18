@@ -467,3 +467,83 @@ a.ticket::after { content: " ↗"; font-weight: 400; }
 .bandeau-resultat p { margin: 0; }
 .bandeau-resultat a { color: inherit; }
 .colonne-chaine { display: flex; flex-direction: column; gap: var(--gouttiere); }
+
+/* Agent, Avant / après, Pseudonymisation et Outillage (Story 7.16) */
+.champ--zone { min-height: 64px; padding: 10px 12px; resize: vertical; width: 100%; }
+.saisie { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.saisie label { font-weight: 700; color: var(--nuit); }
+.saisie .saisie-motif { margin: 0; }
+.questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.question-choix {
+  width: 100%;
+  min-height: var(--cible-min);
+  padding: 8px 16px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 12px;
+  background: var(--blanc);
+  color: var(--encre);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.question-choix:hover { background: var(--lavande); }
+.question-choix[aria-pressed="true"] { background: var(--lavande); border-color: var(--primaire); }
+.fil { display: flex; flex-direction: column; gap: 12px; }
+.bulle { margin: 0; padding: 12px 18px; max-width: 760px; }
+.bulle--question { align-self: flex-end; background: var(--primaire); color: var(--blanc); border-radius: 18px 18px 4px 18px; }
+.bulle--reponse { display: flex; gap: 12px; align-self: flex-start; background: var(--fond); border: 1px solid var(--bordure); border-radius: 18px 18px 18px 4px; }
+.bulle--reponse[hidden], .bulle--question[hidden] { display: none; }
+.bulle--reponse:focus { outline: 2px solid var(--primaire); outline-offset: 2px; }
+.avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9999px; background: var(--vert-wavestack); color: var(--nuit); font: 600 14px/1 var(--police-titre); }
+.reponse-corps { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.reponse-texte { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reponse-pied { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 10px; border-top: 1px solid var(--bordure); }
+.outils-appeles { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.badge--non_controle { background: var(--fond); }
+.badge--hors_perimetre { background: var(--refus-fond); color: var(--refus-texte); }
+.etiquette-outil { display: inline-block; padding: 2px 10px; border-radius: 9999px; background: var(--lavande); color: var(--nuit); font: 700 12px/1.5 var(--police-code); }
+.outils { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.outils li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.outil-description { font-size: 14px; color: var(--encre-secondaire); }
+.lien-repli { margin: 0; }
+#message-repli { background: var(--lavande); color: var(--nuit); font-weight: 700; }
+#bloc-agent, #bloc-avant-apres, #bloc-pseudo { display: flex; flex-direction: column; gap: var(--gouttiere); }
+#bloc-agent[hidden], #bloc-avant-apres[hidden], #bloc-pseudo[hidden] { display: none; }
+
+.cartes-jumelles { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cartes-jumelles[hidden] { display: none; }
+.carte-temps { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.carte-temps[hidden] { display: none; }
+.etiquette { display: inline-block; padding: 2px 12px; border-radius: 9999px; font-size: 13px; font-weight: 700; }
+.etiquette--declare { background: var(--fond); border: 1px solid var(--bordure); }
+.etiquette--mesure { background: var(--succes-fond); color: var(--succes-texte); }
+.temps-valeur { margin: 0; font: 600 44px/1.1 var(--police-titre); }
+.temps-valeur--manuel { color: var(--encre-secondaire); }
+.temps-valeur--chaine { color: var(--nuit); }
+#avertissements { display: flex; flex-direction: column; gap: 12px; }
+#avertissements:empty { display: none; }
+.avertissement { margin: 0; padding: 14px 20px; border-radius: 18px; background: var(--refus-fond); color: var(--refus-texte); font-weight: 700; }
+
+.panneau { display: flex; flex-direction: column; gap: 8px; min-width: 0; align-items: flex-start; }
+.panneau--pseudo { border-color: var(--primaire); }
+.panneau-texte { width: 100%; max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.panneau-texte:focus-visible { outline: 2px solid var(--primaire); outline-offset: 2px; }
+
+.fiche { display: flex; flex-direction: column; gap: var(--gouttiere); }
+.carte--fiche { max-width: 880px; font-size: 16px; line-height: 1.6; }
+.carte--fiche:has(.table-defile) { max-width: none; }
+.carte--fiche h2 { color: var(--nuit); font: 600 22px/1.3 var(--police-titre); }
+.carte--fiche h3 { margin: 20px 0 8px; color: var(--nuit); font: 600 17px/1.3 var(--police-titre); }
+.carte--fiche ol { padding-left: 24px; }
+.carte--fiche ol > li::marker { color: var(--primaire); font: 600 16px var(--police-titre); }
+.carte--fiche ul { padding-left: 20px; }
+.carte--fiche p { margin: 0 0 10px; }
+.pastille { display: inline-block; margin-right: 6px; padding: 1px 10px; border-radius: 9999px; font-size: 13px; font-weight: 700; }
+.pastille--oui { background: var(--succes-fond); color: var(--succes-texte); }
+.pastille--surveiller { background: var(--refus-fond); color: var(--refus-texte); }
+.pastille--non { background: var(--erreur-fond); color: var(--erreur-texte); }
+
+@media (max-width: 767px) {
+  .cartes-jumelles { grid-template-columns: minmax(0, 1fr); }
+}
+.fil[hidden], .saisie[hidden], .carte[hidden] { display: none; }

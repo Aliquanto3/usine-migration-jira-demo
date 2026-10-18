@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/avant-apres.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -44,10 +45,39 @@
         <p class="legende">Temps de reporting manuel déclaré face au temps mesuré de la Chaîne.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
+        <p><a id="message-lien" href="/" hidden></a></p>
       </section>
+      <div id="avertissements"></div>
+      <div id="bloc-avant-apres" hidden>
+        <div class="segment-bloc">
+          <div class="segment" role="group" id="segment-periode"></div>
+        </div>
+        <div class="cartes-jumelles">
+          <section class="carte carte-temps" aria-labelledby="titre-manuel" id="carte-manuel" hidden>
+            <h2 id="titre-manuel"></h2>
+            <span class="etiquette etiquette--declare" id="etiquette-manuel"></span>
+            <p class="temps-valeur temps-valeur--manuel" id="valeur-manuel"></p>
+          </section>
+          <section class="carte carte-temps" aria-labelledby="titre-chaine" id="carte-chaine" hidden>
+            <h2 id="titre-chaine"></h2>
+            <span class="etiquette etiquette--mesure" id="etiquette-chaine"></span>
+            <p class="temps-valeur temps-valeur--chaine" id="valeur-chaine"></p>
+          </section>
+        </div>
+        <section class="carte" aria-labelledby="titre-periodes" id="carte-tableau" hidden>
+          <h2 id="titre-periodes">Les deux périodes</h2>
+          <div class="table-defile" role="region" aria-labelledby="titre-periodes" tabindex="0">
+            <table id="tableau-periodes">
+              <caption class="sr-seul">Reporting manuel déclaré et Chaîne mesurée, par Rapport et cumulés</caption>
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+        <p class="legende" id="legende-avant-apres"></p>
+      </div>
     </main>
   </div>
 </body>

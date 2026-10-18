@@ -85,6 +85,26 @@
       });
   }
 
+  // Lecture (GET) qui rend aussi un refus du serveur : { statut, donnees } comme `envoyer`.
+  function demander(chemin) {
+    return fetch(chemin, { headers: { Accept: "application/json" } })
+      .then(function (reponse) {
+        retirerBandeau("injoignable");
+        return reponse.json().then(
+          function (donnees) {
+            return { statut: reponse.status, donnees: donnees };
+          },
+          function () {
+            return { statut: reponse.status, donnees: {} };
+          }
+        );
+      })
+      .catch(function () {
+        signalerServeurInjoignable();
+        return null;
+      });
+  }
+
   function afficherCadre(vue) {
     var passage = document.getElementById("pastille-passage");
     if (vue.passage_publie) {
@@ -175,6 +195,7 @@
   window.usine = {
     appeler: appeler,
     envoyer: envoyer,
+    demander: demander,
     rafraichirCadre: chargerCadre,
     creer: creer,
     vider: vider,

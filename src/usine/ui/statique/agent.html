@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/agent.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -44,10 +45,49 @@
         <p class="legende">Questions en langage naturel sur le Passage affiché, en lecture seule.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
+        <p><a id="message-lien" href="/" hidden></a></p>
       </section>
+      <p class="carte" id="message-repli" hidden></p>
+      <p class="lien-repli" id="lien-repli" hidden><a href="/chaine"></a></p>
+      <div id="bloc-agent" hidden>
+        <p class="legende" id="legende-agent"></p>
+        <form class="carte saisie" id="formulaire-agent" hidden>
+          <label for="question">Question à l'Agent</label>
+          <textarea id="question" class="champ champ--zone" rows="2" maxlength="2000" required></textarea>
+          <p class="saisie-motif legende" id="saisie-aide">Entrée envoie, Maj+Entrée va à la ligne.</p>
+          <button type="submit" class="bouton-primaire" id="envoyer">Envoyer</button>
+        </form>
+        <section class="carte" aria-labelledby="titre-questions" id="bloc-questions">
+          <h2 id="titre-questions"></h2>
+          <ul class="questions" id="liste-questions"></ul>
+        </section>
+        <section class="carte fil" aria-labelledby="titre-fil" id="bloc-fil" hidden>
+          <h2 id="titre-fil">Réponse de l'Agent</h2>
+          <p class="bulle bulle--question" id="bulle-question" hidden></p>
+          <p class="legende" id="attente" hidden></p>
+          <div class="bulle bulle--reponse" id="reponse" tabindex="-1" aria-labelledby="titre-fil" hidden>
+            <span class="avatar" aria-hidden="true">IA</span>
+            <div class="reponse-corps">
+              <p class="lecture reponse-texte" id="reponse-texte"></p>
+              <div class="reponse-pied">
+                <span class="badge" id="reponse-badge"></span>
+                <span class="outils-appeles">
+                  <span id="libelle-outils"></span>
+                  <span id="reponse-outils"></span>
+                </span>
+              </div>
+              <p class="legende" id="reponse-repli" hidden></p>
+            </div>
+          </div>
+        </section>
+        <section class="carte" aria-labelledby="titre-outils">
+          <h2 id="titre-outils"></h2>
+          <ul class="outils" id="liste-outils"></ul>
+        </section>
+      </div>
+      <p class="sr-seul" id="annonce" role="status"></p>
     </main>
   </div>
 </body>

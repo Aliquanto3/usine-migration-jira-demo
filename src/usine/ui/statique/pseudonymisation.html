@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/pseudonymisation.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -44,10 +45,32 @@
         <p class="legende">Description d'un ticket, originale et pseudonymisée, côte à côte.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
+      <section class="carte" id="bloc-message" hidden>
+        <p id="message"></p>
+        <p><a id="message-lien" href="/" hidden></a></p>
       </section>
+      <div id="bloc-pseudo" hidden>
+        <form class="carte formulaire" id="formulaire-ticket" method="get" action="/pseudonymisation">
+          <div class="filtre">
+            <label for="choix-ticket" id="libelle-ticket"></label>
+            <select id="choix-ticket" name="ticket" class="champ"></select>
+          </div>
+          <button type="submit" class="bouton-secondaire">Afficher</button>
+        </form>
+        <p class="legende" id="ticket-courant" hidden></p>
+        <p class="legende" id="legende-pseudo"></p>
+        <div class="cartes-jumelles" id="panneaux" hidden>
+          <section class="carte panneau" aria-labelledby="titre-original">
+            <h2 id="titre-original"></h2>
+            <div class="panneau-texte lecture" id="texte-original" role="region" tabindex="0" aria-labelledby="titre-original"></div>
+          </section>
+          <section class="carte panneau panneau--pseudo" aria-labelledby="titre-pseudo">
+            <h2 id="titre-pseudo"></h2>
+            <span class="etiquette etiquette--mesure" id="etiquette-pseudo"></span>
+            <div class="panneau-texte lecture" id="texte-pseudo" role="region" tabindex="0" aria-labelledby="titre-pseudo"></div>
+          </section>
+        </div>
+      </div>
     </main>
   </div>
 </body>

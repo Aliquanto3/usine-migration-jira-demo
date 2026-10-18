@@ -8,14 +8,15 @@ servis ici : aucune requête ne sort (NFR-12). Le serveur n'écoute que `127.0.0
 
 Le mode vit dans le processus serveur et ne change jamais seul (AD-19) : il est fixé au
 démarrage par `USINE_MODE_REPLI` et ne change que par `POST /api/mode`, sur clic du Pilote.
-Seules deux routes `POST` changent un état (Chaîne, mode) ; aucune ne touche un Passage ni Jira.
+Seules deux routes `POST` changent un état (Chaîne, mode) ; une troisième, la question à
+l'Agent, appelle le LLM : aucune ne touche un Passage ni Jira.
 """
 
 import html
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol, get_args
+from typing import Literal, Protocol, get_args
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -25,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 
 from usine.contrats.erreurs import UsineErreur
 from usine.contrats.passage import ManifestePassage
+from usine.ui import agent as agent_textes
 from usine.ui.carte import (
     AUCUN_PASSAGE,
     MIME_LIVRABLES,
@@ -38,14 +40,39 @@ from usine.ui.carte import (
 )
 from usine.ui.chaine import MOTIF_MODE_EN_COURS, GestionChaine, LancementRefuse
 from usine.ui.detail import LectureDetail, vue_detail, vue_detail_erreur, vue_detail_message
+from usine.ui.ecrans import (
+    MODE_REPLI_SANS_LLM,
+    SERVICES_ABSENTS,
+    GardeSession,
+    LectureEcransAgent,
+    ServicesEcrans,
+    SessionIndisponible,
+    vue_agent,
+    vue_agent_erreur,
+    vue_avant_apres,
+    vue_avant_apres_erreur,
+    vue_outillage,
+    vue_outillage_erreur,
+    vue_pseudonymisation,
+    vue_pseudonymisation_erreur,
+    vue_pseudonymisation_message,
+    vue_reponse_agent,
+)
 from usine.ui.vues import (
     DemandeMode,
+    DemandeQuestion,
     NomLivrable,
+    Periode,
+    VueAgent,
+    VueAvantApres,
     VueCadre,
     VueCarte,
     VueChaine,
     VueDetail,
     VueLien,
+    VueOutillage,
+    VuePseudonymisation,
+    VueReponseAgent,
     vue_cadre,
 )
 
@@ -75,7 +102,7 @@ LireManifeste = Callable[[bool], ManifestePassage | None]
 lève `UsineErreur` (ou `OSError`) si la lecture est impossible."""
 
 
-class LectureEcrans(LectureVueCarte, LectureDetail, Protocol):
+class LectureEcrans(LectureVueCarte, LectureDetail, LectureEcransAgent, Protocol):
     """Lectures de la `Consultation` que les écrans Carte et Détail utilisent."""
 
 
@@ -85,6 +112,7 @@ en a pas ; lève `UsineErreur` (ou `OSError`) si la lecture est impossible."""
 
 LIENS_CARTE = VueLien(libelle="← Carte météo", url="/")
 LIEN_CHAINE = VueLien(libelle="Lancer la Chaîne", url="/chaine")
+SEULEMENT_REPLI = "Réponses enregistrées : Mode repli seulement."
 
 
 class _Mode:
@@ -114,11 +142,13 @@ def creer_application(
     lire_manifeste: LireManifeste,
     lire_consultation: LireConsultation,
     chaine: GestionChaine | None = None,
+    services: ServicesEcrans | None = None,
 ) -> FastAPI:
     """Application des sept écrans ; `repli` est le mode imposé au démarrage (AD-19).
 
     `chaine` gère le lancement de `usine rapport` (fourni par `ui/cli.py`) ; sans elle, la
-    Chaîne ne peut pas être lancée (racine absente).
+    Chaîne ne peut pas être lancée (racine absente). `services` fournit les lectures et la
+    session de l'Agent des écrans Agent, Avant / après, Pseudonymisation et Outillage.
     """
     application = FastAPI(
         title="Usine de migration", docs_url=None, redoc_url=None, openapi_url=None
@@ -245,11 +275,132 @@ def creer_application(
         "/livrables/{nom}", livrable, methods=["GET", "HEAD"], include_in_schema=False
     )
 
+    _ajouter_ecrans(application, mode, lire, services)
+
     for route, fichier in PAGES.items():
         application.add_api_route(
             route, _page(REPERTOIRE_STATIQUE / fichier), include_in_schema=False
         )
     return application
+
+
+def _ajouter_ecrans(
+    application: FastAPI,
+    mode: _Mode,
+    lire: Callable[[], LectureEcrans | None],
+    services: ServicesEcrans | None,
+) -> None:
+    """Routes des écrans Agent, Avant / après, Pseudonymisation et Outillage (Story 7.16)."""
+    garde = None if services is None else GardeSession(services.session_agent)
+
+    def refus_lecture(exc: UsineErreur | OSError) -> str:
+        return (
+            str(exc) if isinstance(exc, UsineErreur) else f"Lecture du Passage impossible : {exc}"
+        )
+
+    def vue_ecran_agent() -> VueAgent:
+        repli = mode.repli
+        if services is None:
+            return vue_agent_erreur(repli, SERVICES_ABSENTS)
+        try:
+            return vue_agent(repli=repli, consultation=lire(), services=services)
+        except (UsineErreur, OSError) as exc:
+            return vue_agent_erreur(repli, refus_lecture(exc))
+
+    application.add_api_route("/api/agent", vue_ecran_agent, response_model=VueAgent)
+
+    def poser_question(demande: DemandeQuestion, request: Request) -> VueReponseAgent:
+        """Question à l'Agent, par la session existante ; Mode réel seulement (AD-24)."""
+        _meme_origine(request)
+        if services is None or garde is None:
+            raise HTTPException(status_code=503, detail=SERVICES_ABSENTS)
+        if mode.repli:
+            raise HTTPException(status_code=409, detail=MODE_REPLI_SANS_LLM)
+        try:
+            consultation = lire()
+        except (UsineErreur, OSError) as exc:
+            raise HTTPException(status_code=503, detail=refus_lecture(exc)) from exc
+        if consultation is None:
+            raise HTTPException(status_code=409, detail=agent_textes.AUCUN_PASSAGE)
+        try:
+            reponse = garde.repondre(consultation, demande.question)
+        except SessionIndisponible as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except Exception as exc:  # fournisseur, trace ou validation : message explicite
+            detail = f"Réponse de l'Agent impossible : {exc}"
+            raise HTTPException(status_code=502, detail=detail) from exc
+        return vue_reponse_agent(reponse, services.texte_hors_perimetre)
+
+    application.add_api_route(
+        "/api/agent/question", poser_question, methods=["POST"], response_model=VueReponseAgent
+    )
+
+    def rejouer(rang: int) -> VueReponseAgent:
+        """Réponse enregistrée rejouée sans LLM ; Mode repli seulement (FR-45)."""
+        if services is None:
+            raise HTTPException(status_code=503, detail=SERVICES_ABSENTS)
+        if not mode.repli:
+            raise HTTPException(status_code=409, detail=SEULEMENT_REPLI)
+        try:
+            consultation = lire()
+            if consultation is None:
+                raise HTTPException(status_code=409, detail=agent_textes.AUCUN_PASSAGE)
+            enregistrees = services.reponses_repli(consultation.manifeste().passage_id)
+        except UsineErreur as exc:
+            detail = f"{agent_textes.REFUS_REPLI} : {exc}"
+            raise HTTPException(status_code=409, detail=detail) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=503, detail=refus_lecture(exc)) from exc
+        if not 0 <= rang < len(enregistrees):
+            raise HTTPException(status_code=404, detail="Question enregistrée inconnue.")
+        enregistree = enregistrees[rang]
+        return vue_reponse_agent(enregistree.reponse, services.texte_hors_perimetre, enregistree)
+
+    application.add_api_route(
+        "/api/agent/enregistrees/{rang}", rejouer, response_model=VueReponseAgent
+    )
+
+    def avant_apres(periode: Literal["rapport", "cumul"] = "rapport") -> VueAvantApres:
+        if services is None:
+            return vue_avant_apres_erreur(SERVICES_ABSENTS)
+        choix: Periode = periode
+        try:
+            try:
+                config = services.config_demo()
+            except UsineErreur as exc:
+                return vue_avant_apres_erreur(f"Configuration de la démo invalide : {exc}")
+            mesure, dernier = services.manifestes_avant_apres(mode.repli)
+        except (UsineErreur, OSError) as exc:
+            return vue_avant_apres_erreur(refus_lecture(exc))
+        minutes = None if config is None else config.temps_manuel_minutes_par_rapport
+        return vue_avant_apres(minutes=minutes, mesure=mesure, dernier=dernier, periode=choix)
+
+    application.add_api_route("/api/avant-apres", avant_apres, response_model=VueAvantApres)
+
+    def pseudonymisation(ticket: str | None = None) -> VuePseudonymisation:
+        if services is None:
+            return vue_pseudonymisation_erreur(SERVICES_ABSENTS)
+        try:
+            consultation = lire()
+            if consultation is None:
+                return vue_pseudonymisation_message(AUCUN_PASSAGE, LIEN_CHAINE)
+            return vue_pseudonymisation(consultation, services.apercu_pseudonymisation, ticket)
+        except (UsineErreur, OSError) as exc:
+            return vue_pseudonymisation_erreur(refus_lecture(exc))
+
+    application.add_api_route(
+        "/api/pseudonymisation", pseudonymisation, response_model=VuePseudonymisation
+    )
+
+    def vue_fiche() -> VueOutillage:
+        if services is None:
+            return vue_outillage_erreur(SERVICES_ABSENTS)
+        try:
+            return vue_outillage(services.lire_fiche())
+        except (OSError, UnicodeDecodeError) as exc:
+            return vue_outillage_erreur(f"Lecture de la fiche outillage impossible : {exc}")
+
+    application.add_api_route("/api/outillage", vue_fiche, response_model=VueOutillage)
 
 
 def _page(chemin: Path) -> Callable[..., FileResponse]:

@@ -26,6 +26,7 @@ from usine.contrats.llm import SortieExplication, SortieNarration, StatutControl
 from usine.contrats.meteo import CodeIndicateur, Couleur, EvolutionMeteo, MeteoEntite
 from usine.contrats.passage import Etape, ExecutionEtape, ManifestePassage, StatutEtape
 from usine.contrats.prevision import Prevision, RisqueEntreeRouge, StatutPrevision
+from usine.contrats.tickets import SCHEMA_TICKET_TEXTE
 from usine.ports.consultation import Consultation
 from usine.ui import carte, detail
 from usine.ui.cli import application_web, lecture_consultation
@@ -152,6 +153,9 @@ class _Double:
 
     def livrable(self, nom: NomLivrable) -> bytes | None:
         return self.fichiers.get(nom)
+
+    def textes_tickets(self) -> pl.DataFrame:
+        return pl.DataFrame(schema=dict(SCHEMA_TICKET_TEXTE.colonnes))
 
 
 def client(double: _Double | None = None, *, repli: bool = False) -> TestClient:

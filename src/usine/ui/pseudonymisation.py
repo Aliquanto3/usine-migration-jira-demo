@@ -34,3 +34,10 @@ def descriptions(table: pl.DataFrame) -> Mapping[str, str]:
         for rangee in table.select("cle_ticket", "description").iter_rows(named=True)
         if rangee["description"] is not None and rangee["description"].strip()
     }
+
+
+def moteur_indisponible(exc: ImportError | OSError) -> str:
+    """Message d'une ligne qui nomme la cause : moteur Presidio ou modèle spaCy introuvable."""
+    lignes = str(exc).strip().splitlines()
+    cause = f"{type(exc).__name__} : {lignes[0]}" if lignes else type(exc).__name__
+    return f"Moteur de Pseudonymisation indisponible (Presidio ou modèle spaCy) : {cause}"

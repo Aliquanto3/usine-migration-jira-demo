@@ -9,7 +9,7 @@ from datetime import UTC
 from typing import Literal
 
 from markdown_it import MarkdownIt
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from usine.contrats.format import formater_date
 from usine.contrats.passage import ManifestePassage
@@ -343,3 +343,137 @@ class DemandeMode(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     mode: Literal["reel", "repli"]
+
+
+# --- Agent, Avant / après, Pseudonymisation et Outillage (Story 7.16) ---
+
+CodeBadge = Literal["conforme", "corrige", "rejete", "non_controle", "hors_perimetre"]
+Periode = Literal["rapport", "cumul"]
+
+
+class DemandeQuestion(BaseModel):
+    """Corps de `POST /api/agent/question` : la question du Pilote, jamais vide."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    question: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def _non_vide(cls, valeur: str) -> str:
+        texte = valeur.strip()
+        if not texte:
+            raise ValueError("la question est vide")
+        return texte
+
+
+class VueOutil(_Vue):
+    """Outil de l'Agent (lecture seule) et sa description."""
+
+    nom: str
+    description: str
+
+
+class VueSaisie(_Vue):
+    """Saisie de la question (Mode réel seulement)."""
+
+    libelle: str
+    valeur_defaut: str
+    bouton: str
+
+
+class VueQuestionEnregistree(_Vue):
+    """Question enregistrée : suggestion (Mode réel) ou seul moyen de questionner (Mode repli)."""
+
+    rang: int
+    question: str
+
+
+class VueReponseAgent(_Vue):
+    """Réponse contrôlée : `texte` vaut `None` quand le contrôle l'a rejetée (jamais affichée)."""
+
+    question: str
+    texte: str | None
+    texte_masque: str | None
+    badge: str
+    badge_code: CodeBadge
+    libelle_outils: str
+    outils: list[str]
+    aucun_outil: str
+    mention_repli: str | None
+    annonce: str
+
+
+class VueAgent(_Vue):
+    """Écran Agent."""
+
+    mode: Literal["reel", "repli"]
+    erreur: str | None
+    message: str | None
+    """Remplace l'écran (aucun Passage publié)."""
+    lien_message: VueLien | None
+    legende: str | None
+    message_repli: str | None
+    saisie: VueSaisie | None
+    titre_questions: str
+    questions: list[VueQuestionEnregistree]
+    titre_outils: str
+    outils: list[VueOutil]
+    attente: str
+    lien_repli: VueLien | None
+    """Avec une erreur d'Agent en Mode réel : passer en Mode repli par l'écran de lancement."""
+
+
+class VueCarteTemps(_Vue):
+    """Grande carte « Reporting manuel » ou « Chaîne » : valeur de chaque période."""
+
+    titre: str
+    etiquette: str
+    valeurs: dict[Periode, str]
+
+
+class VueOptionPeriode(_Vue):
+    valeur: Periode
+    libelle: str
+
+
+class VueAvantApres(_Vue):
+    """Écran Avant / après : valeurs reçues telles quelles, aucun écart ni ratio."""
+
+    erreur: str | None
+    message: str | None
+    lien_message: VueLien | None
+    avertissements: list[str]
+    manuel: VueCarteTemps | None
+    chaine: VueCarteTemps | None
+    libelle_periode: str
+    periodes: list[VueOptionPeriode]
+    periode: Periode
+    tableau: VueTableau | None
+    legende: str | None
+
+
+class VuePseudonymisation(_Vue):
+    """Écran Pseudonymisation : texte brut, sans surlignage (AD-11)."""
+
+    erreur: str | None
+    message: str | None
+    lien_message: VueLien | None
+    libelle_ticket: str
+    tickets: list[str]
+    ticket: VueTicket | None
+    legende: str | None
+    titre_original: str
+    titre_pseudonymise: str
+    etiquette_pseudonymise: str
+    original: str | None
+    pseudonymise: str | None
+
+
+class VueOutillage(_Vue):
+    """Écran Outillage : fiche rendue en HTML par le serveur (HTML brut désactivé)."""
+
+    erreur: str | None
+    message: str | None
+    legende: str | None
+    html: str | None
