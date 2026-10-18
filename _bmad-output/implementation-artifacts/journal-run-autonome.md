@@ -192,6 +192,7 @@ Règles propres au run :
 ### Bilan du run UI web (18/10/2026)
 
 - **Livré et poussé** : 7.13 à 7.17, en série, sans story bloquée ni reprise sur Opus. Contrats 1.8.0 → 1.9.0 (`Consultation.livrable`, seul changement autorisé). Après chaque story : CI verte sous Windows et Linux. `git grep -i streamlit` hors `_bmad-output/` : vide.
+- **CI finale** : le premier push de la 0.10.0 (`ee3b869`) a échoué sous Windows et Linux : rich colore l'aide de `usine ui --help` en CI, et deux tests (`test_cli.py::test_aide`, `test_lancement.py::test_python_m_usine`) cherchaient `--port` dans le texte brut. Correctif : `click.unstyle` avant la comparaison.
 - **Version 0.10.0 préparée, non publiée** : `pyproject.toml`, `uv.lock`, ligne d'état du README, notes dans `docs/notes-de-version/v0.10.0.md`. Ni étiquette ni release.
 - **Coût** : ~2,06 M tokens d'agents (7.13 ~370 k, 7.14 ~480 k, 7.15 ~340 k, 7.16 ~425 k, 7.17 ~440 k), plus l'orchestration (non mesurée, de l'ordre de 0,2 M). Plafond 2,6 M respecté. Le second avis Haiku a coûté plus que prévu sur 7.14 et 7.17 (~130 à 160 k), mais il a trouvé les deux constats les plus utiles du lot : un test de contrat qui acceptait toujours `None` (7.14) et une perte de couverture des règles du détail (7.17).
 - **File humaine (Anaël)** :

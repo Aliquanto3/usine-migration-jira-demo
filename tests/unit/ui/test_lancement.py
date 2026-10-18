@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import click
 from typer.testing import CliRunner
 
 from usine.cli import app
@@ -44,8 +45,9 @@ def test_python_m_usine(tmp_path: Path) -> None:
         check=False,
     )
     assert resultat.returncode == 0, resultat.stderr
-    assert b"--port" in resultat.stdout
-    assert b"treamlit" not in resultat.stdout
+    aide = click.unstyle(resultat.stdout.decode("utf-8"))  # rich colore l'aide en CI
+    assert "--port" in aide
+    assert "treamlit" not in aide
 
 
 def test_erreurs_dans_un_fichier_temporaire(tmp_path: Path) -> None:

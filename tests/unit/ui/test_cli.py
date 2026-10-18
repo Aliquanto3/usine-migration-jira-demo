@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import click
 import pytest
 import uvicorn
 from fastapi import FastAPI
@@ -20,7 +21,7 @@ from usine.ui.serveur import HOTE
 def test_aide() -> None:
     resultat = CliRunner().invoke(app, ["ui", "--help"])
     assert resultat.exit_code == 0, resultat.output
-    assert "--port" in resultat.output
+    assert "--port" in click.unstyle(resultat.output)  # rich colore l'aide en CI
 
 
 def test_option_inconnue_refusee() -> None:
