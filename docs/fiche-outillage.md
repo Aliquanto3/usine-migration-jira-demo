@@ -50,7 +50,7 @@ La colonne « Appui » donne la règle et son contrôle ; ils s'appliquent déj�
 - Aucun mode LLM local n'est livré aujourd'hui (bonus FR-37) ; l'Agent en dépend aussi.
 - La planification exige un poste allumé ; un `.env` par poste porte les secrets (AD-19, gitleaks).
 
-Pour le découpage détaillé, les secrets, les limites et l'image conteneur : [`portage-detaille.md`](portage-detaille.md).
+Portage détaillé : [`portage-detaille.md`](portage-detaille.md).
 
 ## Références
 
