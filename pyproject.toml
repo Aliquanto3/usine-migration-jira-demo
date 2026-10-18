@@ -89,6 +89,11 @@ mypy_path = "src"
 explicit_package_bases = true
 files = ["src", "tests", "outils", "evaluation", "evals", ".github/scripts"]
 
+# Groupe optionnel `bonus` : absent de la CI (`uv sync --locked`), présent après `uv sync --group bonus`.
+[[tool.mypy.overrides]]
+module = ["lightgbm", "lightgbm.*", "langfuse", "langfuse.*"]
+ignore_missing_imports = true
+
 # Tableau des couches du spine, recopié tel quel (AD-1). Les modules `cli` sont racine de
 # composition, comme `composition.py` : ils peuvent tout importer.
 [tool.importlinter]
