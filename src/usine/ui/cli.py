@@ -29,6 +29,7 @@ from usine.ia.agent.repli import REPERTOIRE_REPONSES, charger_reponses
 from usine.ia.agent.session import SessionAgent
 from usine.ports.consultation import Consultation
 from usine.ui.avant_apres import FICHIER_CONFIG
+from usine.ui.chaine import GestionChaine
 from usine.ui.serveur import HOTE, LireConsultation, LireManifeste, creer_application
 from usine.ui.textes import REPERTOIRE_REPLI as REPERTOIRE_REPLI
 from usine.ui.textes import REPLI_ABSENT
@@ -190,6 +191,7 @@ def application_web(racine: Path, repli: bool) -> FastAPI:
         repli=repli,
         lire_manifeste=lecture_manifeste(racine),
         lire_consultation=lecture_consultation(racine),
+        chaine=GestionChaine(racine),
     )
 
 

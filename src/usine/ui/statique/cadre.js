@@ -59,6 +59,32 @@
       });
   }
 
+  // Écriture (POST JSON) : rend { statut, donnees } pour toute réponse du serveur, y compris un
+  // refus (409) dont `donnees.detail` porte le motif ; `null` si le serveur ne répond pas.
+  function envoyer(chemin, corps) {
+    var options = { method: "POST", headers: { Accept: "application/json" } };
+    if (corps !== undefined) {
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(corps);
+    }
+    return fetch(chemin, options)
+      .then(function (reponse) {
+        retirerBandeau("injoignable");
+        return reponse.json().then(
+          function (donnees) {
+            return { statut: reponse.status, donnees: donnees };
+          },
+          function () {
+            return { statut: reponse.status, donnees: {} };
+          }
+        );
+      })
+      .catch(function () {
+        signalerServeurInjoignable();
+        return null;
+      });
+  }
+
   function afficherCadre(vue) {
     var passage = document.getElementById("pastille-passage");
     if (vue.passage_publie) {
@@ -148,6 +174,8 @@
   // Aux écrans de 7.14 à 7.16 : même fonction d'appel, même bandeau d'erreur unique.
   window.usine = {
     appeler: appeler,
+    envoyer: envoyer,
+    rafraichirCadre: chargerCadre,
     creer: creer,
     vider: vider,
     ticket: ticket,

@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/statique/cadre.css">
   <script src="/statique/cadre.js" defer></script>
+  <script src="/statique/chaine.js" defer></script>
 </head>
 <body>
   <a class="lien-evitement" href="#titre-ecran">Aller au contenu</a>
@@ -43,10 +44,40 @@
         <p class="legende">Lancer un Passage et suivre ses 10 étapes.</p>
       </div>
       <div id="bandeaux"></div>
-      <section class="carte" aria-labelledby="titre-contenu">
-        <h2 id="titre-contenu">Contenu de l'écran</h2>
-        <p class="legende">Le contenu de cet écran arrive avec la prochaine livraison de l'interface.</p>
-      </section>
+      <div class="colonne-chaine">
+        <div class="bandeau-resultat" id="bandeau-resultat"></div>
+        <section class="carte" aria-labelledby="titre-lancement">
+          <h2 id="titre-lancement">Chaîne de reporting</h2>
+          <div class="actions-chaine">
+            <div class="action-chaine">
+              <button type="button" class="bouton-primaire" id="bouton-lancement">Lancer la Chaîne</button>
+              <p class="legende" id="motif-lancement" hidden></p>
+            </div>
+            <div class="action-chaine">
+              <button type="button" class="bouton-secondaire" id="bouton-mode">Passer en Mode repli</button>
+              <p class="legende" id="motif-mode" hidden></p>
+            </div>
+          </div>
+          <p class="bandeau bandeau--erreur" id="erreur-chaine" role="alert" hidden></p>
+        </section>
+        <section class="carte" aria-labelledby="titre-progression">
+          <h2 id="titre-progression">Progression</h2>
+          <p class="compteur" id="compteur">0 / 10</p>
+          <div class="barre" id="barre" role="progressbar" aria-label="Étapes terminées" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
+            <div class="barre-remplissage" id="barre-remplissage"></div>
+          </div>
+          <p class="visuellement-cache" id="annonce" role="status"></p>
+          <ol class="etapes" id="etapes" aria-label="Étapes de la Chaîne"></ol>
+        </section>
+        <section class="carte" aria-labelledby="titre-journal">
+          <h2 id="titre-journal">Journal de progression</h2>
+          <ul class="journal" id="journal" tabindex="0" aria-label="Journal de progression"></ul>
+        </section>
+        <section class="carte" aria-labelledby="titre-dernier">
+          <h2 id="titre-dernier">Dernier Passage</h2>
+          <div id="dernier-passage"></div>
+        </section>
+      </div>
     </main>
   </div>
 </body>

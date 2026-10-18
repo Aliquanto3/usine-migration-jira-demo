@@ -365,3 +365,105 @@ a.ticket::after { content: " ↗"; font-weight: 400; }
 
 .segment-bloc { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .page-erreur { max-width: 720px; margin: 48px auto; padding: 0 var(--gouttiere); }
+
+/* Lancement de la Chaîne (Story 7.15) */
+.bouton-primaire {
+  min-height: var(--cible-min);
+  padding: 0 20px;
+  border: 1px solid var(--primaire);
+  border-radius: 14px;
+  background: var(--primaire);
+  color: var(--blanc);
+  font: 700 15px/1 var(--police-corps);
+  cursor: pointer;
+}
+.bouton-primaire:hover { background: var(--violet-2); }
+.bouton-primaire[aria-disabled="true"],
+.bouton-secondaire[aria-disabled="true"] {
+  border-color: var(--bordure-champ);
+  background: var(--fond);
+  color: var(--encre-secondaire);
+  cursor: not-allowed;
+}
+.actions-chaine { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.action-chaine { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 360px; }
+.action-chaine .legende { margin: 0; }
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.compteur { text-align: right; font: 400 14px/1.4 var(--police-code); color: var(--nuit); }
+.barre { height: 10px; margin: 6px 0 16px; border-radius: 9999px; background: var(--lavande); overflow: hidden; }
+.barre-remplissage { height: 100%; width: 0; background: var(--primaire); transition: width 0.3s; }
+.etapes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.etape {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: 14px;
+  background: var(--fond);
+}
+.etape-puce {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 9999px;
+  background: var(--fond);
+  font: 700 14px/1 var(--police-code);
+}
+.etape-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.etape-nom { font: 700 15px/1.4 var(--police-code); color: var(--encre); }
+.etape-texte .legende { margin: 0; }
+.etape-badge {
+  flex: none;
+  padding: 2px 12px;
+  border-radius: 9999px;
+  background: var(--fond);
+  border: 1px solid var(--bordure-champ);
+  font-size: 13px;
+  font-weight: 700;
+}
+.etape--reussie .etape-puce { background: var(--vert-wavestack); border-color: var(--vert-wavestack); color: var(--nuit); }
+.etape--reussie .etape-badge { background: var(--succes-fond); border-color: var(--succes-fond); color: var(--succes-texte); }
+.etape--en_cours { background: var(--lavande); border-color: var(--primaire); }
+.etape--en_cours .etape-puce { background: var(--primaire); border-color: var(--primaire); color: var(--blanc); }
+.etape--en_cours .etape-badge { background: var(--primaire); border-color: var(--primaire); color: var(--blanc); }
+.etape--echouee .etape-puce { background: var(--meteo-rouge); border-color: var(--meteo-rouge); color: var(--blanc); }
+.etape--echouee .etape-badge { background: var(--meteo-rouge); border-color: var(--meteo-rouge); color: var(--blanc); }
+.journal {
+  list-style: none;
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--nuit);
+  color: var(--blanc);
+  font: 400 13px/1.7 var(--police-code);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.journal-heure { color: var(--lavande-texte); margin-right: 12px; }
+.erreur-lignes {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--blanc);
+  color: var(--erreur-texte);
+  font: 400 13px/1.5 var(--police-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bandeau-resultat { display: flex; flex-direction: column; gap: 12px; }
+.bandeau-resultat:empty { display: none; }
+.bandeau-resultat p { margin: 0; }
+.bandeau-resultat a { color: inherit; }
+.colonne-chaine { display: flex; flex-direction: column; gap: var(--gouttiere); }

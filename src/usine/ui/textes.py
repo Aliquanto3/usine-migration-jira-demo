@@ -31,3 +31,15 @@ REPLI_ABSENT = (
     f"Mode repli : Passage enregistré introuvable (`{DOSSIER_REPLI}manifeste.json` absent) ;"
     f" restaurer `{DOSSIER_REPLI}` depuis le dépôt ou désactiver le Mode repli."
 )
+
+# Écran Lancement en Mode repli : bouton visible mais bloqué.
+LANCEMENT_REPLI = (
+    "Mode repli : le lancement de la Chaîne est désactivé. L'UI lit le Passage enregistré"
+    f" `{DOSSIER_REPLI}` ; désactiver le Mode repli pour lancer la Chaîne."
+)
+
+INTERVALLE_SONDAGE = 1.0
+"""Secondes entre deux lectures de la progression, Chaîne en cours."""
+
+LIGNES_ERREUR_MAX = 20
+"""Dernières lignes de l'erreur standard affichées en cas d'échec."""

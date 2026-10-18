@@ -7,7 +7,8 @@ charge `/api/cadre` (Passage publié, mode, bandeau de repli). Polices, CSS et s
 servis ici : aucune requête ne sort (NFR-12). Le serveur n'écoute que `127.0.0.1` (voir `cli`).
 
 Le mode vit dans le processus serveur et ne change jamais seul (AD-19) : il est fixé au
-démarrage par `USINE_MODE_REPLI`.
+démarrage par `USINE_MODE_REPLI` et ne change que par `POST /api/mode`, sur clic du Pilote.
+Seules deux routes `POST` changent un état (Chaîne, mode) ; aucune ne touche un Passage ni Jira.
 """
 
 import html
@@ -15,7 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, get_args
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -32,11 +33,14 @@ from usine.ui.carte import (
     vue_carte_erreur,
     vue_carte_message,
 )
+from usine.ui.chaine import MOTIF_MODE_EN_COURS, GestionChaine, LancementRefuse
 from usine.ui.detail import LectureDetail, vue_detail, vue_detail_erreur, vue_detail_message
 from usine.ui.vues import (
+    DemandeMode,
     NomLivrable,
     VueCadre,
     VueCarte,
+    VueChaine,
     VueDetail,
     VueLien,
     vue_cadre,
@@ -76,16 +80,41 @@ LIENS_CARTE = VueLien(libelle="← Carte météo", url="/")
 LIEN_CHAINE = VueLien(libelle="Lancer la Chaîne", url="/chaine")
 
 
+class _Mode:
+    """Mode courant du processus serveur : fixé au démarrage, changé par `POST /api/mode` seul."""
+
+    def __init__(self, repli: bool) -> None:
+        self.repli = repli
+
+
+def _meme_origine(request: Request) -> None:
+    """Refuse une écriture venue d'une autre origine (une page web tierce ouverte sur le poste)."""
+    origine = request.headers.get("origin")
+    if origine is not None and origine.split("://", 1)[-1] != request.headers.get("host"):
+        raise HTTPException(status_code=403, detail="Origine refusée.")
+
+
 def creer_application(
-    *, repli: bool, lire_manifeste: LireManifeste, lire_consultation: LireConsultation
+    *,
+    repli: bool,
+    lire_manifeste: LireManifeste,
+    lire_consultation: LireConsultation,
+    chaine: GestionChaine | None = None,
 ) -> FastAPI:
-    """Application des sept écrans ; `repli` est le mode imposé au démarrage (AD-19)."""
+    """Application des sept écrans ; `repli` est le mode imposé au démarrage (AD-19).
+
+    `chaine` gère le lancement de `usine rapport` (fourni par `ui/cli.py`) ; sans elle, la
+    Chaîne ne peut pas être lancée (racine absente).
+    """
     application = FastAPI(
         title="Usine de migration", docs_url=None, redoc_url=None, openapi_url=None
     )
     application.mount("/statique", StaticFiles(directory=REPERTOIRE_STATIQUE), name="statique")
+    mode = _Mode(repli)
+    gestion = chaine if chaine is not None else GestionChaine(None)
 
     def cadre() -> VueCadre:
+        repli = mode.repli
         try:
             return vue_cadre(repli=repli, manifeste=lire_manifeste(repli), erreur=None)
         except UsineErreur as exc:
@@ -96,8 +125,40 @@ def creer_application(
 
     application.add_api_route("/api/cadre", cadre, response_model=VueCadre)
 
+    def changer_mode(demande: DemandeMode, request: Request) -> VueCadre:
+        """Bascule explicite du mode (AD-19) ; refusée tant qu'une Chaîne tourne."""
+        _meme_origine(request)
+        if gestion.en_cours():
+            raise HTTPException(status_code=409, detail=MOTIF_MODE_EN_COURS)
+        mode.repli = demande.mode == "repli"
+        return cadre()
+
+    application.add_api_route("/api/mode", changer_mode, methods=["POST"], response_model=VueCadre)
+
+    def vue_chaine() -> VueChaine:
+        try:
+            manifeste = lire_manifeste(mode.repli)
+        except (UsineErreur, OSError):  # le bandeau d'erreur du cadre nomme la cause
+            manifeste = None
+        return gestion.vue(mode.repli, manifeste)
+
+    application.add_api_route("/api/chaine", vue_chaine, response_model=VueChaine)
+
+    def lancer_chaine(request: Request) -> VueChaine:
+        """Démarre `usine rapport` ; une Chaîne à la fois (409 sinon)."""
+        _meme_origine(request)
+        try:
+            gestion.lancer(mode.repli)
+        except LancementRefuse as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return vue_chaine()
+
+    application.add_api_route(
+        "/api/chaine", lancer_chaine, methods=["POST"], response_model=VueChaine, status_code=202
+    )
+
     def lire() -> LectureEcrans | None:
-        return lire_consultation(repli)
+        return lire_consultation(mode.repli)
 
     def carte() -> VueCarte:
         try:

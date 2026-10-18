@@ -57,11 +57,22 @@ from usine.ui.cli import (
 )
 from usine.ui.liens import echapper_markdown, lien_ticket
 from usine.ui.navigation import Ecran
-from usine.ui.textes import BANDEAU_REPLI, DOSSIER_REPLI, REPLI_ABSENT
-
-# Pas de chaîne isolée au niveau du module : la « magie » Streamlit l'afficherait.
-INTERVALLE_SONDAGE = 1.0  # secondes entre deux lectures de la progression, Chaîne en cours
-LIGNES_ERREUR_MAX = 20  # dernières lignes de l'erreur standard affichées en cas d'échec
+from usine.ui.textes import (
+    BANDEAU_REPLI,
+    DOSSIER_REPLI,
+)
+from usine.ui.textes import (
+    INTERVALLE_SONDAGE as INTERVALLE_SONDAGE,
+)
+from usine.ui.textes import (
+    LANCEMENT_REPLI as LANCEMENT_REPLI,
+)
+from usine.ui.textes import (
+    LIGNES_ERREUR_MAX as LIGNES_ERREUR_MAX,
+)
+from usine.ui.textes import (
+    REPLI_ABSENT as REPLI_ABSENT,
+)
 
 _PROCESSUS = "processus"
 _AVANT = "fichiers_avant"
@@ -79,12 +90,6 @@ _DOSSIER_REPLI = DOSSIER_REPLI
 AIDE_REPLI = (
     f"Activation manuelle : l'UI lit le Passage enregistré {_DOSSIER_REPLI} et le lancement est"
     " désactivé."
-)
-
-# Écran Lancement en Mode repli : bouton visible mais désactivé.
-LANCEMENT_REPLI = (
-    "Mode repli : le lancement de la Chaîne est désactivé. L'UI lit le Passage enregistré"
-    f" `{_DOSSIER_REPLI}` ; désactiver le Mode repli pour lancer la Chaîne."
 )
 
 

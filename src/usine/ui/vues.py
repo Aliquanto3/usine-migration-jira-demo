@@ -258,3 +258,88 @@ class VueDetail(_Vue):
     explication: VueExplications | None
     vide: str = "—"
     """Contenu d'une cellule sans valeur (aucun ticket)."""
+
+
+# --- Lancement de la Chaîne et bouton de mode (Story 7.15) ---
+
+EtatEtape = Literal["en_attente", "en_cours", "reussie", "sautee", "echouee"]
+StatutChaine = Literal["attente", "en_cours", "terminee", "echec"]
+
+
+class VueEtape(_Vue):
+    """Une des 10 étapes de la Chaîne et son état."""
+
+    numero: int
+    nom: str
+    description: str
+    etat: EtatEtape
+    libelle_etat: str
+    duree: str | None
+    """Durée de l'étape terminée, déjà formatée (« 0,3 s »)."""
+
+
+class VueBouton(_Vue):
+    """Bouton de l'écran : libellé, blocage (`aria-disabled`) et motif visible sous lui."""
+
+    libelle: str
+    bloque: bool
+    motif: str | None
+
+
+class VueBandeauChaine(_Vue):
+    """Résultat de la dernière Chaîne : succès (`status`) ou échec (`alert`)."""
+
+    variante: Literal["succes", "erreur"]
+    texte: str
+    lignes: list[str]
+    """Au plus `LIGNES_ERREUR_MAX` dernières lignes de l'erreur standard (échec seulement)."""
+    complement: str | None
+    lien: VueLien | None
+
+
+class VueLigneJournal(_Vue):
+    """Ligne horodatée du journal de progression (la plus récente en premier)."""
+
+    horodatage: str
+    texte: str
+
+
+class VueDernierPassage(_Vue):
+    """Encart « Dernier Passage », lu dans le manifeste du Passage affiché."""
+
+    lignes: list[str]
+
+
+class VueChaine(_Vue):
+    """Ce que l'écran Lancement de la Chaîne affiche à chaque sondage."""
+
+    statut: StatutChaine
+    en_cours: bool
+    """Vrai tant que le sondage doit continuer."""
+    intervalle_ms: int
+    bouton_lancement: VueBouton
+    bouton_mode: VueBouton
+    mode_cible: Literal["reel", "repli"]
+    """Mode que le bouton de mode demande."""
+    etapes: list[VueEtape]
+    terminees: int
+    """Étapes terminées (réussies, sautées ou en échec) : `aria-valuenow` de la barre."""
+    total: int
+    compteur: str
+    annonce: str
+    """Texte de la région `status` ; vide quand rien de nouveau n'est à annoncer."""
+    journal: list[VueLigneJournal]
+    journal_vide: str
+    bandeau: VueBandeauChaine | None
+    erreur: str | None
+    """Progression illisible ou lancement impossible (bandeau d'erreur, sondage maintenu)."""
+    dernier_passage: VueDernierPassage | None
+    message_dernier_passage: str
+
+
+class DemandeMode(BaseModel):
+    """Corps de `POST /api/mode` : le mode demandé (jamais déduit, AD-19)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: Literal["reel", "repli"]
