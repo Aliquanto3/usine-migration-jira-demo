@@ -154,8 +154,8 @@ development_status:
   7-14-carte-météo-détail-d-une-entité-et-livrables: done  # contrats 1.9.0 (Consultation.livrable)
   7-15-lancement-de-la-chaîne-et-bouton-de-mode: done
   7-16-agent-avant-après-pseudonymisation-et-outillage: done
-  7-17-retrait-de-streamlit: backlog
-  7-12-répétitions-chronométrées-de-la-démo: review  # bloquée par 7.17 : répétitions sur la nouvelle UI
+  7-17-retrait-de-streamlit: done
+  7-12-répétitions-chronométrées-de-la-démo: review  # débloquée (7.17 done) : répétitions sur la nouvelle UI, puis GIF du README
   epic-7-retrospective: optional
 
   epic-8: in-progress  # lane L8 Portage
