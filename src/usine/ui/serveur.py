@@ -428,12 +428,12 @@ def _page_erreur(message: str, statut: int) -> HTMLResponse:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Livrable indisponible · Usine de migration</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="/statique/favicon.svg">
   <link rel="stylesheet" href="/statique/cadre.css">
 </head>
 <body>
   <main class="contenu page-erreur">
-    <h1 id="titre-ecran">Livrable indisponible</h1>
+    <div class="titre-ligne"><h1 id="titre-ecran">Livrable indisponible</h1></div>
     <p class="bandeau bandeau--erreur" role="alert">{texte}</p>
     <p><a href="/">{html.escape(LIENS_CARTE.libelle)}</a></p>
   </main>

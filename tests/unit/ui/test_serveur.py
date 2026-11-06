@@ -122,7 +122,7 @@ def test_feuille_et_script_sans_requete_externe() -> None:
 
 def test_polices_et_licences_ofl() -> None:
     dossier = REPERTOIRE_STATIQUE / "polices"
-    for nom in ("Fredoka", "AtkinsonHyperlegible", "JetBrainsMono"):
+    for nom in ("Sora", "AtkinsonHyperlegible", "JetBrainsMono"):
         licence = (dossier / f"OFL-{nom}.txt").read_text(encoding="utf-8")
         assert "SIL OPEN FONT LICENSE" in licence
 
