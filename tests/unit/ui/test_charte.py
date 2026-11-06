@@ -246,7 +246,7 @@ def test_page_avec_icone_et_pictogramme(page: str) -> None:
 
 
 def test_page_erreur_avec_icone() -> None:
-    html = _page_erreur("Fichier absent.", 404).body.decode("utf-8")
+    html = bytes(_page_erreur("Fichier absent.", 404).body).decode("utf-8")
     assert 'href="/statique/favicon.svg"' in html
     assert 'href="data:,"' not in html
 
