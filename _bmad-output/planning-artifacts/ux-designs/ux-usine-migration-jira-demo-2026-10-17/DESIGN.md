@@ -7,7 +7,8 @@ sources:
   - https://claude.ai/artifact/8i2xgWiBDhL79cF7g68Fyu
   - imports/maquette-canvas/
 colors:
-  # Charte générique v2.1, thème clair. Le thème sombre (par défaut) est dans la charte.
+  # Charte générique v2.1, valeurs du thème clair (le format n'admet qu'un thème). Les valeurs
+  # du sombre, thème par défaut, sont dans le bloc :root de src/usine/ui/statique/cadre.css.
   fond: '#F6F8FB'
   surface: '#FFFFFF'
   surface-alt: '#ECF0F5'
@@ -187,12 +188,12 @@ components:
     radius: '{rounded.full}'
   pastille-meteo-jaune:
     background: '{colors.accent-doux}'
-    dot: '{colors.accent-aplat}'
+    dot: '{colors.accent}'
     foreground: '{colors.texte}'
     radius: '{rounded.full}'
   pastille-meteo-orange:
     background: '{colors.alerte-doux}'
-    dot: '{colors.alerte}'
+    dot: '{colors.alerte-texte}'
     foreground: '{colors.texte}'
     radius: '{rounded.full}'
   pastille-meteo-rouge:
@@ -229,8 +230,9 @@ components:
     radius: '{rounded.full}'
   segment:
     track: '{colors.surface-alt}'
-    active-background: '{colors.primaire}'
-    active-foreground: '{colors.sur-primaire}'
+    active-background: '{colors.primaire-doux}'
+    active-foreground: '{colors.texte}'
+    active-border: '2px inset {colors.primaire}'
     foreground: '{colors.texte}'
     radius: '{rounded.lg}'
   champ:
@@ -301,14 +303,14 @@ Correspondances appliquées (ancien nom de variable de l'interface vers rôle de
 | vert de marque | `succes` (Mode réel, étape réussie) |
 | `--succes-*`, `--erreur-*` | `succes` / `succes-doux`, `erreur` / `erreur-doux` |
 | `--refus-*` | `alerte-texte` / `alerte-doux` |
-| `--meteo-*` | vert `succes`, jaune `accent-aplat` / `accent-doux`, orange `alerte` / `alerte-doux`, rouge `erreur` / `erreur-doux` |
+| `--meteo-*` | vert `succes`, jaune `accent` / `accent-doux`, orange `alerte-texte` / `alerte-doux`, rouge `erreur` / `erreur-doux` |
 
 Règles d'usage :
 
 - **Bouton principal** : aplat `bouton`, libellé `sur-bouton`, survol `bouton-survol`. Le bleu n'est jamais un aplat de bouton. Boutons secondaires : contour `trait-fort` sur `surface`.
-- **Bleu `primaire`** : liens (toujours soulignés), entrée de navigation active, option active d'un segment, remplissage de la barre de progression, bulle de question en `primaire-doux`. Survol d'un lien : `primaire-vif`.
+- **Bleu `primaire`** : liens (toujours soulignés), entrée de navigation active, liseré de l'option active d'un segment (fond `primaire-doux`, jamais d'aplat bleu sur un bouton), remplissage de la barre de progression, bulle de question en `primaire-doux`. Survol d'un lien : `primaire-vif`.
 - **Aplat sombre `encre-pleine`** : en-tête et journal de progression, avec `sur-encre` et `sur-encre-attenue`. Le pictogramme y garde ses valeurs sombres, comme dans la charte.
-- **Gamme météo** : fond pâle de pastille et point saturé. Le texte de la pastille reste en `texte` et donne le nom de la couleur : la couleur ne porte jamais seule l'information.
+- **Gamme météo** : fond pâle de pastille et point saturé, à 3:1 au moins sur ce fond (en clair, `accent` pour le jaune et `alerte-texte` pour l'orange). Le texte de la pastille reste en `texte` et donne le nom de la couleur : la couleur ne porte jamais seule l'information.
 - **Statuts** : `succes` sur `succes-doux` pour « Contrôle : conforme » et la Chaîne terminée ; `alerte-texte` sur `alerte-doux` pour « Hors périmètre » ; `erreur` sur `erreur-doux` pour les échecs. Les mêmes paires marquent « Oui », « À surveiller » et « Non » de la fiche d'outillage.
 - **Surfaces** : fond de page `fond`, cartes `surface` bordées de `trait`, texte `texte`, texte secondaire `texte-attenue`. Les champs ont un contour `trait-fort`.
 - **Focus** : anneau de 2 px décalé de 2 px, en `focus` ; en `sur-encre` sur l'aplat sombre de l'en-tête.
@@ -403,7 +405,7 @@ Les noms ci-dessous sont aussi ceux des tableaux de `EXPERIENCE.md`.
 
 - **Lien de retour** : « ← Carte météo » en légende, au-dessus du titre.
 - **Formulaire de sélection** : champ de sélection et `{components.bouton-secondaire}` « Afficher », alignés en bas. Il sert aussi pour le ticket de la Pseudonymisation.
-- **Segment** : options dans une piste `{components.segment}`, l'option active en `{colors.primaire}` sur texte blanc. Il sert au Palier (détail) et à la période (avant / après).
+- **Segment** : options dans une piste `{components.segment}`, l'option active en `{colors.primaire-doux}` avec un liseré `{colors.primaire}` de 2px, texte `{colors.texte}` : le bleu n'est jamais un aplat de bouton. Il sert au Palier (détail) et à la période (avant / après).
 - **Tuile KPI** : libellé en légende, valeur en `{typography.chiffre-kpi}`, précision en légende.
 - **Tableau des Règles déclenchantes** : colonnes Règle, Valeur, Météo, Tickets en cause. Règle et valeur en `{typography.code}`, Météo en pastille. Les trois premières clés de ticket sont affichées, suivies de « +N ».
 - **Explication** : carte avec le titre, le badge de contrôle à droite, le texte en `{typography.corps-lecture}` et ses Citations en clés de ticket, puis une légende de provenance. Phrases retirées au contrôle : liste en légende sous le texte.

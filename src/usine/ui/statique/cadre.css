@@ -380,13 +380,14 @@ code {
   font-weight: 700;
   white-space: nowrap;
 }
+/* Point de la pastille : marque non textuelle à 3:1 sur son fond doux (accent et alerte-texte en clair). */
 .pastille-meteo-point { width: 12px; height: 12px; border-radius: 50%; }
 .pastille-meteo--vert { background: var(--succes-doux); }
 .pastille-meteo--vert .pastille-meteo-point { background: var(--succes); }
 .pastille-meteo--jaune { background: var(--accent-doux); }
-.pastille-meteo--jaune .pastille-meteo-point { background: var(--accent-aplat); }
+.pastille-meteo--jaune .pastille-meteo-point { background: var(--accent); }
 .pastille-meteo--orange { background: var(--alerte-doux); }
-.pastille-meteo--orange .pastille-meteo-point { background: var(--alerte); }
+.pastille-meteo--orange .pastille-meteo-point { background: var(--alerte-texte); }
 .pastille-meteo--rouge { background: var(--erreur-doux); }
 .pastille-meteo--rouge .pastille-meteo-point { background: var(--erreur); }
 
@@ -424,7 +425,8 @@ code {
 
 .segment { display: inline-flex; gap: 4px; padding: 4px; border-radius: 16px; background: var(--surface-alt); }
 .segment-option { border: 0; background: transparent; color: var(--texte); }
-.segment-option[aria-pressed="true"] { background: var(--primaire); color: var(--sur-primaire); }
+/* Option choisie : fond de sélection et liseré bleu ; le bleu n'est jamais un aplat de bouton. */
+.segment-option[aria-pressed="true"] { background: var(--primaire-doux); color: var(--texte); box-shadow: inset 0 0 0 2px var(--primaire); }
 
 .table-defile { overflow-x: auto; }
 .table-defile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -13,7 +13,7 @@ from usine.ui.serveur import REPERTOIRE_STATIQUE, _page_erreur
 
 CSS = (REPERTOIRE_STATIQUE / "cadre.css").read_text(encoding="utf-8")
 SANS_COMMENTAIRE = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
-HEX = re.compile(r"#[0-9a-fA-F]{6}\b")
+HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b")
 
 
 def _declarations(corps: str) -> dict[str, str]:
@@ -164,6 +164,32 @@ def test_marque_non_textuelle_a_3_pour_1(
     assert ratio >= 3.0, f"{etiquette} ({theme}) : {ratio:.2f}:1"
 
 
+@pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("couleur", ["vert", "jaune", "orange", "rouge"])
+def test_point_meteo_a_3_pour_1_sur_sa_pastille(couleur: str, theme: str) -> None:
+    jetons = THEMES[theme]
+    point = _propriete(f".pastille-meteo--{couleur} .pastille-meteo-point", "background")
+    fond = _propriete(f".pastille-meteo--{couleur}", "background")
+    ratio = contraste(_resoudre(point, jetons), _resoudre(fond, jetons))
+    assert ratio >= 3.0, f"point {couleur} ({theme}) : {ratio:.2f}:1"
+
+
+BOUTONS = re.compile(r"(^|[\s>+~])(button|\.bouton[\w-]*|\.segment-option|\.question-choix)\b")
+
+
+def test_le_bleu_n_est_jamais_un_aplat_de_bouton() -> None:
+    fautifs = [
+        sel
+        for liste, decl in REGLES
+        for sel in liste
+        if BOUTONS.search(sel)
+        and re.match(
+            r"var\(--primaire(-vif)?\)", decl.get("background", decl.get("background-color", ""))
+        )
+    ]
+    assert fautifs == []
+
+
 def test_bouton_principal_est_neutre() -> None:
     assert _propriete(".bouton-primaire", "background") == "var(--bouton)"
     assert _propriete(".bouton-primaire", "color") == "var(--sur-bouton)"
@@ -227,4 +253,6 @@ def test_page_erreur_avec_icone() -> None:
 
 def test_icones_presentes() -> None:
     for nom in ("favicon.svg", "pictogramme.svg"):
-        assert (REPERTOIRE_STATIQUE / nom).read_text(encoding="utf-8").startswith("<!--")
+        svg = (REPERTOIRE_STATIQUE / nom).read_text(encoding="utf-8")
+        assert re.search(r"<svg\b[^>]*viewBox=", svg), nom
+        assert svg.rstrip().endswith("</svg>"), nom

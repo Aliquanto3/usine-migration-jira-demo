@@ -433,7 +433,7 @@ def _page_erreur(message: str, statut: int) -> HTMLResponse:
 </head>
 <body>
   <main class="contenu page-erreur">
-    <h1 id="titre-ecran">Livrable indisponible</h1>
+    <div class="titre-ligne"><h1 id="titre-ecran">Livrable indisponible</h1></div>
     <p class="bandeau bandeau--erreur" role="alert">{texte}</p>
     <p><a href="/">{html.escape(LIENS_CARTE.libelle)}</a></p>
   </main>
