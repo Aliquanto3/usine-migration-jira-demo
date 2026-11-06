@@ -2,9 +2,15 @@
 
 Démonstrateur personnel : automatiser le reporting d'une usine de migration de SI à partir de Jira (ETL, KPI, météo calculée par règles, Excel et PowerPoint générés), puis l'enrichir par un LLM (explication sourcée des météos rouges, prévision de sortie du rouge narrée, agent conversationnel en lecture seule).
 
-![Interface web de démo : carte météo des Entités, puis l'Agent, qui répond « Pourquoi ENT-B est-elle rouge ? » avec des chiffres et des tickets vérifiés, et refuse une question hors de ses données](docs/media/demo-agent.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/charte-v2/carte-meteo-sombre.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/media/charte-v2/carte-meteo-clair.png">
+  <img src="docs/media/charte-v2/carte-meteo-sombre.png" alt="Interface web de démo : carte météo des Entités, avec le nombre d'Entités par couleur et le tableau des règles et des tickets en cause">
+</picture>
 
 *Interface web actuelle (`uv run usine ui`), enregistrée en Mode repli sur le Passage fictif de `demo/repli/`. En 25 secondes : la météo de chaque Entité, calculée par règles depuis Jira, puis l'Agent. Sa réponse cite des chiffres et des tickets, chacun vérifié contre les données du Passage (« Contrôle : conforme »), et ses outils appelés sont affichés. Une question sans donnée pour y répondre est refusée (« Hors périmètre : aucune donnée inventée »). En Mode repli, les réponses sont celles enregistrées lors d'une répétition, rejouées sans LLM.*
+
+La capture suit le thème de GitHub, sombre ou clair. Le GIF de la démo (`docs/media/demo-agent.gif`) montre l'ancienne apparence et sera refait.
 
 Toutes les données sont **fictives ou publiques**. Aucun nom, libellé, gabarit ni règle d'une organisation réelle.
 

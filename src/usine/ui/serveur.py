@@ -428,7 +428,7 @@ def _page_erreur(message: str, statut: int) -> HTMLResponse:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Livrable indisponible · Usine de migration</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="/statique/favicon.svg">
   <link rel="stylesheet" href="/statique/cadre.css">
 </head>
 <body>
